@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}Instagram 큐 · ADMIN{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('web.index') }}" class="back-link">← 다이제스트로</a>
+
+<div class="brand">DAILY <span class="accent">SYNC</span> · INSTAGRAM</div>
+<h1 class="page-title" style="font-size: 22px;">인스타 카드뉴스 큐</h1>
+
+<div class="page-meta" style="margin-bottom: 1.25rem;">
+  {% if ig_configured %}
+    <span style="color:#34d399;">● Graph API 설정 완료</span>
+  {% else %}
+    <span style="color:#f87171;">● ENV 미설정 — IG_USER_ID / IG_ACCESS_TOKEN / PUBLIC_BASE_URL</span>
+    <a href="#" onclick="alert('docs/instagram_setup.md 참조'); return false;" style="margin-left:8px;font-size:11px;">설정 방법</a>
+  {% endif %}
+  {% if require_approval %}
+    <span style="margin-left:14px;color:var(--text-muted);font-size:12px;">· 게시 전 수동 승인 모드</span>
+  {% else %}
+    <span style="margin-left:14px;color:var(--text-muted);font-size:12px;">· 자동 게시 모드 (INSTA_REQUIRE_APPROVAL=false)</span>
+  {% endif %}
+</div>
+
+<!-- 빠른 생성 액션 -->
+<div style="margin-bottom: 1.25rem; display:flex; gap:10px; flex-wrap:wrap;">
+  <button onclick="genNow('news')" class="gen-btn">+ 오늘의 뉴스 카드 생성</button>
+  <button onclick="genNow('tooltip')" class="gen-btn">+ 오늘의 AI 툴팁 생성</button>
+  <button onclick="renderPending()" class="gen-btn">↻ draft 일괄 렌더</button>
+</div>
+
+<!-- 상태 필터 -->
+<div style="margin-bottom: 1rem; font-size: 12px;">
+  {% set all_statuses = ['', 'draft', 'ready', 'scheduled', 'posting', 'posted', 'failed'] %}
+  {% for s in all_statuses %}
+    {% set active = (s == status_filter) or (not s and not status_filter) %}
+    <a href="?status={{ s }}"
+       style="margin-right:10px; padding:4px 10px; border-radius:14px;
+              background: {{ 'var(--accent-bg)' if active else 'transparent' }};
+              border: 1px solid {{ 'var(--accent-dim)' if active else 'var(--border)' }};
+              color: {{ 'var(--accent)' if active else 'var(--text-muted)' }};
+              text-decoration: none; font-weight: {{ '600' if active else '400' }};">
+      {{ s or '전체' }}{% if s and counts.get(s) %} ({{ counts[s] }}){% endif %}
+    </a>
+  {% endfor %}
+</div>
+
+{% if not posts %}
+  <p style="color:var(--text-dim); padding:2rem 0; text-align:center;">큐에 항목이 없습니다.</p>
+{% else %}
+<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px,1fr)); gap:16px;">
+  {% for p in posts %}
+    {% set kst_created = p.created_at + kst_offset %}
+    {% set thumb = p.image_paths[0] if p.image_paths else '' %}
+    <div class="insta-card" data-id="{{ p.id }}"
+         style="background:var(--bg-card); border:1px solid var(--border); border-radius:12px; overflow:hidden;">
+      <div style="aspect-ratio:1; background:#0a0a14; position:relative;">
+        {% if thumb %}
+          <img src="{{ thumb }}" alt="" style="width:100%; height:100%; object-fit:cover; display:block;">
+        {% else %}
+          <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-dim);font-size:13px;">
+            (미렌더)
+          </div>
+        {% endif %}
+        <div style="position:absolute; top:8px; left:8px;
+                    background:rgba(0,0,0,0.65); color:#fff; font-size:10px;
+                    padding:3px 8px; border-radius:10px; text-transform:uppercase; letter-spacing:0.5px;">
+          {{ p.content_type }}
+        </div>
+        <div style="position:absolute; top:8px; right:8px;
+                    background:{% if p.status == 'posted' %}#10b981{% elif p.status == 'failed' %}#dc2626{% elif p.status == 'posting' %}#f59e0b{% elif p.status == 'ready' %}#3b82f6{% else %}rgba(0,0,0,0.65){% endif %};
+                    color:#fff; font-size:10px; padding:3px 8px; border-radius:10px;">
+          {{ p.status }}
+        </div>
+        {% if p.image_paths %}
+          <div style="position:absolute; bottom:8px; right:8px;
+                      background:rgba(0,0,0,0.55); color:#fff; font-size:10px;
+                      padding:2px 7px; border-radius:8px;">
+            {{ p.image_paths|length }} 장
+          </div>
+        {% endif %}
+      </div>
+      <div style="padding:12px 14px;">
+        <div style="font-size:13px; font-weight:600; line-height:1.3; margin-bottom:6px; min-height:34px;
+                    overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;">
+          {{ p.title }}
+        </div>
+        <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">
+          #{{ p.id }} · {{ kst_created.strftime('%m-%d %H:%M') }}
+          {% if p.scheduled_at %} · 예약 {{ (p.scheduled_at + kst_offset).strftime('%m-%d %H:%M') }}{% endif %}
+        </div>
+        {% if p.error %}
+        <div style="font-size:11px; color:#f87171; margin-bottom:8px; padding:6px 8px;
+                    background:rgba(220,38,38,0.1); border-radius:6px; word-break:break-all;">
+          {{ p.error[:200] }}
+        </div>
+        {% endif %}
+        <div style="display:flex; gap:6px; flex-wrap:wrap;">
+          <a href="{{ url_for('insta.preview_all', post_id=p.id) }}" target="_blank"
+             class="act-btn">미리보기</a>
+          <a href="{{ url_for('insta.admin_detail', post_id=p.id) }}" class="act-btn">상세</a>
+          {% if p.status == 'draft' %}
+            <button class="act-btn" onclick="act({{ p.id }}, 'render')">렌더</button>
+          {% endif %}
+          {% if p.status == 'ready' and ig_configured %}
+            <button class="act-btn act-primary" onclick="postNow({{ p.id }})">지금 게시</button>
+          {% endif %}
+          {% if p.status in ['draft','ready','scheduled'] %}
+            <button class="act-btn act-danger" onclick="act({{ p.id }}, 'reject', '거절하시겠습니까?')">거절</button>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<style>
+  .gen-btn {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 14px; font-size: 13px;
+    cursor: pointer; font-family: inherit; color: var(--text);
+  }
+  .gen-btn:hover { background: var(--accent-bg); border-color: var(--accent-dim); color: var(--accent); }
+  .act-btn {
+    background: transparent; border: 1px solid var(--border);
+    border-radius: 6px; padding: 4px 10px; font-size: 11px;
+    cursor: pointer; font-family: inherit; color: var(--text-body);
+    text-decoration: none; display: inline-block;
+  }
+  .act-btn:hover { background: var(--bg-soft); }
+  .act-primary { background: var(--accent-bg); border-color: var(--accent-dim); color: var(--accent); font-weight: 600; }
+  .act-danger:hover { background: rgba(220,38,38,0.15); border-color: #dc2626; color: #f87171; }
+</style>
+
+<script>
+async function genNow(kind) {
+  if (!confirm(kind === 'news' ? '오늘의 뉴스 카드 생성?' : '오늘의 AI 툴팁 생성?')) return;
+  const btn = event.target; const old = btn.textContent;
+  btn.textContent = '생성 중...'; btn.disabled = true;
+  try {
+    const r = await fetch(`/insta/api/generate/${kind}`, {method:'POST'});
+    const j = await r.json();
+    alert(`${kind} 결과: ${JSON.stringify(j.stats)}`);
+    location.reload();
+  } catch (e) { alert('실패: ' + e); }
+  finally { btn.textContent = old; btn.disabled = false; }
+}
+
+async function renderPending() {
+  if (!confirm('draft 상태 모두 렌더링? (몇 초~수 십초 소요)')) return;
+  const btn = event.target; const old = btn.textContent;
+  btn.textContent = '렌더 중...'; btn.disabled = true;
+  try {
+    // 큐의 draft 들을 하나씩 렌더 — 백엔드의 render_pending 잡 직접 호출 라우트
+    // 간단히 각 draft 카드에 대해 render API 호출
+    const draftIds = [...document.querySelectorAll('.insta-card')]
+      .filter(c => c.querySelector('button[onclick*="render"]'))
+      .map(c => parseInt(c.dataset.id));
+    let ok = 0;
+    for (const id of draftIds) {
+      const r = await fetch(`/insta/api/${id}/render`, {method:'POST'});
+      const j = await r.json();
+      if (j.ok) ok++;
+    }
+    alert(`${ok}/${draftIds.length} 렌더 성공`);
+    location.reload();
+  } catch (e) { alert('실패: ' + e); }
+  finally { btn.textContent = old; btn.disabled = false; }
+}
+
+async function act(id, action, confirmMsg) {
+  if (confirmMsg && !confirm(confirmMsg)) return;
+  try {
+    const r = await fetch(`/insta/api/${id}/${action}`, {method:'POST'});
+    const j = await r.json();
+    if (j.ok) location.reload(); else alert('실패: ' + (j.error || JSON.stringify(j)));
+  } catch (e) { alert('실패: ' + e); }
+}
+
+async function postNow(id) {
+  if (!confirm('인스타에 지금 게시하시겠습니까? (되돌릴 수 없음)')) return;
+  try {
+    const r = await fetch(`/insta/api/${id}/post-now`, {method:'POST'});
+    const j = await r.json();
+    if (j.ok) {
+      alert('게시 시작 — 백그라운드 처리. 30초~몇 분 후 새로고침해서 확인하세요.');
+    } else {
+      alert('실패: ' + (j.error || JSON.stringify(j)));
+    }
+  } catch (e) { alert('실패: ' + e); }
+}
+</script>
+
+{% endblock %}

@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>insta card {{ post.id }} - {{ slide_index + 1 }}/{{ total }}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 1080px;
+    height: 1080px;
+    overflow: hidden;
+    background: #000;
+    font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: geometricPrecision;
+  }
+  .card {
+    width: 1080px;
+    height: 1080px;
+    position: relative;
+    padding: 80px 80px 110px;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* 콘텐츠 타입별 배경 */
+  .news      { background: linear-gradient(140deg, #1a1f3a 0%, #3a2860 55%, #6b1d54 100%); }
+  .tooltip   { background: linear-gradient(140deg, #0d2548 0%, #1a4f7a 55%, #1e6b8c 100%); }
+  .promo     { background: linear-gradient(140deg, #2b1a52 0%, #4f1a82 55%, #8c1e6b 100%); }
+
+  /* 표지 슬라이드 — 가운데 정렬, 큰 후킹 */
+  .cover {
+    justify-content: center;
+    align-items: flex-start;
+    text-align: left;
+  }
+  .cover .topbadge {
+    font-size: 26px;
+    font-weight: 500;
+    letter-spacing: 4px;
+    opacity: 0.75;
+    margin-bottom: 36px;
+    text-transform: uppercase;
+  }
+  .cover .hook {
+    font-size: 124px;
+    font-weight: 900;
+    line-height: 1.05;
+    letter-spacing: -2px;
+    word-break: keep-all;
+    margin-bottom: 36px;
+    max-width: 920px;
+  }
+  .cover .subhead {
+    font-size: 38px;
+    font-weight: 500;
+    line-height: 1.4;
+    opacity: 0.88;
+    max-width: 880px;
+    word-break: keep-all;
+  }
+
+  /* 일반 본문 슬라이드 (point/step) */
+  .point, .step {
+    justify-content: flex-start;
+    padding-top: 120px;
+  }
+  .label {
+    display: inline-block;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    background: rgba(255,255,255,0.18);
+    padding: 12px 24px;
+    border-radius: 28px;
+    margin-bottom: 40px;
+  }
+  .headline {
+    font-size: 84px;
+    font-weight: 900;
+    line-height: 1.12;
+    letter-spacing: -1.5px;
+    word-break: keep-all;
+    margin-bottom: 44px;
+    max-width: 920px;
+  }
+  .body {
+    font-size: 40px;
+    font-weight: 400;
+    line-height: 1.55;
+    word-break: keep-all;
+    max-width: 920px;
+    color: rgba(255,255,255,0.95);
+    white-space: pre-wrap;
+  }
+
+  /* 예시 슬라이드 — 코드/프롬프트 블록 강조 */
+  .example .body {
+    font-size: 36px;
+  }
+  .example-block {
+    margin-top: 28px;
+    padding: 28px 36px;
+    background: rgba(0,0,0,0.32);
+    border-left: 8px solid rgba(255,255,255,0.6);
+    border-radius: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 32px;
+    line-height: 1.45;
+    color: #ffd17a;
+    word-break: keep-all;
+    white-space: pre-wrap;
+  }
+
+  /* CTA */
+  .cta {
+    justify-content: center;
+  }
+  .cta .headline {
+    font-size: 96px;
+    margin-bottom: 36px;
+  }
+  .cta .body {
+    font-size: 42px;
+    line-height: 1.5;
+  }
+  .cta-bookmark {
+    margin-top: 60px;
+    display: flex;
+    gap: 24px;
+    align-items: center;
+    font-size: 32px;
+    opacity: 0.9;
+  }
+  .cta-bookmark .icon {
+    font-size: 48px;
+  }
+
+  /* 푸터 — 모든 슬라이드 공통 */
+  .footer {
+    position: absolute;
+    left: 80px;
+    right: 80px;
+    bottom: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 26px;
+    font-weight: 500;
+    opacity: 0.8;
+  }
+  .footer .brand {
+    letter-spacing: 0.5px;
+  }
+  .footer .brand .dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #fff;
+    margin-right: 12px;
+    vertical-align: middle;
+    opacity: 0.9;
+  }
+  .footer .pager {
+    letter-spacing: 1px;
+  }
+
+  /* 표지에는 큰 번호 표시 없음, 본문/CTA만 1/N 표시 */
+  .cover .footer .pager { opacity: 0; }
+</style>
+</head>
+<body>
+<div class="card {{ post.content_type }}">
+
+  {% if slide.type == 'cover' %}
+    {% if post.content_type == 'tooltip' %}
+      <div class="cover" style="display:flex;flex-direction:column;justify-content:center;height:100%;">
+        <div class="topbadge">AI TOOL TIP</div>
+        <div class="hook">{{ slide.headline }}</div>
+        {% if slide.subhead %}<div class="subhead">{{ slide.subhead }}</div>{% endif %}
+      </div>
+    {% else %}
+      <div class="cover" style="display:flex;flex-direction:column;justify-content:center;height:100%;">
+        <div class="topbadge">TODAY · AI NEWS</div>
+        <div class="hook">{{ slide.headline }}</div>
+        {% if slide.subhead %}<div class="subhead">{{ slide.subhead }}</div>{% endif %}
+      </div>
+    {% endif %}
+
+  {% elif slide.type == 'point' or slide.type == 'step' %}
+    {% if slide.label %}<span class="label">{{ slide.label }}</span>{% endif %}
+    <div class="headline">{{ slide.headline }}</div>
+    <div class="body">{{ slide.body }}</div>
+
+  {% elif slide.type == 'example' %}
+    {% if slide.label %}<span class="label">{{ slide.label }}</span>{% endif %}
+    <div class="headline">{{ slide.headline }}</div>
+    <div class="example-block">{{ slide.body }}</div>
+
+  {% elif slide.type == 'cta' %}
+    <div class="cta" style="display:flex;flex-direction:column;justify-content:center;height:100%;">
+      <div class="headline">{{ slide.headline }}</div>
+      <div class="body">{{ slide.body }}</div>
+      <div class="cta-bookmark"><span class="icon">★</span> 저장 · 공유로 다시 보세요</div>
+    </div>
+
+  {% else %}
+    {# 알 수 없는 타입 — 기본 렌더링 #}
+    {% if slide.label %}<span class="label">{{ slide.label }}</span>{% endif %}
+    {% if slide.headline %}<div class="headline">{{ slide.headline }}</div>{% endif %}
+    {% if slide.body %}<div class="body">{{ slide.body }}</div>{% endif %}
+  {% endif %}
+
+  <div class="footer">
+    <div class="brand"><span class="dot"></span>{{ brand_name }}</div>
+    <div class="pager">{{ slide_index + 1 }} / {{ total }}</div>
+  </div>
+</div>
+</body>
+</html>

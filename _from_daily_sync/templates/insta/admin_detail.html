@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}#{{ post.id }} · {{ post.title }}{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('insta.admin_queue') }}" class="back-link">← 큐로</a>
+
+<h1 class="page-title" style="font-size:20px; margin-top:0.5rem;">
+  #{{ post.id }} · {{ post.title }}
+</h1>
+<div class="page-meta" style="margin-bottom:1.5rem;">
+  type={{ post.content_type }} · status={{ post.status }}
+  · 생성 {{ (post.created_at + kst_offset).strftime('%m-%d %H:%M') }}
+  {% if post.posted_at %} · 게시 {{ (post.posted_at + kst_offset).strftime('%m-%d %H:%M') }}{% endif %}
+  {% if post.ig_permalink %} · <a href="{{ post.ig_permalink }}" target="_blank">인스타에서 보기 ↗</a>{% endif %}
+</div>
+
+<div style="display:grid; grid-template-columns: 1fr 360px; gap:24px;">
+  <!-- 왼쪽: 슬라이드 그리드 -->
+  <div>
+    <h2 style="font-size:13px; color:var(--text-dim); margin-bottom:10px; letter-spacing:0.05em; text-transform:uppercase;">
+      슬라이드 {{ post.slides|length }}장
+    </h2>
+    <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:14px;">
+      {% for slide in post.slides %}
+        {% set i = loop.index %}
+        <div style="background:#000; border:1px solid var(--border); border-radius:10px; overflow:hidden;">
+          {% if post.image_paths and post.image_paths|length >= i %}
+            <img src="{{ post.image_paths[i-1] }}" style="width:100%; aspect-ratio:1; object-fit:cover; display:block;">
+          {% else %}
+            <iframe src="/insta/preview/{{ post.id }}/{{ i }}"
+                    width="1080" height="1080" frameborder="0"
+                    style="width:220px;height:220px;transform:scale(0.2037);transform-origin:top left;
+                           border:0; pointer-events:none;"></iframe>
+          {% endif %}
+          <div style="padding:8px 10px; font-size:11px; color:var(--text-dim);">
+            {{ i }} / {{ post.slides|length }} — {{ slide.type }}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- 오른쪽: 편집 + 액션 -->
+  <div>
+    <h2 style="font-size:13px; color:var(--text-dim); margin-bottom:10px; letter-spacing:0.05em; text-transform:uppercase;">
+      캡션 · 해시태그
+    </h2>
+    <textarea id="caption" rows="6"
+              style="width:100%; padding:10px; background:var(--bg-card); color:var(--text);
+                     border:1px solid var(--border); border-radius:8px; font-family:inherit;
+                     font-size:13px; line-height:1.5; resize:vertical;">{{ post.caption }}</textarea>
+
+    <input id="hashtags" value="{{ post.hashtags|join(' ') }}"
+           style="width:100%; margin-top:8px; padding:8px 10px; background:var(--bg-card); color:var(--text);
+                  border:1px solid var(--border); border-radius:8px; font-family:inherit; font-size:13px;">
+
+    <div style="margin-top:10px; display:flex; gap:8px;">
+      <button onclick="saveEdit()" class="primary-btn">저장</button>
+      <span id="saveStatus" style="font-size:11px; color:var(--text-dim); align-self:center;"></span>
+    </div>
+
+    <hr style="margin:1.5rem 0; border:0; border-top:1px solid var(--border);">
+
+    <h2 style="font-size:13px; color:var(--text-dim); margin-bottom:10px; letter-spacing:0.05em; text-transform:uppercase;">
+      액션
+    </h2>
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      {% if post.status == 'draft' or post.status == 'failed' %}
+        <button onclick="act('render')" class="action-btn">↻ 다시 렌더</button>
+      {% endif %}
+      {% if post.status == 'ready' or post.status == 'scheduled' %}
+        <button onclick="postNow()" class="action-btn primary-btn">▶ 지금 게시</button>
+      {% endif %}
+      <button onclick="act('approve')" class="action-btn">✓ 승인</button>
+      <button onclick="act('reject', '거절하시겠습니까?')" class="action-btn danger">✕ 거절</button>
+    </div>
+
+    {% if post.error %}
+    <div style="margin-top:1rem; padding:10px; background:rgba(220,38,38,0.1); border-radius:8px;
+                font-size:12px; color:#fca5a5; word-break:break-all;">
+      <strong>에러:</strong> {{ post.error }}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<style>
+  .action-btn, .primary-btn {
+    padding:8px 14px; background:var(--bg-card); border:1px solid var(--border);
+    border-radius:8px; cursor:pointer; font-family:inherit; font-size:13px; color:var(--text);
+    text-align:left;
+  }
+  .action-btn:hover { background:var(--bg-soft); }
+  .primary-btn { background:var(--accent-bg); border-color:var(--accent-dim); color:var(--accent); font-weight:600; }
+  .danger:hover { background:rgba(220,38,38,0.15); border-color:#dc2626; color:#f87171; }
+</style>
+
+<script>
+const POST_ID = {{ post.id }};
+
+async function saveEdit() {
+  const caption = document.getElementById('caption').value;
+  const hashtags = document.getElementById('hashtags').value;
+  const status = document.getElementById('saveStatus');
+  status.textContent = '저장 중...';
+  try {
+    const r = await fetch(`/insta/api/${POST_ID}/edit`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({caption, hashtags}),
+    });
+    const j = await r.json();
+    status.textContent = j.ok ? '저장됨' : '실패';
+  } catch (e) { status.textContent = '에러: ' + e; }
+}
+
+async function act(action, confirmMsg) {
+  if (confirmMsg && !confirm(confirmMsg)) return;
+  const r = await fetch(`/insta/api/${POST_ID}/${action}`, {method:'POST'});
+  const j = await r.json();
+  if (j.ok) location.reload(); else alert('실패: ' + (j.error || JSON.stringify(j)));
+}
+
+async function postNow() {
+  if (!confirm('인스타에 지금 게시하시겠습니까? (되돌릴 수 없음)')) return;
+  const r = await fetch(`/insta/api/${POST_ID}/post-now`, {method:'POST'});
+  const j = await r.json();
+  if (j.ok) alert('게시 시작 — 백그라운드 처리. 잠시 후 새로고침.');
+  else alert('실패: ' + (j.error || JSON.stringify(j)));
+}
+</script>
+
+{% endblock %}

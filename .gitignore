@@ -1,0 +1,46 @@
+# ===== 비밀/환경설정 (절대 커밋 금지) =====
+.env
+.env.*
+!.env.example
+*.local
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+
+# ===== 런타임 생성 데이터 (코드 아님) =====
+sessions/
+uploads/
+cache/
+*.db
+*.sqlite
+*.sqlite3
+
+# ===== 로그 =====
+*.log
+_server_restart.*
+
+# ===== 외부 실행 바이너리 (각자 내려받음) =====
+cloudflared.exe
+cloudflared.exe.exe
+cloudflared
+ngrok.exe
+ngrok
+
+# ===== 백업/임시 =====
+*.bak_*
+__*.js
+__*.mjs
+*.tmp
+
+# ===== 에디터/OS =====
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

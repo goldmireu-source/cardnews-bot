@@ -1,0 +1,1407 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Cardnews Auto · 데일리 자동화</title>
+<link rel="stylesheet" as="style" crossorigin
+  href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
+<style>
+:root {
+  --bg: #0c0d12;
+  --panel: #14161f;
+  --panel-2: #1c1f2c;
+  --panel-3: #232737;
+  --line: #2a2e3e;
+  --text: #ebeef5;
+  --text-dim: #8b91a6;
+  --text-faint: #5a607a;
+  --accent: #6ee7ff;
+  --accent-warm: #ffb86b;
+  --ai: #c89bff;
+  --success: #5ee29a;
+  --danger: #ff6b86;
+  --warning: #ffd166;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; min-height: 100%; }
+body {
+  font-family: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+button { font-family: inherit; cursor: pointer; }
+input, textarea, select { font-family: inherit; }
+
+.shell {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+/* Header */
+header.top {
+  position: sticky;
+  top: 0;
+  background: rgba(12,13,18,0.92);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+  z-index: 50;
+}
+.top-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+  gap: 16px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 15px;
+}
+.brand::before {
+  content: "";
+  width: 6px; height: 18px;
+  background: linear-gradient(180deg, var(--accent), var(--ai));
+  border-radius: 2px;
+}
+.brand .ver {
+  font-size: 10px;
+  color: var(--ai);
+  padding: 2px 8px;
+  border: 1px solid rgba(200,155,255,0.3);
+  border-radius: 100px;
+  background: rgba(200,155,255,0.06);
+  letter-spacing: 0.05em;
+  margin-left: 6px;
+}
+.top-links {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.top-links a {
+  color: var(--text-dim);
+  text-decoration: none;
+  font-size: 12.5px;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+.top-links a:hover { color: var(--text); background: var(--panel-2); }
+.top-links a.ig {
+  color: var(--accent);
+  border: 1px solid rgba(110,231,255,0.25);
+}
+
+/* Tabs */
+nav.tabs {
+  display: flex;
+  gap: 4px;
+  margin: 18px 0 14px;
+  border-bottom: 1px solid var(--line);
+}
+nav.tabs button {
+  background: transparent;
+  border: 0;
+  color: var(--text-dim);
+  padding: 10px 16px;
+  font-size: 13.5px;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+nav.tabs button:hover { color: var(--text); }
+nav.tabs button.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+/* Panels */
+.panel { display: none; padding: 8px 0 60px; }
+.panel.active { display: block; }
+
+/* Section heading */
+.section-h {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 4px 0 14px;
+}
+.section-h h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+.section-h p {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 12.5px;
+}
+
+/* Filter bar */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-bottom: 14px;
+}
+.filters label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.filters select, .filters input[type=date], .filters input[type=text] {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12.5px;
+  min-width: 120px;
+}
+.filters .spacer { flex: 1; }
+.filters .checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-dim);
+  font-size: 12.5px;
+  user-select: none;
+  cursor: pointer;
+}
+.filters .checkbox input { accent-color: var(--accent); }
+
+/* List */
+.list { display: grid; grid-template-columns: 1fr; gap: 10px; }
+@media (min-width: 900px) {
+  .list { grid-template-columns: 1fr 1fr; }
+}
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+}
+.card .row1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  padding: 2px 8px;
+  border-radius: 100px;
+  background: var(--panel-2);
+  color: var(--text-dim);
+  border: 1px solid var(--line);
+}
+.chip.important {
+  color: var(--accent-warm);
+  border-color: rgba(255,184,107,0.3);
+  background: rgba(255,184,107,0.06);
+}
+.chip.saved {
+  color: var(--ai);
+  border-color: rgba(200,155,255,0.3);
+  background: rgba(200,155,255,0.06);
+}
+.chip.date { color: var(--accent); border-color: rgba(110,231,255,0.25); background: rgba(110,231,255,0.06); }
+.chip.kind { color: var(--success); border-color: rgba(94,226,154,0.3); background: rgba(94,226,154,0.06); }
+
+.card h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.card p.summary {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.card .actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+.btn {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 7px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.btn:hover { background: var(--panel-3); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn.primary {
+  background: linear-gradient(180deg, var(--accent), #4cc6e8);
+  color: #08090d;
+  border: 0;
+  font-weight: 700;
+}
+.btn.primary:hover { filter: brightness(1.1); }
+.btn.ai {
+  background: linear-gradient(180deg, var(--ai), #a87de0);
+  color: #08090d;
+  border: 0;
+  font-weight: 700;
+}
+.btn.ai:hover { filter: brightness(1.1); }
+.btn.ghost { background: transparent; color: var(--text-dim); }
+.btn.danger { color: var(--danger); border-color: rgba(255,107,134,0.3); }
+
+/* Form */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+@media (min-width: 800px) {
+  .form-grid { grid-template-columns: 1fr 1fr; }
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.field label {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+.field input, .field select, .field textarea {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13.5px;
+}
+.field textarea { min-height: 100px; resize: vertical; }
+.field .hint { font-size: 11.5px; color: var(--text-faint); }
+.form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
+
+/* Templates */
+.tpl-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+.tpl {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text);
+  transition: all 0.15s;
+}
+.tpl:hover { border-color: var(--accent); transform: translateY(-1px); }
+.tpl.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(110,231,255,0.15); }
+.tpl h4 { margin: 0 0 4px; font-size: 13.5px; }
+.tpl p { margin: 0; font-size: 11.5px; color: var(--text-dim); line-height: 1.5; }
+.tpl .emoji { font-size: 22px; margin-bottom: 6px; }
+
+/* Empty */
+.empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-faint);
+  font-size: 13px;
+  background: var(--panel);
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+}
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: var(--panel-3);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  max-width: 380px;
+  z-index: 1000;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  animation: slideIn 0.2s ease-out;
+}
+.toast.success { border-left-color: var(--success); }
+.toast.error { border-left-color: var(--danger); }
+.toast.warning { border-left-color: var(--warning); }
+.toast.info { border-left-color: var(--accent); }
+@keyframes slideIn {
+  from { transform: translateX(20px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* 새로 만든 카드 강조 — 6초간 깜빡 + 발광 테두리 */
+.card.just-created {
+  animation: justCreatedGlow 1.4s ease-in-out 0s 4;
+  border-color: var(--accent) !important;
+}
+@keyframes justCreatedGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(110,231,255,0); }
+  50%      { box-shadow: 0 0 0 6px rgba(110,231,255,0.25); }
+}
+
+/* Modal */
+.modal-back {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 20px;
+}
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  max-width: 560px;
+  width: 100%;
+  max-height: 85vh;
+  overflow: auto;
+}
+.modal-h {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line);
+}
+.modal-h h3 { margin: 0; font-size: 15px; }
+.modal-h .close { background: transparent; border: 0; color: var(--text-dim); font-size: 20px; }
+.modal-body { padding: 20px; }
+.modal-body p { margin: 0 0 12px; line-height: 1.6; }
+.modal-body ol { padding-left: 18px; }
+.modal-body li { margin-bottom: 6px; line-height: 1.6; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; padding: 0 20px 20px; }
+
+/* Spinner */
+.spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--text-faint);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  vertical-align: middle;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Status footer */
+.status {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  margin-top: 4px;
+}
+.dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  margin-right: 4px;
+}
+.dot.ok { background: var(--success); }
+.dot.warn { background: var(--warning); }
+.dot.err { background: var(--danger); }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="shell top-inner">
+    <div class="brand">
+      Cardnews Auto <span class="ver">자동화</span>
+    </div>
+    <div class="top-links">
+      <a href="/" target="_blank">📝 스튜디오</a>
+      <a href="#" id="sched-status-link">⏱ 스케줄러</a>
+      <a href="/auto/instagram-setup" target="_blank" id="ig-setup-link">🔧 인스타 셋업</a>
+      <a href="#" class="ig" id="ig-status-link">📲 IG 상태</a>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+
+  <nav class="tabs">
+    <button class="active" data-tab="news">📰 데일리 뉴스</button>
+    <button data-tab="tooltip">🛠 AI 툴 팁</button>
+    <button data-tab="academy">🎓 사관학교 홍보</button>
+    <button data-tab="queue">📲 발행 큐</button>
+  </nav>
+
+  <!-- Tab: 데일리 뉴스 -->
+  <section class="panel active" id="panel-news">
+    <div class="section-h">
+      <div>
+        <h2>오늘의 AI 뉴스에서 카드뉴스 만들기</h2>
+        <p>데일리싱크에 모인 뉴스 중 하나를 골라 자동으로 카드뉴스 5-7장으로 변환합니다.</p>
+      </div>
+    </div>
+
+    <div class="filters">
+      <label>날짜 <input type="date" id="f-date"></label>
+      <label>카테고리 <select id="f-category"><option value="">전체</option></select></label>
+      <label>중요도 ≥ <select id="f-importance">
+        <option value="">전체</option>
+        <option value="2">2 이상</option>
+        <option value="3">3 이상</option>
+        <option value="4">4 이상</option>
+        <option value="5">5</option>
+      </select></label>
+      <label class="checkbox"><input type="checkbox" id="f-saved"> 북마크만</label>
+      <div class="spacer"></div>
+      <button class="btn" id="btn-news-refresh">🔄 새로고침</button>
+    </div>
+
+    <div class="list" id="news-list">
+      <div class="empty">불러오는 중…</div>
+    </div>
+  </section>
+
+  <!-- Tab: 툴 팁 -->
+  <section class="panel" id="panel-tooltip">
+    <div class="section-h">
+      <div>
+        <h2>AI 툴 활용 팁 카드뉴스</h2>
+        <p>특정 AI 툴이나 활용 주제를 입력하면 실무 팁 3-5가지를 카드뉴스로 만들어요.</p>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:rgba(110,231,255,0.04)">
+      <button class="btn ai" id="btn-tip-suggest">🔮 최신 트렌드 자동 추천</button>
+      <input type="text" id="tip-suggest-focus" placeholder="분야 좁히기 (선택): 예) 영상 생성, 코딩, 마케팅" style="flex:1;min-width:180px">
+      <span style="font-size:11px;color:var(--text-faint)">인스타·스레드·유튜브·구글의 최신 정보를 웹에서 수집해 제안</span>
+    </div>
+    <div class="tpl-grid" id="tooltip-suggestions" style="display:none"></div>
+
+    <div class="tpl-grid" id="tooltip-quick">
+      <button class="tpl" data-tool="ChatGPT" data-topic="문서 요약 프롬프트">
+        <div class="emoji">💬</div>
+        <h4>ChatGPT 문서요약</h4>
+        <p>길고 어려운 문서를 빠르게 정리하는 프롬프트 패턴</p>
+      </button>
+      <button class="tpl" data-tool="Claude" data-topic="코드 리팩토링">
+        <div class="emoji">🧠</div>
+        <h4>Claude 코드 리팩토링</h4>
+        <p>레거시 코드를 단계별로 정리하는 활용법</p>
+      </button>
+      <button class="tpl" data-tool="Midjourney" data-topic="썸네일 만들기">
+        <div class="emoji">🎨</div>
+        <h4>Midjourney 썸네일</h4>
+        <p>유튜브/블로그 썸네일 빠르게 뽑는 프롬프트</p>
+      </button>
+      <button class="tpl" data-tool="Notion AI" data-topic="회의록 자동화">
+        <div class="emoji">📋</div>
+        <h4>Notion AI 회의록</h4>
+        <p>회의 메모를 정돈된 회의록으로 변환</p>
+      </button>
+      <button class="tpl" data-tool="Perplexity" data-topic="리서치 워크플로">
+        <div class="emoji">🔍</div>
+        <h4>Perplexity 리서치</h4>
+        <p>레퍼런스 있는 답을 빠르게 모으는 방법</p>
+      </button>
+      <button class="tpl" data-tool="Cursor" data-topic="페어 코딩">
+        <div class="emoji">⌨️</div>
+        <h4>Cursor AI 페어코딩</h4>
+        <p>IDE 안에서 AI와 같이 일하는 7가지 패턴</p>
+      </button>
+    </div>
+
+    <div style="margin-top: 18px;">
+      <div class="form-grid">
+        <div class="field">
+          <label>툴 이름</label>
+          <input type="text" id="tip-tool" placeholder="예: ChatGPT, Claude, Midjourney">
+        </div>
+        <div class="field">
+          <label>다룰 주제</label>
+          <input type="text" id="tip-topic" placeholder="예: 글쓰기 프롬프트 5가지">
+        </div>
+      </div>
+      <div class="field" style="margin-top: 12px;">
+        <label>추가 요청 (선택)</label>
+        <textarea id="tip-note" placeholder="포함할 예시·강조하고 싶은 포인트 등"></textarea>
+      </div>
+      <div class="form-actions">
+        <button class="btn ai" id="btn-tip-generate">✨ 카드뉴스 생성</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tab: 사관학교 -->
+  <section class="panel" id="panel-academy">
+    <div class="section-h">
+      <div>
+        <h2>인공지능 사관학교 홍보 카드뉴스</h2>
+        <p>홍보용 템플릿을 골라 한 번에 생성. 주 1-2회 발행용.</p>
+      </div>
+    </div>
+
+    <div class="tpl-grid" id="academy-tpl">
+      <button class="tpl" data-template="intro">
+        <div class="emoji">🎓</div>
+        <h4>교육과정 소개</h4>
+        <p>처음 보는 사람도 흥미를 느낄 수 있는 전반 소개</p>
+      </button>
+      <button class="tpl" data-template="curriculum">
+        <div class="emoji">📚</div>
+        <h4>커리큘럼 상세</h4>
+        <p>주차별 학습 내용을 카드 하나씩 다루기</p>
+      </button>
+      <button class="tpl" data-template="review">
+        <div class="emoji">⭐</div>
+        <h4>수강 후기</h4>
+        <p>선배 수강생 후기를 신뢰감 있게 재구성</p>
+      </button>
+      <button class="tpl" data-template="apply">
+        <div class="emoji">📝</div>
+        <h4>모집 안내</h4>
+        <p>지원 자격·절차·혜택 등 핵심 정보 강조</p>
+      </button>
+    </div>
+
+    <div style="margin-top: 18px;">
+      <div class="field">
+        <label>추가 요청 (선택)</label>
+        <textarea id="ac-note" placeholder="예: 이번 기수만 추가할 정보, 강조하고 싶은 포인트"></textarea>
+      </div>
+      <div class="form-actions">
+        <button class="btn ai" id="btn-ac-generate" disabled>✨ 템플릿 먼저 선택</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tab: 발행 큐 -->
+  <section class="panel" id="panel-queue">
+    <div class="section-h">
+      <div>
+        <h2>생성된 카드뉴스 — 인스타 발행</h2>
+        <p>편집은 스튜디오에서, 발행은 여기서. 인스타 자동 발행은 사전 셋업이 필요합니다.</p>
+      </div>
+      <button class="btn ghost" id="btn-queue-refresh">🔄 새로고침</button>
+    </div>
+
+    <div class="list" id="queue-list">
+      <div class="empty">불러오는 중…</div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+// ==================================================================
+// 공용
+// ==================================================================
+function toast(msg, type, durationMs) {
+  const el = document.createElement("div");
+  el.className = "toast " + (type || "");
+  el.textContent = msg;
+  document.body.appendChild(el);
+  // durationMs === 0 → 자동 제거 안 함 (호출자가 직접 el.remove() 또는 el.update())
+  if (durationMs !== 0) {
+    setTimeout(() => el.remove(), durationMs || 4000);
+  }
+  // 진행 토스트 텍스트 갱신용
+  el.update = (newMsg) => { el.textContent = newMsg; };
+  return el;
+}
+
+function fmtDate(iso) {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return d.toISOString().slice(0,10) + " " + d.toTimeString().slice(0,5);
+  } catch { return iso; }
+}
+
+function todayKST() {
+  const now = new Date();
+  const kst = new Date(now.getTime() + 9*3600*1000);
+  return kst.toISOString().slice(0,10);
+}
+
+function modal({title, html, actions}) {
+  const back = document.createElement("div");
+  back.className = "modal-back";
+  back.innerHTML = `
+    <div class="modal">
+      <div class="modal-h"><h3>${title}</h3><button class="close">×</button></div>
+      <div class="modal-body">${html}</div>
+      <div class="modal-actions"></div>
+    </div>`;
+  document.body.appendChild(back);
+  const close = () => back.remove();
+  back.querySelector(".close").onclick = close;
+  back.addEventListener("click", e => { if (e.target === back) close(); });
+  const ac = back.querySelector(".modal-actions");
+  (actions || []).forEach(a => {
+    const b = document.createElement("button");
+    b.className = "btn " + (a.cls || "");
+    b.textContent = a.label;
+    b.onclick = () => { if (a.handler) a.handler(close); else close(); };
+    ac.appendChild(b);
+  });
+  return { close };
+}
+
+// ==================================================================
+// 탭 전환
+// ==================================================================
+document.querySelectorAll("nav.tabs button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("nav.tabs button").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById("panel-" + btn.dataset.tab).classList.add("active");
+    if (btn.dataset.tab === "queue") loadQueue();
+  });
+});
+
+// ==================================================================
+// 데일리 뉴스
+// ==================================================================
+async function loadCategories() {
+  try {
+    const r = await fetch("/api/dailysync/categories");
+    const cats = await r.json();
+    const sel = document.getElementById("f-category");
+    cats.slice(0, 20).forEach(c => {
+      const o = document.createElement("option");
+      o.value = c.name;
+      o.textContent = `${c.name} (${c.count})`;
+      sel.appendChild(o);
+    });
+  } catch (e) {
+    console.warn("카테고리 로드 실패", e);
+  }
+}
+
+const NEWS_PAGE_SIZE = 50;
+const NEWS_STATE = { offset: 0, total: 0, items: [], filters: "" };
+
+function _buildNewsParams() {
+  const params = new URLSearchParams();
+  const date = document.getElementById("f-date").value;
+  const cat = document.getElementById("f-category").value;
+  const imp = document.getElementById("f-importance").value;
+  const saved = document.getElementById("f-saved").checked;
+  if (date) params.set("date", date);
+  if (cat) params.set("category", cat);
+  if (imp) params.set("min_importance", imp);
+  if (saved) params.set("saved", "1");
+  return params;
+}
+
+async function loadNews(append = false) {
+  const list = document.getElementById("news-list");
+  const params = _buildNewsParams();
+  const filtersKey = params.toString();
+
+  // 필터 변경됐으면 무조건 초기화
+  if (!append || filtersKey !== NEWS_STATE.filters) {
+    NEWS_STATE.offset = 0;
+    NEWS_STATE.items = [];
+    NEWS_STATE.filters = filtersKey;
+    list.innerHTML = '<div class="empty"><span class="spinner"></span> 불러오는 중…</div>';
+  }
+  params.set("limit", String(NEWS_PAGE_SIZE));
+  params.set("offset", String(NEWS_STATE.offset));
+
+  try {
+    const r = await fetch("/api/dailysync/clusters?" + params.toString());
+    if (!r.ok) throw new Error(`서버 응답 ${r.status}: ${await r.text()}`);
+    const j = await r.json();
+    // 호환: 옛 응답(배열) 도 처리
+    const items = Array.isArray(j) ? j : (j.items || []);
+    const total = Array.isArray(j) ? items.length : (j.total || items.length);
+    const hasMore = Array.isArray(j) ? false : !!j.has_more;
+    NEWS_STATE.total = total;
+    NEWS_STATE.items.push(...items);
+
+    if (!append) list.innerHTML = "";
+    // 첫 로드인데 결과 0
+    if (NEWS_STATE.items.length === 0) {
+      list.innerHTML = '<div class="empty">조건에 맞는 뉴스가 없습니다.</div>';
+      return;
+    }
+    items.forEach(it => list.appendChild(renderNewsCard(it)));
+
+    // 더 보기 버튼 갱신
+    let moreBtn = document.getElementById("news-more-btn");
+    if (moreBtn) moreBtn.remove();
+    const status = document.getElementById("news-status");
+    if (status) status.textContent = `${NEWS_STATE.items.length} / ${total}`;
+    if (hasMore) {
+      const wrap = document.createElement("div");
+      wrap.id = "news-more-btn";
+      wrap.style.cssText = "grid-column:1/-1;text-align:center;margin-top:12px";
+      wrap.innerHTML = `<button class="btn" id="btn-news-more">더 보기 (${total - NEWS_STATE.items.length}개 남음)</button>`;
+      list.appendChild(wrap);
+      document.getElementById("btn-news-more").onclick = () => {
+        NEWS_STATE.offset = NEWS_STATE.items.length;
+        loadNews(true);
+      };
+    }
+  } catch (e) {
+    if (!append) list.innerHTML = `<div class="empty">로드 실패: ${e.message}</div>`;
+    else toast("추가 로드 실패: " + e.message, "error");
+  }
+}
+
+function renderNewsCard(it) {
+  const el = document.createElement("div");
+  el.className = "card";
+  const chips = [];
+  if (it.importance >= 4) chips.push('<span class="chip important">★ 중요 ' + it.importance + '</span>');
+  else if (it.importance) chips.push('<span class="chip">중요도 ' + it.importance + '</span>');
+  if (it.saved) chips.push('<span class="chip saved">★ 북마크</span>');
+  if (it.date) chips.push('<span class="chip date">' + it.date + '</span>');
+  (it.categories || []).slice(0, 3).forEach(c => chips.push('<span class="chip">' + c + '</span>'));
+
+  el.innerHTML = `
+    <div class="row1">${chips.join("")}</div>
+    <h3>${escapeHtml(it.topic)}</h3>
+    <p class="summary">${escapeHtml(it.summary)}</p>
+    <div class="actions">
+      <button class="btn ghost" data-act="detail">자세히</button>
+      <button class="btn ai" data-act="generate">✨ 카드뉴스 생성</button>
+    </div>`;
+  el.querySelector('[data-act="detail"]').onclick = () => showClusterDetail(it.id);
+  el.querySelector('[data-act="generate"]').onclick = (e) => generateFromCluster(it.id, e.currentTarget);
+  return el;
+}
+
+async function showClusterDetail(id) {
+  try {
+    const r = await fetch("/api/dailysync/cluster/" + id);
+    if (!r.ok) throw new Error(await r.text());
+    const d = await r.json();
+    const arts = (d.articles || []).map(a =>
+      `<li><a href="${a.url}" target="_blank" style="color:var(--accent);text-decoration:none">${escapeHtml(a.title)}</a>
+       <span style="color:var(--text-faint);font-size:11.5px"> — ${escapeHtml(a.source || "")}</span></li>`
+    ).join("");
+    const facts = (d.agreed_facts || []).map(f => `<li>${escapeHtml(f)}</li>`).join("");
+    modal({
+      title: d.topic,
+      html: `
+        <p>${escapeHtml(d.summary || "")}</p>
+        ${facts ? `<h4 style="margin:18px 0 8px;font-size:13px">핵심 사실</h4><ul>${facts}</ul>` : ""}
+        ${arts ? `<h4 style="margin:18px 0 8px;font-size:13px">원기사</h4><ul>${arts}</ul>` : ""}
+      `,
+      actions: [
+        { label: "닫기", cls: "ghost" },
+        { label: "✨ 이걸로 카드뉴스 생성", cls: "ai", handler: (close) => { close(); generateFromCluster(id); } },
+      ],
+    });
+  } catch (e) {
+    toast("상세 로드 실패: " + e.message, "error");
+  }
+}
+
+async function generateFromCluster(clusterId, btnEl) {
+  await callGenerate({ source_type: "cluster", cluster_id: clusterId }, btnEl, "뉴스");
+}
+
+// ==================================================================
+// 툴 팁
+// ==================================================================
+document.querySelectorAll("#tooltip-quick .tpl").forEach(b => {
+  b.addEventListener("click", () => {
+    document.getElementById("tip-tool").value = b.dataset.tool;
+    document.getElementById("tip-topic").value = b.dataset.topic;
+  });
+});
+
+// 최신 트렌드 AI 툴 꿀팁 자동 추천 (서버가 웹 검색으로 수집)
+function fillTipFromSuggestion(s) {
+  document.getElementById("tip-tool").value = s.tool || "";
+  document.getElementById("tip-topic").value = s.topic || "";
+  if (s.hook) document.getElementById("tip-note").value = s.hook;
+  document.getElementById("tip-topic").scrollIntoView({ behavior: "smooth", block: "center" });
+  toast("입력란에 채웠어요. 생성 버튼을 누르세요.", "success");
+}
+
+document.getElementById("btn-tip-suggest").addEventListener("click", async (e) => {
+  const btn = e.currentTarget;
+  const wrap = document.getElementById("tooltip-suggestions");
+  const focus = document.getElementById("tip-suggest-focus").value.trim();
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "🔎 최신 트렌드 수집 중…";
+  wrap.style.display = "grid";
+  wrap.innerHTML = `<div class="tpl" style="grid-column:1/-1;text-align:center;color:var(--text-dim);cursor:default">웹에서 최신 AI 툴 꿀팁을 모으는 중… (10~30초)</div>`;
+  try {
+    const r = await fetch("/api/auto/tooltip-suggest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ count: 8, focus }),
+    });
+    const ct = r.headers.get("content-type") || "";
+    if (!ct.includes("application/json")) {
+      // JSON 이 아니면(보통 404/500 HTML) — 서버가 새 코드 반영 전
+      throw new Error(r.status === 404
+        ? "추천 엔드포인트가 없어요. 서버(server.py)를 재시작해 주세요."
+        : `서버 오류 (HTTP ${r.status}). server.py 재시작이 필요할 수 있어요.`);
+    }
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || ("HTTP " + r.status));
+    const list = j.suggestions || [];
+    if (!list.length) throw new Error("추천 결과가 비어있어요. 잠시 후 다시 시도해 주세요.");
+    wrap.innerHTML = "";
+    list.forEach(s => {
+      const b = document.createElement("button");
+      b.className = "tpl";
+      b.innerHTML =
+        `<div class="emoji">🔥</div>` +
+        `<h4>${escapeHtml(s.tool || "")}${s.tool && s.topic ? " · " : ""}${escapeHtml(s.topic || "")}</h4>` +
+        `<p>${escapeHtml(s.hook || "")}</p>` +
+        (s.source ? `<p style="opacity:0.55;font-size:10px;margin-top:4px">출처: ${escapeHtml(s.source)}</p>` : "");
+      b.addEventListener("click", () => fillTipFromSuggestion(s));
+      wrap.appendChild(b);
+    });
+    toast(`✓ 최신 추천 ${list.length}개`, "success");
+  } catch (err) {
+    wrap.innerHTML = `<div class="tpl" style="grid-column:1/-1;text-align:center;color:var(--danger);cursor:default">추천 실패: ${escapeHtml(err.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+});
+
+document.getElementById("btn-tip-generate").addEventListener("click", async (e) => {
+  const tool = document.getElementById("tip-tool").value.trim();
+  const topic = document.getElementById("tip-topic").value.trim();
+  const note = document.getElementById("tip-note").value.trim();
+  if (!tool && !topic) { toast("툴 이름 또는 주제 중 하나는 입력하세요", "warning"); return; }
+  await callGenerate({ source_type: "tooltip", tool, topic, note }, e.currentTarget, "툴 팁");
+});
+
+// ==================================================================
+// 사관학교
+// ==================================================================
+let selectedTemplate = null;
+document.querySelectorAll("#academy-tpl .tpl").forEach(b => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll("#academy-tpl .tpl").forEach(t => t.classList.remove("selected"));
+    b.classList.add("selected");
+    selectedTemplate = b.dataset.template;
+    const btn = document.getElementById("btn-ac-generate");
+    btn.disabled = false;
+    btn.textContent = "✨ 카드뉴스 생성 — " + b.querySelector("h4").textContent;
+  });
+});
+
+document.getElementById("btn-ac-generate").addEventListener("click", async (e) => {
+  if (!selectedTemplate) return;
+  const note = document.getElementById("ac-note").value.trim();
+  await callGenerate({ source_type: "academy", template: selectedTemplate, note }, e.currentTarget, "사관학교");
+});
+
+// ==================================================================
+// 공용 generate — 성공 시 발행 큐 탭으로 자동 전환 + 새 카드 강조
+// ==================================================================
+async function callGenerate(payload, btnEl, label) {
+  const orig = btnEl ? btnEl.textContent : "";
+  if (btnEl) {
+    btnEl.disabled = true;
+    btnEl.innerHTML = '<span class="spinner"></span> Claude로 생성 중… (최대 30초)';
+  }
+  // 진행 토스트 (자동 안 사라짐)
+  const progressToast = persistentToast("⏳ Claude로 카드뉴스 생성 중… (보통 15~30초 소요)", "info");
+
+  try {
+    const r = await fetch("/api/auto/generate", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(payload),
+    });
+    const j = await r.json();
+    if (!r.ok || j.error) throw new Error(j.error || `서버 오류 ${r.status}`);
+
+    progressToast.remove();
+    toast(`✓ ${label} 카드뉴스 ${j.card_count}장 생성 완료`, "success", 6000);
+
+    // 1) 발행 큐 탭으로 자동 전환
+    switchToTab("queue");
+    // 2) 새 카드 강조해서 다시 로드
+    await loadQueue(j.session_id);
+    // 3) 새 탭 미리보기는 부가 (팝업 차단 시에도 큐로 결과 보임)
+    try { window.open(j.preview_url, "_blank"); } catch {}
+  } catch (e) {
+    progressToast.remove();
+    toast("생성 실패: " + e.message, "error", 6000);
+  } finally {
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = orig; }
+  }
+}
+
+// 자동 사라지지 않는 토스트 — caller 가 .remove() 호출
+function persistentToast(msg, type) {
+  const el = document.createElement("div");
+  el.className = "toast " + (type || "");
+  el.textContent = msg;
+  document.body.appendChild(el);
+  return el;
+}
+
+// 탭 전환 헬퍼 (loadQueue 트리거)
+function switchToTab(tabId) {
+  document.querySelectorAll("nav.tabs button").forEach(b => b.classList.remove("active"));
+  document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+  const btn = document.querySelector(`nav.tabs button[data-tab="${tabId}"]`);
+  const panel = document.getElementById("panel-" + tabId);
+  if (btn) btn.classList.add("active");
+  if (panel) panel.classList.add("active");
+}
+
+// ==================================================================
+// 발행 큐 — highlightId 가 주어지면 해당 카드 강조 + 스크롤
+// ==================================================================
+async function loadQueue(highlightId) {
+  const list = document.getElementById("queue-list");
+  list.innerHTML = '<div class="empty"><span class="spinner"></span> 불러오는 중…</div>';
+  try {
+    const r = await fetch("/api/sessions");
+    const items = await r.json();
+    if (!items.length) {
+      list.innerHTML = '<div class="empty">생성된 카드뉴스가 없습니다. 다른 탭에서 만들어보세요.</div>';
+      return;
+    }
+    list.innerHTML = "";
+    items.forEach(it => {
+      const card = renderQueueCard(it);
+      if (highlightId && it.id === highlightId) {
+        card.classList.add("just-created");
+        // 약간 늦게 스크롤 (DOM 렌더 후)
+        requestAnimationFrame(() => card.scrollIntoView({ behavior: "smooth", block: "center" }));
+        // 6초 후 강조 제거
+        setTimeout(() => card.classList.remove("just-created"), 6000);
+      }
+      list.appendChild(card);
+    });
+  } catch (e) {
+    list.innerHTML = `<div class="empty">로드 실패: ${e.message}</div>`;
+  }
+}
+
+function renderQueueCard(it) {
+  const el = document.createElement("div");
+  el.className = "card";
+  const meta = it.meta || {};
+  const kind = meta.kind || (it.id.startsWith("tg_") ? "텔레그램" : "기타");
+  const kindLabel = {
+    daily_news: "📰 데일리뉴스",
+    tool_tip: "🛠 툴팁",
+    academy: "🎓 사관학교",
+    freeform: "✍️ 자유입력",
+    텔레그램: "💬 텔레그램",
+  }[kind] || kind;
+
+  // 자동 예약 / 발행 상태 표시
+  const pubStatus = meta.publish_status; // scheduled | publishing | published | failed | manual | null
+  const schedAt = meta.scheduled_publish_at;
+  const STATUS_LABEL = {
+    scheduled: { txt: "⏱ 예약됨", color: "var(--accent)" },
+    publishing: { txt: "📤 발행 중", color: "var(--warning)" },
+    published: { txt: "✓ 발행됨", color: "var(--success)" },
+    failed: { txt: "✕ 실패", color: "var(--danger)" },
+    manual: { txt: "✋ 수동", color: "var(--text-dim)" },
+  };
+  const st = STATUS_LABEL[pubStatus];
+  const statusChip = st
+    ? `<span class="chip" style="color:${st.color};border-color:${st.color}33">${st.txt}</span>`
+    : "";
+  const schedChip = (schedAt && pubStatus === "scheduled")
+    ? `<span class="chip" title="자동 발행 예약 시각">${fmtDate(schedAt)}</span>`
+    : "";
+  const errLine = meta.publish_error
+    ? `<p style="color:var(--danger);font-size:11px;margin:4px 0">${escapeHtml(meta.publish_error)}</p>`
+    : "";
+
+  el.innerHTML = `
+    <div class="row1">
+      <span class="chip kind">${kindLabel}</span>
+      <span class="chip">${it.cardCount || 0}장</span>
+      <span class="chip">${it.theme || "navy"}</span>
+      ${statusChip}
+      ${schedChip}
+      <span style="margin-left:auto;font-size:11px;color:var(--text-faint)">${fmtDate(new Date(it.mtime * 1000).toISOString())}</span>
+    </div>
+    <h3>${escapeHtml(it.title || it.id)}</h3>
+    <p class="summary" style="color:var(--text-faint);font-size:11.5px">${it.id}</p>
+    ${errLine}
+    <div class="actions">
+      <button class="btn" data-act="edit">📝 편집</button>
+      <button class="btn" data-act="prep">📷 PNG 준비</button>
+      <button class="btn primary" data-act="publish">📲 발행 (인스타·FB·스레드)</button>
+      <button class="btn ghost" data-act="del">삭제</button>
+    </div>`;
+
+  el.querySelector('[data-act="edit"]').onclick = () => editSession(it.id);
+  el.querySelector('[data-act="prep"]').onclick = () => prepareForInstagram(it.id);
+  el.querySelector('[data-act="publish"]').onclick = () => publishToInstagram(it.id, it.title);
+  el.querySelector('[data-act="del"]').onclick = () => deleteSession(it.id);
+  return el;
+}
+
+function editSession(sessionId) {
+  // 이미 열려 있는 카드뉴스 스튜디오 탭이 있으면 그쪽에 "새 탭으로 추가" 요청을 보낸다.
+  // 응답(ack)이 오면 새 브라우저 탭을 열지 않고, 없으면(열린 스튜디오 없음) 새 탭으로 폴백.
+  if (typeof BroadcastChannel === "undefined") {
+    window.open(`/?session=${sessionId}`, "_blank");
+    return;
+  }
+  let acked = false;
+  let bc;
+  try { bc = new BroadcastChannel("cardnews-studio"); }
+  catch (e) { window.open(`/?session=${sessionId}`, "_blank"); return; }
+
+  bc.onmessage = (e) => {
+    const m = e.data || {};
+    if (m.type === "session-opened" && m.sessionId === sessionId) {
+      acked = true;
+      try { bc.close(); } catch (e2) {}
+      toast("열려 있는 스튜디오에 새 탭으로 추가했어요. 스튜디오 탭으로 이동하세요.", "success");
+    }
+  };
+  bc.postMessage({ type: "open-session", sessionId });
+
+  // ack 대기 — 응답 없으면 열린 스튜디오가 없다고 보고 새 탭으로 연다
+  setTimeout(() => {
+    if (acked) return;
+    try { bc.close(); } catch (e2) {}
+    window.open(`/?session=${sessionId}`, "_blank");
+  }, 600);
+}
+
+function prepareForInstagram(sessionId) {
+  // 스튜디오를 publish=1 플래그로 열어서 PNG 자동 렌더+업로드 트리거
+  const w = window.open(`/?session=${sessionId}&publish=1`, "_blank");
+  toast("스튜디오 탭에서 자동으로 PNG 업로드 후 닫힙니다.", "success");
+}
+
+// 세션 데이터에서 캡션 자동 프리필 — 표지 타이틀 + 본문 첫 슬라이드 + 해시태그
+async function buildAutoCaption(sessionId) {
+  try {
+    const r = await fetch(`/api/sessions/${sessionId}`);
+    if (!r.ok) return "";
+    const data = await r.json();
+    const cards = data.cards || [];
+    const parts = [];
+    const cover = cards.find(c => c.type === "cover");
+    if (cover) {
+      const d = cover.data || {};
+      const head = (d.title || "").replace(/\n/g, " ").trim();
+      const sub = (d.subtitle || "").replace(/\n/g, " ").trim();
+      if (head) parts.push(head);
+      if (sub) parts.push(sub);
+    }
+    // 본문 첫 카드의 body / question / quote 등 (한두 줄)
+    const firstBody = cards.find(c => c.type === "topic" || c.type === "highlight");
+    if (firstBody) {
+      const d = firstBody.data || {};
+      const txt = (d.body || d.question || d.quote || d.emphasis || "").replace(/\n/g, " ").trim();
+      if (txt && txt.length > 5) parts.push("");
+      if (txt && txt.length > 5) parts.push(txt.slice(0, 100));
+    }
+    // 해시태그 — closing/next 의 hashtag 또는 brand handle 기반 기본
+    const closing = cards.find(c => c.type === "closing" && c.data && c.data.hashtag);
+    const tags = closing ? closing.data.hashtag : "#AI #카드뉴스 #인공지능사관학교";
+    if (tags) {
+      parts.push("");
+      parts.push(tags.trim());
+    }
+    return parts.join("\n").slice(0, 2200);
+  } catch {
+    return "";
+  }
+}
+
+async function publishToInstagram(sessionId, title) {
+  // 통합 발행 상태 조회 — 각 플랫폼 활성 여부
+  const status = await fetch("/api/publish/status").then(r => r.json());
+  const P = status.platforms || {};
+  const httpsOk = status.server_url_https;
+
+  const anyConfigured = Object.values(P).some(p => p.configured);
+  if (!anyConfigured) {
+    modal({
+      title: "발행 셋업 필요",
+      html: `
+        <p>아직 어떤 플랫폼 토큰도 설정되지 않았습니다.</p>
+        <p>docs/POSTING_SETUP.md 참고해서 .env 에 토큰을 추가하세요:</p>
+        <ul>
+          <li><strong>Instagram</strong>: IG_USER_ID, IG_ACCESS_TOKEN</li>
+          <li><strong>Threads</strong>: THREADS_USER_ID, THREADS_ACCESS_TOKEN</li>
+        </ul>
+        <p style="color:var(--text-dim);font-size:12.5px">셋업 후 서버 재시작 필요</p>`,
+      actions: [{ label: "닫기", cls: "ghost" }],
+    });
+    return;
+  }
+
+  const httpsWarn = httpsOk ? "" : `
+    <div style="margin-top:10px;padding:10px;background:rgba(255,184,107,0.1);border:1px solid var(--accent-warm);border-radius:6px;font-size:12px;color:var(--accent-warm)">
+      ⚠️ SERVER_URL 이 http 입니다. 외부 https URL 이 필요해요. ngrok 으로 노출 후 .env 의 SERVER_URL 갱신 후 서버 재시작.
+    </div>`;
+
+  // 자동 프리필 캡션
+  const prefill = await buildAutoCaption(sessionId);
+
+  const platRow = (id, label, emoji, cfg) => `
+    <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;cursor:${cfg ? "pointer" : "not-allowed"};opacity:${cfg ? 1 : 0.45}">
+      <input type="checkbox" id="pub-${id}" ${cfg ? "checked" : "disabled"} style="width:16px;height:16px">
+      <span style="font-size:18px">${emoji}</span>
+      <div style="flex:1">
+        <div style="font-weight:600">${label}</div>
+        <div style="font-size:11px;color:var(--text-faint)">${cfg ? "✓ 토큰 설정됨" : "토큰 미설정"}</div>
+      </div>
+    </label>`;
+
+  modal({
+    title: "📲 발행 — Instagram · Threads · TikTok",
+    html: `
+      <p style="color:var(--text-dim);font-size:12.5px">발행 전 PNG 준비가 필요합니다. 먼저 [📷 PNG 준비] 버튼을 눌렀나요?</p>
+
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px">
+        ${platRow("instagram", "Instagram", "📷", P.instagram?.configured)}
+        ${platRow("threads",   "Threads",   "🧵", P.threads?.configured)}
+        ${platRow("tiktok",    "TikTok",    "🎵", P.tiktok?.configured)}
+      </div>
+
+      <div style="margin-top:8px;padding:8px 12px;background:rgba(110,231,255,0.06);border:1px dashed rgba(110,231,255,0.2);border-radius:6px;font-size:11.5px;color:var(--text-dim)">
+        💡 페이스북 페이지는 인스타 앱 설정 → 공유 → "Facebook" 켜면 자동 미러링됩니다. (별도 토큰 불필요)
+      </div>
+
+      <details style="margin-top:8px">
+        <summary style="cursor:pointer;font-size:11.5px;color:var(--text-faint);user-select:none">⚙ 고급 — Facebook API 직접 발행</summary>
+        <div style="margin-top:6px">
+          ${platRow("facebook", "Facebook 페이지 (API 직접)", "📘", P.facebook?.configured)}
+          <p style="font-size:10.5px;color:var(--text-faint);margin:4px 0 0">인스타 자동 공유 대신 별도 캐러셀 발행이 필요한 경우만 사용</p>
+        </div>
+      </details>
+
+      ${httpsWarn}
+
+      <div class="field" style="margin-top:14px">
+        <div class="field-label-row">
+          <label>캡션 · 해시태그 (수정 가능)</label>
+          <span style="font-size:10.5px;color:var(--text-faint)">표지 + 해시태그 자동 채움</span>
+        </div>
+        <textarea id="ig-caption" style="min-height:140px">${escapeHtml(prefill)}</textarea>
+        <div style="display:flex;gap:14px;margin-top:6px;font-size:11px">
+          <span id="cap-ig" style="color:var(--text-faint)">📷 0 / 2200</span>
+          <span id="cap-th" style="color:var(--text-faint)">🧵 0 / 500</span>
+        </div>
+      </div>`,
+    actions: [
+      { label: "취소", cls: "ghost" },
+      { label: "📲 발행", cls: "primary", handler: async (close) => {
+        const platforms = ["instagram", "facebook", "threads", "tiktok"]
+          .filter(p => document.getElementById(`pub-${p}`)?.checked);
+        if (!platforms.length) { toast("플랫폼을 1개 이상 선택하세요", "warning"); return; }
+        const caption = document.getElementById("ig-caption").value;
+        close();
+
+        if (!window.PublishProgress) {
+          toast("publish_progress.js 로드 실패 — 새로고침 후 다시 시도", "error", 8000);
+          return;
+        }
+        window.PublishProgress.start(sessionId, platforms, caption, {
+          onDone: () => { loadQueue(); }
+        });
+      } },
+    ],
+  });
+
+  // 글자수 카운터 — 모달 DOM 생성 직후 한 번 실행 + 입력 시 갱신
+  setTimeout(() => {
+    const ta = document.getElementById("ig-caption");
+    const ig = document.getElementById("cap-ig");
+    const th = document.getElementById("cap-th");
+    if (!ta || !ig || !th) return;
+    const update = () => {
+      const n = ta.value.length;
+      ig.textContent = `📷 ${n} / 2200`;
+      th.textContent = `🧵 ${n} / 500`;
+      ig.style.color = n > 2200 ? "var(--danger)" : (n > 2000 ? "var(--warning)" : "var(--text-faint)");
+      th.style.color = n > 500  ? "var(--danger)" : (n > 450  ? "var(--warning)" : "var(--text-faint)");
+    };
+    ta.addEventListener("input", update);
+    update();
+  }, 60);
+}
+
+async function deleteSession(sessionId) {
+  if (!confirm(`세션 ${sessionId} 을 삭제할까요?`)) return;
+  const r = await fetch("/api/sessions/" + sessionId, { method: "DELETE" });
+  if (r.ok) { toast("삭제됨", "success"); loadQueue(); }
+  else toast("삭제 실패", "error");
+}
+
+// ==================================================================
+// 스케줄러 상태 표시 + 수동 트리거 모달
+// ==================================================================
+async function updateSchedulerStatus() {
+  try {
+    const r = await fetch("/api/auto/scheduler/status");
+    const s = await r.json();
+    const link = document.getElementById("sched-status-link");
+    if (!link) return;
+    if (s.active) {
+      link.innerHTML = `<span class="dot ok"></span>스케줄러 가동 (${s.jobs.length}개 잡)`;
+      link.style.color = "var(--success)";
+    } else {
+      link.innerHTML = `<span class="dot warn"></span>스케줄러 OFF`;
+      link.style.color = "var(--text-dim)";
+    }
+    link.onclick = async (e) => {
+      e.preventDefault();
+      const status = await fetch("/api/auto/scheduler/status").then(r => r.json());
+      const jobsHtml = (status.jobs || []).map(j => `
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)">
+          <div>
+            <div style="font-weight:600">${escapeHtml(j.name || j.id)}</div>
+            <div style="font-size:11px;color:var(--text-dim)">다음 실행: ${fmtDate(j.next_run) || "—"}</div>
+          </div>
+          <button class="btn" onclick="manualTrigger('${j.id}')">지금 실행</button>
+        </div>
+      `).join("") || `<p style="color:var(--text-dim)">잡 없음</p>`;
+      modal({
+        title: "⏱ 자동 스케줄러",
+        html: `
+          <p style="color:var(--text-dim);font-size:12.5px">
+            상태: ${status.active ? "🟢 가동 중" : "🔴 중지됨"}<br>
+            매일 07:30 KST 자동 생성, 매 15분 발행 큐 체크.
+          </p>
+          ${jobsHtml}`,
+        actions: [{ label: "닫기", cls: "ghost" }],
+      });
+    };
+  } catch (e) {
+    console.warn("스케줄러 상태 로드 실패", e);
+  }
+}
+
+async function manualTrigger(jobId) {
+  if (!confirm(`'${jobId}' 잡을 지금 실행할까요?`)) return;
+  const r = await fetch(`/api/auto/scheduler/trigger/${jobId}`, { method: "POST" });
+  const j = await r.json();
+  if (j.ok) {
+    toast(`✓ '${jobId}' 트리거됨. 결과는 잠시 후 큐에 반영됩니다.`, "success");
+    setTimeout(loadQueue, 3000);
+  } else {
+    toast(`실패: ${j.error || "알 수 없음"}`, "error");
+  }
+}
+
+// ==================================================================
+// IG 상태 표시
+// ==================================================================
+async function updateIgStatus() {
+  try {
+    const s = await fetch("/api/instagram/status").then(r => r.json());
+    const link = document.getElementById("ig-status-link");
+    if (s.configured) {
+      link.innerHTML = '<span class="dot ok"></span>IG 발행 준비됨';
+      link.style.color = "var(--success)";
+    } else {
+      link.innerHTML = '<span class="dot warn"></span>IG 셋업 필요';
+      link.style.color = "var(--warning)";
+    }
+    link.onclick = (e) => { e.preventDefault(); window.open("/auto/instagram-setup", "_blank"); };
+  } catch {}
+}
+
+// ==================================================================
+// 유틸
+// ==================================================================
+function escapeHtml(s) {
+  return String(s || "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+// ==================================================================
+// 부트
+// ==================================================================
+document.getElementById("f-date").value = ""; // 비우면 전체 (기본)
+document.getElementById("btn-news-refresh").addEventListener("click", loadNews);
+document.getElementById("f-date").addEventListener("change", loadNews);
+document.getElementById("f-category").addEventListener("change", loadNews);
+document.getElementById("f-importance").addEventListener("change", loadNews);
+document.getElementById("f-saved").addEventListener("change", loadNews);
+document.getElementById("btn-queue-refresh").addEventListener("click", loadQueue);
+updateSchedulerStatus();
+
+loadCategories();
+loadNews();
+updateIgStatus();
+
+// ==================================================================
+// URL ?prefill_cluster=N 자동 생성 (데일리싱크에서 "카드뉴스" 버튼 클릭 시)
+// 첫 방문이면 즉시 /api/auto/generate 트리거 → 발행 큐 자동 전환
+// ==================================================================
+(function handlePrefillCluster() {
+  const params = new URLSearchParams(window.location.search);
+  const cid = params.get("prefill_cluster");
+  if (!cid || !/^\d+$/.test(cid)) return;
+  // URL 정리 — 새로고침 시 다시 트리거되지 않게
+  history.replaceState(null, "", window.location.pathname);
+  // callGenerate 가 안 보이는 경우 안전망
+  setTimeout(async () => {
+    if (typeof callGenerate !== "function") {
+      toast("생성 함수 미준비 — 잠시 후 다시 시도", "error");
+      return;
+    }
+    toast(`📨 데일리싱크 클러스터 #${cid} → 카드뉴스 자동 생성 시작`, "success", 4000);
+    await callGenerate(
+      { source_type: "cluster", cluster_id: parseInt(cid, 10) },
+      null,  // 버튼 없음
+      "데일리싱크"
+    );
+  }, 400);
+})();
+</script>
+
+<script src="/static/publish_progress.js"></script>
+</body>
+</html>

@@ -1,0 +1,4062 @@
+﻿<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Cardnews Studio v3 · AI-Powered</title>
+<link rel="stylesheet" as="style" crossorigin
+  href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<style>
+/* 제목용 디스플레이 폰트 — Gmarket Sans (상업용 무료, 카드뉴스 제목 트렌드) */
+@font-face {
+  font-family: 'Gmarket Sans';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/GmarketSansBold.woff') format('woff');
+  font-weight: 700 900; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Gmarket Sans';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/GmarketSansMedium.woff') format('woff');
+  font-weight: 400 600; font-style: normal; font-display: swap;
+}
+:root {
+  --bg: #0c0d12;
+  --panel: #14161f;
+  --panel-2: #1c1f2c;
+  --line: #2a2e3e;
+  --text: #ebeef5;
+  --text-dim: #8b91a6;
+  --text-faint: #5a607a;
+  --accent: #6ee7ff;
+  --accent-warm: #ffb86b;
+  --ai: #c89bff;
+  --danger: #ff6b86;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; }
+body {
+  font-family: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13.5px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+button { font-family: inherit; cursor: pointer; }
+input, textarea, select { font-family: inherit; }
+
+/* 프로젝트(카드뉴스) 탭바 */
+.tabbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  padding: 6px 10px 0;
+  background: #08090d;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+.tabbar::-webkit-scrollbar { height: 6px; }
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 8px 14px;
+  border: 1px solid var(--line);
+  border-bottom: none;
+  border-radius: 9px 9px 0 0;
+  background: var(--panel);
+  color: var(--text-dim);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  max-width: 220px;
+  transition: background 0.12s, color 0.12s;
+}
+.tab:hover { background: var(--panel-2); color: var(--text); }
+.tab.active {
+  background: var(--panel-2);
+  color: var(--text);
+  border-color: var(--accent);
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+.tab .tab-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+}
+.tab .tab-count {
+  font-size: 10px;
+  color: var(--text-faint);
+  background: rgba(255,255,255,0.06);
+  border-radius: 100px;
+  padding: 1px 7px;
+  font-variant-numeric: tabular-nums;
+}
+.tab .tab-close {
+  font-size: 11px;
+  color: var(--text-faint);
+  opacity: 0;
+  padding: 0 2px;
+  border-radius: 3px;
+  transition: opacity 0.12s, color 0.12s, background 0.12s;
+}
+.tab:hover .tab-close, .tab.active .tab-close { opacity: 0.7; }
+.tab .tab-close:hover { opacity: 1; color: var(--danger); background: rgba(255,107,134,0.12); }
+.tab-add {
+  flex: 0 0 auto;
+  margin: 0 0 4px 4px;
+  padding: 7px 12px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.tab-add:hover { border-color: var(--accent); color: var(--accent); }
+
+.app {
+  display: grid;
+  grid-template-columns: 280px 380px 1fr;
+  flex: 1;
+  min-height: 0;
+}
+.sidebar, .editor {
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.preview-pane {
+  background: #08090d;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.brand {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.brand h1 {
+  font-size: 14px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.brand h1::before {
+  content: "";
+  width: 6px; height: 14px;
+  background: linear-gradient(180deg, var(--accent), var(--ai));
+  border-radius: 2px;
+}
+.brand .ver {
+  font-size: 9.5px;
+  color: var(--ai);
+  padding: 2px 8px;
+  border: 1px solid rgba(200,155,255,0.3);
+  border-radius: 100px;
+  background: rgba(200,155,255,0.06);
+  letter-spacing: 0.05em;
+}
+
+.section {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.section h3 {
+  margin: 0 0 8px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  display: flex;
+  justify-content: space-between;
+}
+.section h3 .help {
+  font-weight: 400; text-transform: none;
+  letter-spacing: 0; color: var(--text-faint); font-size: 10px;
+}
+
+/* 메인 AI 버튼 */
+.ai-hero {
+  padding: 14px;
+  background: linear-gradient(135deg, rgba(200,155,255,0.12), rgba(110,231,255,0.08));
+  border-bottom: 1px solid var(--line);
+}
+.ai-hero-btn {
+  width: 100%;
+  padding: 14px 14px;
+  border: 0;
+  background: linear-gradient(135deg, var(--ai), var(--accent));
+  color: #1a0d3a;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  transition: all 0.2s;
+  position: relative;
+}
+.ai-hero-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(200,155,255,0.25);
+}
+.ai-hero-btn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+  transform: none;
+}
+.ai-hero-desc {
+  font-size: 10.5px;
+  color: var(--text-dim);
+  text-align: center;
+  margin: 8px 0 0;
+  line-height: 1.5;
+}
+
+/* 테마 그리드 */
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 5px;
+}
+.theme-chip {
+  height: 32px;
+  border-radius: 6px;
+  border: 1.5px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 9.5px;
+  transition: all 0.1s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 4px 2px;
+  position: relative;
+}
+.theme-chip:hover { border-color: var(--text-dim); }
+.theme-chip.active { border-color: var(--accent); }
+.theme-chip.active::after {
+  content: "✓";
+  position: absolute;
+  top: 1px; right: 3px;
+  font-size: 9px; color: var(--accent);
+}
+.theme-swatch {
+  display: flex; width: 100%; height: 11px;
+  border-radius: 2px; overflow: hidden;
+}
+.theme-swatch span { flex: 1; }
+
+/* 카드 목록 */
+.card-list-wrap {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 8px;
+}
+.card-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 9px;
+  margin-bottom: 3px;
+  background: var(--panel-2);
+  border: 1.5px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.1s;
+  position: relative;
+}
+.card-item:hover { border-color: var(--line); }
+.card-item.active {
+  border-color: var(--accent);
+  background: rgba(110, 231, 255, 0.06);
+}
+.card-item.dragging { opacity: 0.4; }
+.card-item.drag-over { border-top: 2px solid var(--accent); }
+.drag-handle {
+  color: var(--text-faint);
+  font-size: 13px; cursor: grab; user-select: none; padding: 0 1px;
+}
+.card-num {
+  width: 20px; height: 20px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.06);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10.5px; font-weight: 700;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.card-item.active .card-num { background: var(--accent); color: #000; }
+.card-meta { flex: 1; min-width: 0; }
+.card-label {
+  font-size: 11.5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  line-height: 1.3;
+}
+.card-type-mini {
+  font-size: 9px; color: var(--text-faint);
+  margin-top: 1px; text-transform: uppercase; letter-spacing: 0.05em;
+}
+.card-actions {
+  display: flex; gap: 1px;
+  opacity: 0; transition: opacity 0.1s;
+}
+.card-item:hover .card-actions, .card-item.active .card-actions { opacity: 1; }
+.card-act-btn {
+  border: 0; background: transparent;
+  color: var(--text-faint);
+  padding: 3px 4px; border-radius: 3px;
+  font-size: 11px; line-height: 1;
+}
+.card-act-btn:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+.card-act-btn.del:hover { color: var(--danger); background: rgba(255,107,134,0.1); }
+
+/* 카드 추가 */
+.add-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+.add-btn {
+  padding: 8px 7px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 10.5px;
+  text-align: left;
+  line-height: 1.25;
+  transition: all 0.1s;
+}
+.add-btn:hover { border-color: var(--accent); color: var(--accent); }
+.add-btn b { display: block; font-size: 11.5px; margin-bottom: 1px; }
+.add-btn span { color: var(--text-faint); font-size: 9.5px; }
+
+/* 푸터 액션 */
+.actions {
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 5px;
+}
+.btn {
+  padding: 9px 11px;
+  border: 0;
+  border-radius: 6px;
+  font-size: 12px; font-weight: 600;
+  transition: all 0.12s;
+}
+.btn-primary {
+  background: var(--accent);
+  color: #000;
+}
+.btn-primary:hover { background: #8aeeff; }
+.btn-primary:disabled { opacity: 0.6; cursor: progress; }
+.btn-ghost {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+}
+.btn-ghost:hover { border-color: var(--text-dim); }
+.btn-ai {
+  background: linear-gradient(135deg, rgba(200,155,255,0.18), rgba(110,231,255,0.12));
+  color: var(--ai);
+  border: 1px solid rgba(200,155,255,0.3);
+}
+.btn-ai:hover { border-color: var(--ai); }
+.btn-ai:disabled { opacity: 0.6; cursor: progress; }
+.btn-row { display: flex; gap: 5px; }
+.btn-row .btn { flex: 1; font-size: 11px; padding: 8px 6px; }
+
+/* 에디터 */
+.editor-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+.editor-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.editor-header h2 { margin: 0; font-size: 13px; }
+.editor-header .ec { font-size: 10px; color: var(--text-faint); }
+.editor-header p { margin: 0; color: var(--text-dim); font-size: 10.5px; }
+
+.layout-chips {
+  display: flex; gap: 4px;
+  margin-top: 10px; flex-wrap: wrap;
+}
+.layout-chip {
+  padding: 5px 9px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  font-size: 10.5px;
+  border-radius: 100px;
+  transition: all 0.1s;
+}
+.layout-chip:hover { color: var(--text); border-color: var(--text-dim); }
+.layout-chip.active {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+}
+.layout-chip.loading {
+  background: linear-gradient(135deg, var(--ai), var(--accent));
+  color: #1a0d3a;
+  border-color: transparent;
+}
+
+.card-action-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+.card-action-row .btn { flex: 1; padding: 7px 10px; font-size: 11px; }
+
+.editor-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 18px;
+}
+.empty {
+  padding: 30px 16px;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.empty-emoji { font-size: 32px; margin-bottom: 8px; }
+
+.field { margin-bottom: 14px; }
+.field-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+}
+.field label {
+  font-size: 10.5px; color: var(--text-dim);
+  font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+}
+.field .counter {
+  font-size: 10px; color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.field .counter.warn { color: var(--accent-warm); }
+.field .counter.over { color: var(--danger); }
+.field input, .field textarea, .field select {
+  width: 100%;
+  padding: 9px 11px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+  resize: vertical;
+}
+.field textarea { min-height: 56px; line-height: 1.5; }
+.field input:focus, .field textarea:focus, .field select:focus {
+  outline: none; border-color: var(--accent);
+}
+
+.list-items { display: flex; flex-direction: column; gap: 5px; }
+.list-item-row { display: flex; gap: 5px; align-items: center; }
+.list-item-row input { flex: 1; }
+.icon-btn {
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text-dim);
+  width: 28px; height: 28px;
+  border-radius: 5px;
+  font-size: 13px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.icon-btn:hover { color: var(--danger); border-color: var(--danger); }
+.add-item-btn {
+  margin-top: 5px;
+  border: 1px dashed var(--line);
+  background: transparent;
+  color: var(--text-dim);
+  padding: 7px;
+  width: 100%;
+  border-radius: 6px;
+  font-size: 11px;
+}
+.add-item-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+/* 미리보기 */
+.preview-header {
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.preview-header h2 {
+  margin: 0; font-size: 12px;
+  color: var(--text-dim); font-weight: 500;
+}
+.preview-header .meta {
+  font-size: 10.5px; color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.preview-stage {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow: auto;
+  position: relative;
+}
+.preview-scaler {
+  width: 432px;
+  height: 540px;
+  position: relative;
+}
+.preview-scaler::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.6);
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: -1;
+}
+.preview-loading {
+  position: absolute; inset: 0;
+  background: rgba(8,9,13,0.85);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  flex-direction: column;
+  gap: 14px;
+}
+.preview-loading .spinner {
+  width: 40px; height: 40px;
+  border: 3px solid var(--line);
+  border-top-color: var(--ai);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+.preview-loading .label {
+  color: var(--ai);
+  font-size: 12px;
+  font-weight: 600;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* === 카드 본체 === */
+.card {
+  width: 1080px;
+  height: 1350px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: scale(0.4);
+  transform-origin: top left;
+  background: var(--c-bg);
+  color: var(--c-text);
+  --font-body: "Pretendard Variable", Pretendard, sans-serif;
+  --font-head: "Gmarket Sans", "Pretendard Variable", Pretendard, sans-serif;
+  font-family: var(--font-body);
+  overflow: hidden;
+  --c-bg: #eef0f4;
+  --c-text: #0e1422;
+  --c-sub: #5b6275;
+  --c-accent: #1e3fa8;
+  --c-line: #dde1e9;
+}
+/* 제목·대형 숫자 등 헤드라인 요소에만 디스플레이 폰트 적용 (본문은 Pretendard 유지) */
+.card .title, .card .term, .card .compare-title, .card .compare-h,
+.card .big-num, .card .stat, .card .stat-unit, .card .q-mark, .card .quote,
+.card .emphasis, .card .idx, .card .qa-tag, .card .bullet, .card .tl-dot {
+  font-family: var(--font-head);
+}
+.card-inner {
+  position: absolute;
+  inset: 0;
+  padding: 96px;
+  display: flex;
+  flex-direction: column;
+}
+.page-num {
+  position: absolute;
+  bottom: 60px; right: 96px;
+  font-size: 24px; color: var(--c-sub);
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500; z-index: 2;
+}
+.footer-mark {
+  position: absolute;
+  bottom: 60px; left: 96px;
+  font-size: 22px; color: var(--c-sub);
+  letter-spacing: 0.08em;
+  font-weight: 500; text-transform: uppercase;
+  z-index: 2;
+}
+.swipe-hint {
+  position: absolute;
+  bottom: 60px; right: 96px;
+  display: flex; align-items: center; gap: 16px;
+  font-size: 26px; color: var(--c-accent);
+  font-weight: 600; letter-spacing: 0.05em;
+  z-index: 2;
+}
+.swipe-hint .arrow { font-size: 40px; line-height: 1; }
+
+/* 한국어는 단어 단위로 묶되, 컨테이너를 넘으면 어디서든 줄바꿈 (15만개+, AI에이전트 같은 혼합 토큰 안전).
+   또한 모든 텍스트 컨테이너가 부모 폭을 절대 안 넘게 max-width 0 (flex/grid 자식 폭 안전망). */
+.card * { word-break: keep-all; overflow-wrap: anywhere; }
+.card .card-inner > * { max-width: 100%; min-width: 0; }
+
+/* ===== 배경 이미지 모드 ===== */
+.card.has-bg-image {
+  background-color: #1a1a1a !important;
+  overflow: hidden;
+}
+.card.has-bg-image .bg-image-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-size: cover;
+  background-position: var(--bg-pos-x, 50%) var(--bg-pos-y, 50%);
+  background-repeat: no-repeat;
+  transform: scale(var(--bg-zoom, 1));
+  transform-origin: var(--bg-pos-x, 50%) var(--bg-pos-y, 50%);
+}
+.card.has-bg-image .bg-image-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  /* darken 값(0~85%)을 두 stop으로 분배 — 상단은 약, 하단은 강 (가독성↑) */
+  background: linear-gradient(
+    180deg,
+    rgba(0,0,0, calc(var(--bg-darken, 0.55) * 0.55)) 0%,
+    rgba(0,0,0, var(--bg-darken, 0.55)) 60%,
+    rgba(0,0,0, calc(var(--bg-darken, 0.55) * 1.05)) 100%
+  );
+}
+.card.has-bg-image .card-inner {
+  position: relative;
+  z-index: 2;
+}
+/* 텍스트 색상 강제 — 어떤 테마든 흰 계열로 */
+.card.has-bg-image,
+.card.has-bg-image .card-inner,
+.card.has-bg-image h1, .card.has-bg-image h2, .card.has-bg-image h3,
+.card.has-bg-image h4,
+.card.has-bg-image .quote, .card.has-bg-image .attr,
+.card.has-bg-image .title, .card.has-bg-image .subtitle,
+.card.has-bg-image .body, .card.has-bg-image .sub,
+.card.has-bg-image .label, .card.has-bg-image .eyebrow,
+.card.has-bg-image .pre, .card.has-bg-image .post,
+.card.has-bg-image .stat, .card.has-bg-image .stat-unit,
+.card.has-bg-image .emphasis, .card.has-bg-image .number,
+.card.has-bg-image .term, .card.has-bg-image .pron,
+.card.has-bg-image .pronunciation,
+.card.has-bg-image .question, .card.has-bg-image .answer,
+.card.has-bg-image .compareTitle, .card.has-bg-image .compare-title,
+.card.has-bg-image .compare-h, .card.has-bg-image .compare-body,
+.card.has-bg-image .descItems strong, .card.has-bg-image .item-title,
+.card.has-bg-image .item-desc,
+.card.has-bg-image .timelineItems strong, .card.has-bg-image .tl-label,
+.card.has-bg-image .tl-body, .card.has-bg-image .footer-mark,
+.card.has-bg-image .page-num, .card.has-bg-image .swipe-hint,
+.card.has-bg-image .tipLabel, .card.has-bg-image .tipBody,
+.card.has-bg-image .tip-label, .card.has-bg-image .tip-body,
+.card.has-bg-image .qa-text, .card.has-bg-image .qa-tag,
+/* closing 전용 — 자주 누락되던 작은 글자들 */
+.card.has-bg-image .account, .card.has-bg-image .hashtag,
+.card.has-bg-image .saveReason, .card.has-bg-image .save-reason,
+.card.has-bg-image .askQuestion, .card.has-bg-image .ask-question,
+.card.has-bg-image .askCta, .card.has-bg-image .ask-cta,
+.card.has-bg-image .statLabel, .card.has-bg-image .statNote,
+.card.has-bg-image .note,
+.card.has-bg-image li, .card.has-bg-image span, .card.has-bg-image p,
+.card.has-bg-image .q-mark, .card.has-bg-image .badge,
+.card.has-bg-image .big-num, .card.has-bg-image .idx, .card.has-bg-image .tl-dot,
+.card.has-bg-image .bullet, .card.has-bg-image .box {
+  color: #ffffff !important;
+}
+/* 어두운 영역에선 sub/dim 톤도 살짝 밝게 */
+.card.has-bg-image .attr, .card.has-bg-image .footer-mark,
+.card.has-bg-image .page-num, .card.has-bg-image .subtitle,
+.card.has-bg-image .pron, .card.has-bg-image .statNote,
+.card.has-bg-image .note {
+  color: rgba(255,255,255,0.8) !important;
+}
+/* === 글자 효과 — 크기별로 다른 그림자 강도 ===
+   paint-order: stroke fill 로 외곽선이 글자 아래 깔리게 (가독성 +) */
+.card.has-bg-image * {
+  paint-order: stroke fill;
+}
+/* 큰 글자 (title/quote/stat/emphasis/number/term) — 부드러운 drop shadow + 얇은 stroke */
+.card.has-bg-image .title, .card.has-bg-image .quote,
+.card.has-bg-image .stat, .card.has-bg-image .emphasis,
+.card.has-bg-image .number, .card.has-bg-image .term {
+  text-shadow:
+    0 4px 24px rgba(0,0,0,0.55),
+    0 2px 6px rgba(0,0,0,0.7),
+    0 0 1px rgba(0,0,0,0.9);
+  -webkit-text-stroke: 0.5px rgba(0,0,0,0.35);
+}
+/* 중간 글자 (body/sub/subtitle/label/eyebrow/question/answer 등) — 헤일로 효과 */
+.card.has-bg-image .body, .card.has-bg-image .sub,
+.card.has-bg-image .subtitle, .card.has-bg-image .label,
+.card.has-bg-image .eyebrow, .card.has-bg-image .answer,
+.card.has-bg-image .question, .card.has-bg-image .descItems,
+.card.has-bg-image .tipBody, .card.has-bg-image .tip-body,
+.card.has-bg-image .compare-body, .card.has-bg-image .item-desc,
+.card.has-bg-image .tl-body, .card.has-bg-image .qa-text {
+  text-shadow:
+    0 0 6px rgba(0,0,0,0.85),
+    0 0 3px rgba(0,0,0,0.9),
+    0 2px 4px rgba(0,0,0,0.6);
+  -webkit-text-stroke: 0.4px rgba(0,0,0,0.4);
+}
+/* 작은 글자 (footer/page-num/attr/note/statNote/pronunciation) — 가장 강한 헤일로 */
+.card.has-bg-image .footer-mark, .card.has-bg-image .page-num,
+.card.has-bg-image .attr, .card.has-bg-image .note,
+.card.has-bg-image .statNote, .card.has-bg-image .pron,
+.card.has-bg-image .pronunciation, .card.has-bg-image .swipe-hint,
+.card.has-bg-image .compare-label, .card.has-bg-image .tl-label,
+.card.has-bg-image .item-title, .card.has-bg-image .tip-label,
+/* closing 카드 작은 본문 — 자주 누락되던 부분 */
+.card.has-bg-image .account, .card.has-bg-image .hashtag,
+.card.has-bg-image .saveReason, .card.has-bg-image .save-reason,
+.card.has-bg-image .askCta, .card.has-bg-image .ask-cta {
+  text-shadow:
+    0 0 8px rgba(0,0,0,0.95),
+    0 0 4px rgba(0,0,0,0.95),
+    0 0 2px rgba(0,0,0,0.9),
+    0 1px 3px rgba(0,0,0,0.85);
+  -webkit-text-stroke: 0.6px rgba(0,0,0,0.55);
+  font-weight: 600 !important; /* 약간 더 두껍게 */
+}
+
+/* closing 카드의 본문 작은 글자 — inline 반투명 박스로 확실히 분리
+   (DOM 의 실제 클래스명 기준: .reason, .question, .cta-box, .hashtag, .subtitle, .account) */
+.card.has-bg-image.lo-closing-save .reason,
+.card.has-bg-image.lo-closing-ask .question,
+.card.has-bg-image.lo-closing-ask .cta-box,
+.card.has-bg-image.lo-closing-next .hashtag,
+.card.has-bg-image.lo-closing-thanks .subtitle,
+.card.has-bg-image .account {
+  background: rgba(0,0,0,0.55);
+  padding: 8px 18px !important;
+  border-radius: 10px;
+  display: inline-block !important;
+  max-width: 90%;
+}
+
+/* closing/save·thanks 의 큰 이모지(.icon)도 색상 강제 (var(--c-accent) 덮어쓰기) */
+.card.has-bg-image .icon {
+  color: #ffffff !important;
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.7));
+}
+
+/* closing 카드 중앙 vignette — 텍스트 영역만 추가로 어둡게 */
+.card.has-bg-image[class*="lo-closing"] .bg-image-overlay {
+  background:
+    radial-gradient(
+      ellipse 70% 50% at center,
+      rgba(0,0,0, calc(var(--bg-darken, 0.55) * 0.4)) 0%,
+      rgba(0,0,0, 0) 70%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(0,0,0, calc(var(--bg-darken, 0.55) * 0.5)) 0%,
+      rgba(0,0,0, var(--bg-darken, 0.55)) 50%,
+      rgba(0,0,0, calc(var(--bg-darken, 0.55) * 1.1)) 100%
+    );
+}
+
+/* badge·label·footer-mark·page-num — 반투명 솔리드 박스로 가독성 보장 (html2canvas 호환) */
+.card.has-bg-image .badge {
+  background: rgba(0,0,0,0.5) !important;
+  padding: 8px 18px !important;
+  border-radius: 100px;
+  display: inline-flex !important;
+  align-items: center;
+  gap: 8px;
+}
+.card.has-bg-image .label,
+.card.has-bg-image .compare-label,
+.card.has-bg-image .tl-label,
+.card.has-bg-image .qa-tag,
+.card.has-bg-image .tip-label {
+  background: rgba(0,0,0,0.55) !important;
+  padding: 6px 16px !important;
+  border-radius: 8px;
+  display: inline-block !important;
+}
+.card.has-bg-image .footer-mark,
+.card.has-bg-image .page-num,
+.card.has-bg-image .swipe-hint {
+  background: rgba(0,0,0,0.5);
+  padding: 8px 16px;
+  border-radius: 100px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+/* attr·note — 인용 출처 등은 박스보다 그림자만 (디자인 깨지지 않게) */
+
+/* === 밝은 배경 자동 감지 (JS 가 .bright-bg 부착) === */
+.card.has-bg-image.bright-bg .bg-image-overlay {
+  /* 밝은 사진일 때 오버레이 1.5배 강화 */
+  background: linear-gradient(
+    180deg,
+    rgba(0,0,0, calc(var(--bg-darken, 0.55) * 0.85)) 0%,
+    rgba(0,0,0, calc(var(--bg-darken, 0.55) * 1.5)) 60%,
+    rgba(0,0,0, calc(var(--bg-darken, 0.55) * 1.7)) 100%
+  );
+}
+/* 매우 밝은 배경일 때 추가 vignette */
+.card.has-bg-image.very-bright-bg .bg-image-layer {
+  filter: brightness(0.75);
+}
+
+/* COVER: BOLD */
+.lo-cover-bold .card-inner { justify-content: space-between; }
+.lo-cover-bold .eyebrow { font-size: calc(40px * var(--font-scale, 1) * var(--fs-label, 1) * var(--field-scale, 1)); color: var(--c-accent); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.lo-cover-bold .title { font-size: calc(167px * var(--font-scale, 1) * var(--fs-top, 1) * var(--field-scale, 1)); line-height: 1.05; font-weight: 800; letter-spacing: -0.04em; margin: 0; }
+.lo-cover-bold .subtitle { font-size: calc(49px * var(--font-scale, 1) * var(--fs-top, 1) * var(--field-scale, 1)); line-height: 1.5; color: var(--c-sub); font-weight: 500; margin-top: 24px; }
+.lo-cover-bold .badge { display: inline-flex; align-items: center; gap: 12px; padding: 18px 28px; border: 2px solid var(--c-accent); border-radius: 100px; font-size: calc(35px * var(--font-scale, 1) * var(--fs-label, 1) * var(--field-scale, 1)); font-weight: 600; color: var(--c-accent); width: fit-content; }
+.lo-cover-bold .badge .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--c-accent); }
+
+/* COVER: NUMBER */
+.lo-cover-number .card-inner { justify-content: space-between; padding-top: 120px; }
+.lo-cover-number .big-num { font-size: calc(378px * var(--font-scale, 1) * var(--fs-num, 1) * var(--field-scale, 1)); line-height: 0.85; font-weight: 800; color: var(--c-accent); letter-spacing: -0.06em; font-variant-numeric: tabular-nums; }
+.lo-cover-number .eyebrow { font-size: calc(40px * var(--font-scale, 1) * var(--fs-label, 1) * var(--field-scale, 1)); color: var(--c-sub); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 20px; }
+.lo-cover-number .title { font-size: calc(119px * var(--font-scale, 1) * var(--fs-top, 1) * var(--field-scale, 1)); line-height: 1.1; font-weight: 800; letter-spacing: -0.03em; margin: 0; }
+.lo-cover-number .subtitle { font-size: calc(43px * var(--font-scale, 1) * var(--fs-top, 1) * var(--field-scale, 1)); line-height: 1.5; color: var(--c-sub); font-weight: 500; margin-top: 20px; }
+
+/* COVER: QUESTION */
+.lo-cover-question .card-inner { justify-content: center; padding-top: 200px; padding-bottom: 200px; }
+.lo-cover-question .q-mark { font-size: calc(273px * var(--font-scale, 1) * var(--fs-num, 1) * var(--field-scale, 1)); line-height: 0.8; color: var(--c-accent); font-weight: 800; }
+.lo-cover-question .title { font-size: calc(130px * var(--font-scale, 1) * var(--fs-top, 1) * var(--field-scale, 1)); line-height: 1.1; font-weight: 800; letter-spacing: -0.03em; margin: 30px 0 0; }
+.lo-cover-question .subtitle { font-size: calc(46px * var(--font-scale, 1) * var(--fs-top, 1) * var(--field-scale, 1)); line-height: 1.5; color: var(--c-sub); font-weight: 500; margin-top: 26px; }
+
+/* COVER: SPLIT */
+.lo-cover-split .card-inner { padding: 0; flex-direction: column; }
+.lo-cover-split .top-half { flex: 0 0 540px; background: var(--c-accent); color: var(--c-bg); padding: 96px; display: flex; flex-direction: column; justify-content: flex-end; }
+.lo-cover-split .top-half .eyebrow { font-size: calc(40px * var(--font-scale, 1) * var(--fs-label, 1) * var(--field-scale, 1)); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.7; }
+.lo-cover-split .top-half .badge { font-size: calc(40px * var(--font-scale, 1) * var(--fs-label, 1) * var(--field-scale, 1)); font-weight: 700; margin-top: 20px; }
+.lo-cover-split .bottom-half { flex: 1; padding: 80px 96px 96px; display: flex; flex-direction: column; justify-content: center; }
+.lo-cover-split .title { font-size: calc(140px * var(--font-scale, 1) * var(--fs-top, 1) * var(--field-scale, 1)); line-height: 1.05; font-weight: 800; letter-spacing: -0.04em; margin: 0; }
+.lo-cover-split .subtitle { font-size: calc(46px * var(--font-scale, 1) * var(--fs-top, 1) * var(--field-scale, 1)); line-height: 1.5; color: var(--c-sub); font-weight: 500; margin-top: 24px; }
+
+/* COVER: MINIMAL (5th) */
+.lo-cover-minimal .card-inner { justify-content: center; padding: 200px 96px; }
+.lo-cover-minimal .top-badge { position: absolute; top: 96px; left: 96px; font-size: calc(32px * var(--font-scale, 1) * var(--fs-label, 1) * var(--field-scale, 1)); color: var(--c-accent); font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; }
+.lo-cover-minimal .title { font-size: calc(135px * var(--font-scale, 1) * var(--fs-top, 1) * var(--field-scale, 1)); line-height: 1.1; font-weight: 700; letter-spacing: -0.04em; margin: 0; }
+.lo-cover-minimal .line { width: 80px; height: 6px; background: var(--c-accent); margin: 40px 0 30px; }
+.lo-cover-minimal .badge { font-size: calc(38px * var(--font-scale, 1) * var(--fs-label, 1) * var(--field-scale, 1)); color: var(--c-sub); font-weight: 500; }
+
+/* TOPIC: CENTERED */
+.lo-topic-centered .card-inner { justify-content: center; padding-top: 200px; padding-bottom: 200px; gap: 36px; }
+.lo-topic-centered .label { font-size: calc(38px * var(--font-scale, 1) * var(--fs-label, 1) * var(--field-scale, 1)); color: var(--c-accent); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+.lo-topic-centered .title { font-size: calc(119px * var(--font-scale, 1) * var(--fs-top, 1) * var(--field-scale, 1)); line-height: 1.15; font-weight: 800; letter-spacing: -0.03em; margin: 0; }
+.lo-topic-centered .body { font-size: calc(48px * var(--font-scale, 1) * var(--fs-body, 1) * var(--field-scale, 1)); line-height: 1.6; color: var(--c-sub); font-weight: 400; }
+
+/* TOPIC: INDEX */
+.lo-topic-index .card-inner { padding-top: 150px; }
+.lo-topic-index .idx-row { display: flex; align-items: baseline; gap: 30px; margin-bottom: 40px; }
+.lo-topic-index .idx { font-size: calc(101px * var(--font-scale, 1) * var(--fs-num, 1) * var(--field-scale, 1)); font-weight: 800; color: var(--c-accent); line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.04em; }
+.lo-topic-index .label { font-size: calc(38px * var(--font-scale, 1) * var(--fs-label, 1) * var(--field-scale, 1)); color: var(--c-sub); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+.lo-topic-index .title { font-size: calc(108px * var(--font-scale, 1) * var(--fs-top, 1) * var(--field-scale, 1)); line-height: 1.15; font-weight: 800; letter-spacing: -0.03em; margin: 0 0 40px; }
+.lo-topic-index .body { font-size: calc(45px * var(--font-scale, 1) * var(--fs-body, 1) * var(--field-scale, 1)); line-height: 1.65; color: var(--c-sub); font-weight: 400; }
+
+/* TOPIC: QA */
+.lo-topic-qa .card-inner { padding-top: 160px; gap: 50px; }
+.lo-topic-qa .qa-block { display: flex; gap: 28px; }
+.lo-topic-qa .qa-tag { flex: 0 0 80px; white-space: nowrap; height: 80px; background: var(--c-accent); color: var(--c-bg); border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: calc(50px * var(--font-scale, 1) * var(--fs-num, 1) * var(--field-scale, 1)); font-weight: 800; }
+.lo-topic-qa .qa-tag.a { background: transparent; color: var(--c-accent); border: 4px solid var(--c-accent); }
+.lo-topic-qa .qa-text { flex: 1; font-size: calc(62px * var(--font-scale, 1) * var(--fs-body, 1) * var(--field-scale, 1)); line-height: 1.4; font-weight: 700; padding-top: 6px; }
+.lo-topic-qa .qa-text.a { font-size: calc(50px * var(--font-scale, 1) * var(--fs-body, 1) * var(--field-scale, 1)); font-weight: 500; color: var(--c-sub); }
+
+/* TOPIC: DEFINITION */
+.lo-topic-definition .card-inner { padding-top: 200px; gap: 50px; }
+.lo-topic-definition .term { font-size: calc(148px * var(--font-scale, 1) * var(--fs-top, 1) * var(--field-scale, 1)); font-weight: 800; line-height: 1; letter-spacing: -0.04em; color: var(--c-text); margin: 0; }
+.lo-topic-definition .pronunciation { font-size: calc(36px * var(--font-scale, 1) * var(--fs-unit, 1) * var(--field-scale, 1)); color: var(--c-sub); font-style: italic; font-weight: 400; margin-top: -28px; }
+.lo-topic-definition .divider { width: 80px; height: 4px; background: var(--c-accent); margin: 8px 0; }
+.lo-topic-definition .body { font-size: calc(50px * var(--font-scale, 1) * var(--fs-body, 1) * var(--field-scale, 1)); line-height: 1.6; color: var(--c-text); font-weight: 500; }
+
+/* TOPIC: COMPARE (5th) */
+.lo-topic-compare .card-inner { padding-top: 140px; }
+.lo-topic-compare .compare-title { font-size: calc(73px * var(--font-scale, 1) * var(--fs-top, 1) * var(--field-scale, 1)); line-height: 1.2; font-weight: 800; margin: 0 0 56px; letter-spacing: -0.03em; }
+.lo-topic-compare .compare-row { display: flex; gap: 28px; flex: 1; }
+.lo-topic-compare .compare-col { flex: 1; background: var(--c-bg); border: 3px solid var(--c-line); border-radius: 24px; padding: 50px 36px; display: flex; flex-direction: column; gap: 22px; }
+.lo-topic-compare .compare-col.b { border-color: var(--c-accent); }
+.lo-topic-compare .compare-label { font-size: calc(35px * var(--font-scale, 1) * var(--fs-label, 1) * var(--field-scale, 1)); color: var(--c-sub); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.lo-topic-compare .compare-col.b .compare-label { color: var(--c-accent); }
+.lo-topic-compare .compare-h { font-size: calc(59px * var(--font-scale, 1) * var(--fs-top, 1) * var(--field-scale, 1)); font-weight: 800; line-height: 1.2; margin: 0; }
+.lo-topic-compare .compare-body { font-size: calc(36px * var(--font-scale, 1) * var(--fs-body, 1) * var(--field-scale, 1)); line-height: 1.55; color: var(--c-sub); font-weight: 500; }
+
+/* LIST: NUMBERED */
+.lo-list-numbered .card-inner { padding-top: 160px; }
+.lo-list-numbered .list-header { margin-bottom: 60px; }
+.lo-list-numbered .title { font-size: calc(86px * var(--font-scale, 1) * var(--fs-top, 1) * var(--field-scale, 1)); line-height: 1.2; font-weight: 800; letter-spacing: -0.03em; margin: 0 0 14px; }
+.lo-list-numbered .sub { font-size: calc(39px * var(--font-scale, 1) * var(--fs-body, 1) * var(--field-scale, 1)); color: var(--c-sub); font-weight: 500; }
+.lo-list-numbered .items { display: flex; flex-direction: column; gap: 32px; }
+.lo-list-numbered .row { display: flex; align-items: baseline; gap: 26px; }
+.lo-list-numbered .bullet { flex: 0 0 58px; white-space: nowrap; height: 58px; border-radius: 50%; background: var(--c-accent); color: var(--c-bg); display: flex; align-items: center; justify-content: center; font-size: calc(32px * var(--font-scale, 1) * var(--fs-num, 1) * var(--field-scale, 1)); font-weight: 800; font-variant-numeric: tabular-nums; }
+.lo-list-numbered .text { flex: 1; font-size: calc(50px * var(--font-scale, 1) * var(--fs-body, 1) * var(--field-scale, 1)); line-height: 1.45; font-weight: 600; }
+
+/* LIST: CHECK */
+.lo-list-check .card-inner { padding-top: 160px; }
+.lo-list-check .list-header { margin-bottom: 60px; }
+.lo-list-check .title { font-size: calc(86px * var(--font-scale, 1) * var(--fs-top, 1) * var(--field-scale, 1)); line-height: 1.2; font-weight: 800; letter-spacing: -0.03em; margin: 0 0 14px; }
+.lo-list-check .sub { font-size: calc(39px * var(--font-scale, 1) * var(--fs-body, 1) * var(--field-scale, 1)); color: var(--c-sub); font-weight: 500; }
+.lo-list-check .items { display: flex; flex-direction: column; gap: 26px; }
+.lo-list-check .row { display: flex; align-items: baseline; gap: 26px; }
+.lo-list-check .box { flex: 0 0 50px; white-space: nowrap; height: 50px; border-radius: 10px; border: 4px solid var(--c-accent); display: flex; align-items: center; justify-content: center; font-size: calc(49px * var(--font-scale, 1) * var(--fs-label, 1) * var(--field-scale, 1)); color: var(--c-accent); font-weight: 900; line-height: 1; }
+.lo-list-check .text { flex: 1; font-size: calc(50px * var(--font-scale, 1) * var(--fs-body, 1) * var(--field-scale, 1)); line-height: 1.45; font-weight: 600; }
+
+/* LIST: DESCRIPTIONS */
+.lo-list-desc .card-inner { padding-top: 140px; }
+.lo-list-desc .title { font-size: calc(76px * var(--font-scale, 1) * var(--fs-top, 1) * var(--field-scale, 1)); line-height: 1.2; font-weight: 800; letter-spacing: -0.03em; margin: 0 0 50px; }
+.lo-list-desc .items { display: flex; flex-direction: column; gap: 40px; }
+.lo-list-desc .row { display: flex; gap: 28px; align-items: baseline; }
+.lo-list-desc .idx { flex: 0 0 80px; white-space: nowrap; font-size: calc(46px * var(--font-scale, 1) * var(--fs-num, 1) * var(--field-scale, 1)); font-weight: 800; color: var(--c-accent); line-height: 1; font-variant-numeric: tabular-nums; }
+.lo-list-desc .body { flex: 1; }
+.lo-list-desc .item-title { font-size: calc(50px * var(--font-scale, 1) * var(--fs-body, 1) * var(--field-scale, 1)); font-weight: 700; margin: 0 0 8px; line-height: 1.3; }
+.lo-list-desc .item-desc { font-size: calc(36px * var(--font-scale, 1) * var(--fs-body, 1) * var(--field-scale, 1)); color: var(--c-sub); line-height: 1.5; font-weight: 400; }
+
+/* LIST: ICON */
+.lo-list-icon .card-inner { padding-top: 160px; }
+.lo-list-icon .list-header { margin-bottom: 60px; }
+.lo-list-icon .title { font-size: calc(86px * var(--font-scale, 1) * var(--fs-top, 1) * var(--field-scale, 1)); line-height: 1.2; font-weight: 800; letter-spacing: -0.03em; margin: 0 0 14px; }
+.lo-list-icon .sub { font-size: calc(39px * var(--font-scale, 1) * var(--fs-body, 1) * var(--field-scale, 1)); color: var(--c-sub); font-weight: 500; }
+.lo-list-icon .items { display: flex; flex-direction: column; gap: 30px; }
+.lo-list-icon .row { display: flex; align-items: center; gap: 28px; }
+.lo-list-icon .dot { flex: 0 0 28px; height: 28px; border-radius: 50%; background: var(--c-accent); }
+.lo-list-icon .text { flex: 1; font-size: calc(53px * var(--font-scale, 1) * var(--fs-body, 1) * var(--field-scale, 1)); line-height: 1.4; font-weight: 600; }
+
+/* LIST: TIMELINE (5th) */
+.lo-list-timeline .card-inner { padding-top: 140px; }
+.lo-list-timeline .title { font-size: calc(76px * var(--font-scale, 1) * var(--fs-top, 1) * var(--field-scale, 1)); line-height: 1.2; font-weight: 800; letter-spacing: -0.03em; margin: 0 0 60px; }
+.lo-list-timeline .timeline { display: flex; flex-direction: column; gap: 0; position: relative; }
+.lo-list-timeline .tl-row { display: flex; align-items: baseline; gap: 30px; padding-bottom: 36px; position: relative; }
+.lo-list-timeline .tl-row::before { content: ""; position: absolute; left: 23px; top: 50px; bottom: 0; width: 3px; background: var(--c-line); }
+.lo-list-timeline .tl-row:last-child::before { display: none; }
+.lo-list-timeline .tl-dot { flex: 0 0 50px; white-space: nowrap; height: 50px; border-radius: 50%; background: var(--c-accent); display: flex; align-items: center; justify-content: center; color: var(--c-bg); font-weight: 800; font-size: calc(23px * var(--font-scale, 1) * var(--fs-num, 1) * var(--field-scale, 1)); z-index: 1; }
+.lo-list-timeline .tl-content { flex: 1; }
+.lo-list-timeline .tl-label { font-size: calc(32px * var(--font-scale, 1) * var(--fs-label, 1) * var(--field-scale, 1)); color: var(--c-accent); font-weight: 700; margin-bottom: 6px; }
+.lo-list-timeline .tl-body { font-size: calc(42px * var(--font-scale, 1) * var(--fs-body, 1) * var(--field-scale, 1)); font-weight: 600; line-height: 1.4; }
+
+/* HIGHLIGHT: QUOTE */
+.lo-highlight-quote .card-inner { justify-content: center; padding: 200px 120px; }
+.lo-highlight-quote .q-mark { font-size: calc(210px * var(--font-scale, 1) * var(--fs-num, 1) * var(--field-scale, 1)); line-height: 0.8; color: var(--c-accent); font-family: Georgia, serif; font-weight: 700; margin-bottom: 30px; }
+.lo-highlight-quote .quote { font-size: calc(103px * var(--font-scale, 1) * var(--fs-top, 1) * var(--field-scale, 1)); line-height: 1.25; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 40px; }
+.lo-highlight-quote .attr { font-size: calc(36px * var(--font-scale, 1) * var(--fs-note, 1) * var(--field-scale, 1)); color: var(--c-sub); font-weight: 500; letter-spacing: 0.04em; }
+
+/* HIGHLIGHT: STAT */
+.lo-highlight-stat .card-inner { justify-content: center; padding-top: 180px; padding-bottom: 180px; gap: 20px; }
+.lo-highlight-stat .pre { font-size: calc(45px * var(--font-scale, 1) * var(--fs-body, 1) * var(--field-scale, 1)); color: var(--c-sub); font-weight: 500; }
+.lo-highlight-stat .stat { font-size: calc(399px * var(--font-scale, 1) * var(--fs-num, 1) * var(--field-scale, 1)); line-height: 0.9; font-weight: 800; color: var(--c-accent); letter-spacing: -0.06em; font-variant-numeric: tabular-nums; margin: 0; }
+.lo-highlight-stat .stat-unit { font-size: calc(96px * var(--font-scale, 1) * var(--fs-unit, 1) * var(--field-scale, 1)); color: var(--c-accent); font-weight: 700; margin-left: -10px; }
+.lo-highlight-stat .label { font-size: calc(59px * var(--font-scale, 1) * var(--fs-label, 1) * var(--field-scale, 1)); font-weight: 700; line-height: 1.4; margin-top: 30px; }
+.lo-highlight-stat .note { font-size: calc(31px * var(--font-scale, 1) * var(--fs-note, 1) * var(--field-scale, 1)); color: var(--c-sub); font-weight: 400; margin-top: 16px; }
+
+/* HIGHLIGHT: EMPHASIS */
+.lo-highlight-emphasis .card-inner { justify-content: center; padding: 200px 120px; }
+.lo-highlight-emphasis .pre { font-size: calc(70px * var(--font-scale, 1) * var(--fs-body, 1) * var(--field-scale, 1)); line-height: 1.4; font-weight: 600; color: var(--c-text); }
+.lo-highlight-emphasis .emphasis { font-size: calc(280px * var(--font-scale, 1) * var(--fs-body, 1) * var(--field-scale, 1)); line-height: 1; font-weight: 800; color: var(--c-accent); letter-spacing: -0.05em; margin: 20px 0; }
+.lo-highlight-emphasis .post { font-size: calc(70px * var(--font-scale, 1) * var(--fs-body, 1) * var(--field-scale, 1)); line-height: 1.4; font-weight: 600; color: var(--c-text); }
+
+/* HIGHLIGHT: PULL */
+.lo-highlight-pull .card-inner { justify-content: center; padding: 180px 96px; }
+.lo-highlight-pull .pull-row { display: flex; gap: 50px; align-items: flex-start; }
+.lo-highlight-pull .pull-bar { flex: 0 0 12px; align-self: stretch; background: var(--c-accent); border-radius: 8px; }
+.lo-highlight-pull .pull-body { flex: 1; }
+.lo-highlight-pull .quote { font-size: calc(92px * var(--font-scale, 1) * var(--fs-top, 1) * var(--field-scale, 1)); line-height: 1.3; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 40px; }
+.lo-highlight-pull .attr { font-size: calc(36px * var(--font-scale, 1) * var(--fs-note, 1) * var(--field-scale, 1)); color: var(--c-sub); font-weight: 500; letter-spacing: 0.04em; }
+
+/* HIGHLIGHT: TIP (5th) */
+.lo-highlight-tip .card-inner { justify-content: center; padding: 180px 80px; }
+.lo-highlight-tip .tip-box { background: var(--c-accent); color: var(--c-bg); border-radius: 28px; padding: 56px 60px 64px; }
+.lo-highlight-tip .tip-icon { font-size: calc(119px * var(--font-scale, 1) * var(--fs-label, 1) * var(--field-scale, 1)); line-height: 1; margin-bottom: 28px; }
+.lo-highlight-tip .tip-label { font-size: calc(38px * var(--font-scale, 1) * var(--fs-label, 1) * var(--field-scale, 1)); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.85; margin-bottom: 18px; }
+.lo-highlight-tip .tip-body { font-size: calc(70px * var(--font-scale, 1) * var(--fs-top, 1) * var(--field-scale, 1)); font-weight: 700; line-height: 1.32; letter-spacing: -0.02em; }
+
+/* CLOSING: NEXT */
+.lo-closing-next .card-inner { justify-content: space-between; padding-top: 180px; padding-bottom: 200px; }
+.lo-closing-next .eyebrow { font-size: calc(40px * var(--font-scale, 1) * var(--fs-label, 1) * var(--field-scale, 1)); color: var(--c-accent); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.lo-closing-next .title { font-size: calc(122px * var(--font-scale, 1) * var(--fs-top, 1) * var(--field-scale, 1)); line-height: 1.1; font-weight: 800; letter-spacing: -0.03em; margin: 28px 0 0; }
+.lo-closing-next .cta { display: flex; flex-direction: column; gap: 18px; margin-top: 30px; }
+.lo-closing-next .account { font-size: calc(47px * var(--font-scale, 1) * var(--fs-note, 1) * var(--field-scale, 1)); font-weight: 700; color: var(--c-accent); }
+.lo-closing-next .hashtag { font-size: calc(34px * var(--font-scale, 1) * var(--fs-note, 1) * var(--field-scale, 1)); color: var(--c-sub); line-height: 1.5; }
+
+/* CLOSING: SAVE */
+.lo-closing-save .card-inner { justify-content: center; padding: 200px 100px; gap: 40px; }
+.lo-closing-save .icon { font-size: calc(243px * var(--font-scale, 1) * var(--fs-label, 1) * var(--field-scale, 1)); line-height: 1; color: var(--c-accent); }
+.lo-closing-save .title { font-size: calc(113px * var(--font-scale, 1) * var(--fs-top, 1) * var(--field-scale, 1)); line-height: 1.15; font-weight: 800; letter-spacing: -0.03em; margin: 0; }
+.lo-closing-save .reason { font-size: calc(45px * var(--font-scale, 1) * var(--fs-body, 1) * var(--field-scale, 1)); line-height: 1.6; color: var(--c-sub); font-weight: 500; margin-top: 8px; }
+.lo-closing-save .account { font-size: calc(42px * var(--font-scale, 1) * var(--fs-note, 1) * var(--field-scale, 1)); font-weight: 700; color: var(--c-accent); margin-top: 40px; }
+
+/* CLOSING: ASK */
+.lo-closing-ask .card-inner { justify-content: center; padding: 180px 100px; gap: 36px; }
+.lo-closing-ask .eyebrow { font-size: calc(43px * var(--font-scale, 1) * var(--fs-label, 1) * var(--field-scale, 1)); color: var(--c-accent); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.lo-closing-ask .question { font-size: calc(108px * var(--font-scale, 1) * var(--fs-top, 1) * var(--field-scale, 1)); line-height: 1.2; font-weight: 800; letter-spacing: -0.03em; margin: 0; }
+.lo-closing-ask .cta-box { padding: 28px 36px; background: var(--c-accent); color: var(--c-bg); border-radius: 16px; font-size: calc(43px * var(--font-scale, 1) * var(--fs-top, 1) * var(--field-scale, 1)); font-weight: 700; width: fit-content; margin-top: 20px; }
+.lo-closing-ask .account { font-size: calc(39px * var(--font-scale, 1) * var(--fs-note, 1) * var(--field-scale, 1)); font-weight: 700; color: var(--c-sub); margin-top: auto; }
+
+/* CLOSING: MULTI */
+.lo-closing-multi .card-inner { justify-content: space-between; padding-top: 160px; padding-bottom: 200px; }
+.lo-closing-multi .eyebrow { font-size: calc(38px * var(--font-scale, 1) * var(--fs-label, 1) * var(--field-scale, 1)); color: var(--c-accent); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.lo-closing-multi .title { font-size: calc(103px * var(--font-scale, 1) * var(--fs-top, 1) * var(--field-scale, 1)); line-height: 1.15; font-weight: 800; letter-spacing: -0.03em; margin: 24px 0 50px; }
+.lo-closing-multi .actions-row { display: flex; flex-direction: column; gap: 22px; }
+.lo-closing-multi .act-row { display: flex; align-items: center; gap: 24px; font-size: calc(48px * var(--font-scale, 1) * var(--fs-body, 1) * var(--field-scale, 1)); font-weight: 600; }
+.lo-closing-multi .act-icon { width: 60px; height: 60px; border-radius: 14px; background: var(--c-accent); color: var(--c-bg); display: flex; align-items: center; justify-content: center; font-size: calc(40px * var(--font-scale, 1) * var(--fs-label, 1) * var(--field-scale, 1)); font-weight: 800; }
+.lo-closing-multi .account { font-size: calc(42px * var(--font-scale, 1) * var(--fs-note, 1) * var(--field-scale, 1)); font-weight: 700; color: var(--c-accent); margin-top: 40px; }
+
+/* CLOSING: THANKS (5th) */
+.lo-closing-thanks .card-inner { justify-content: center; padding: 200px 100px; gap: 40px; align-items: center; text-align: center; }
+.lo-closing-thanks .icon { font-size: calc(189px * var(--font-scale, 1) * var(--fs-label, 1) * var(--field-scale, 1)); line-height: 1; }
+.lo-closing-thanks .title { font-size: calc(130px * var(--font-scale, 1) * var(--fs-top, 1) * var(--field-scale, 1)); line-height: 1.1; font-weight: 800; letter-spacing: -0.03em; margin: 0; }
+.lo-closing-thanks .subtitle { font-size: calc(43px * var(--font-scale, 1) * var(--fs-top, 1) * var(--field-scale, 1)); line-height: 1.6; color: var(--c-sub); font-weight: 500; }
+.lo-closing-thanks .account { font-size: calc(47px * var(--font-scale, 1) * var(--fs-note, 1) * var(--field-scale, 1)); font-weight: 700; color: var(--c-accent); margin-top: 30px; }
+
+/* 필드별 사용자 색상은 RENDERER 결과 element 의 인라인 style 로 적용됨
+   (style="color: #XXX !important"). 글자 크기는 카드 root --field-scale 변수 곱셈. */
+
+/* 추출용 hidden 영역 */
+.render-area {
+  position: fixed;
+  top: 0; left: -10000px;
+  width: 1080px; height: 1350px;
+  pointer-events: none;
+}
+.render-area .card { transform: none; position: relative; }
+
+/* ── 인스타 스토리 요약 카드 (1080×1920, 9:16) ── */
+.story-render-area {
+  position: fixed;
+  top: 0; left: -10000px;
+  width: 1080px; height: 1920px;
+  pointer-events: none;
+}
+.story-card {
+  width: 1080px; height: 1920px;
+  position: relative;
+  background: var(--s-bg);
+  color: var(--s-text);
+  font-family: "Pretendard Variable", Pretendard, sans-serif;
+  display: flex;
+  flex-direction: column;
+  /* 인스타 스토리 상·하단 UI 안전영역 고려 */
+  padding: 172px 88px 206px;
+  overflow: hidden;
+}
+.story-card .s-top {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 36px;
+}
+.story-card .s-tag {
+  font-family: "Gmarket Sans", "Pretendard Variable", Pretendard, sans-serif;
+  font-size: 36px; font-weight: 700; letter-spacing: 0.16em;
+  color: var(--s-accent); text-transform: uppercase;
+}
+.story-card .s-brand {
+  font-size: 32px; font-weight: 600; color: var(--s-sub);
+  max-width: 520px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.story-card .s-headline {
+  font-family: "Gmarket Sans", "Pretendard Variable", Pretendard, sans-serif;
+  font-size: calc(90px * var(--s-fit, 1) * var(--u-title, 1));
+  line-height: 1.16; font-weight: 800;
+  letter-spacing: -0.03em; margin: 0;
+  color: var(--s-title-color, var(--s-text));
+}
+.story-card .s-rule {
+  width: 110px; height: 10px; border-radius: 6px; flex: 0 0 auto;
+  background: var(--s-accent);
+  margin: calc(40px * var(--s-fit, 1)) 0 calc(46px * var(--s-fit, 1));
+}
+.story-card .s-points {
+  display: flex; flex-direction: column; gap: calc(40px * var(--s-fit, 1));
+  flex: 1; min-height: 0;
+}
+.story-card .s-point { display: flex; align-items: baseline; gap: calc(30px * var(--s-fit, 1) * var(--u-points, 1)); }
+.story-card .s-n {
+  flex: 0 0 auto;
+  width: calc(66px * var(--s-fit, 1) * var(--u-points, 1));
+  height: calc(66px * var(--s-fit, 1) * var(--u-points, 1));
+  border-radius: 50%;
+  background: var(--s-accent); color: var(--s-bg);
+  display: flex; align-items: center; justify-content: center;
+  font-family: "Gmarket Sans", "Pretendard Variable", Pretendard, sans-serif;
+  font-size: calc(32px * var(--s-fit, 1) * var(--u-points, 1));
+  font-weight: 800; font-variant-numeric: tabular-nums;
+}
+.story-card .s-tx {
+  flex: 1; font-size: calc(47px * var(--s-fit, 1) * var(--u-points, 1));
+  line-height: 1.4; font-weight: 600;
+  color: var(--s-tx-color, var(--s-text)); letter-spacing: -0.01em;
+}
+.story-card .s-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 24px; border-top: 2px solid var(--s-line);
+  padding-top: 40px; margin-top: 44px;
+}
+.story-card .s-handle {
+  font-family: "Gmarket Sans", "Pretendard Variable", Pretendard, sans-serif;
+  font-size: 46px; font-weight: 700; color: var(--s-accent);
+}
+.story-card .s-cta { font-size: 34px; color: var(--s-sub); font-weight: 500; }
+
+/* 모달 안 9:16 미리보기 (0.3 배율 = 324×576) */
+.story-preview {
+  flex: 0 0 auto; width: 324px; height: 576px;
+  overflow: hidden; border-radius: 18px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  background: #000;
+}
+.story-preview .story-card { transform: scale(0.3); transform-origin: top left; }
+.story-summary-body { display: flex; gap: 24px; align-items: flex-start; }
+.story-summary-controls { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.story-summary-controls label { font-size: 11px; color: var(--text-dim); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; display: block; margin-bottom: 5px; }
+.story-summary-controls textarea, .story-summary-controls input, .story-summary-controls select {
+  width: 100%; background: var(--panel-2); border: 1px solid var(--line);
+  color: var(--text); border-radius: 8px; padding: 9px 11px; font-size: 13px; resize: vertical;
+}
+.story-summary-controls textarea:focus, .story-summary-controls input:focus, .story-summary-controls select:focus { outline: none; border-color: var(--accent); }
+.story-mode-toggle { display: flex; gap: 6px; }
+.story-mode-toggle button {
+  flex: 1; padding: 8px; border: 1px solid var(--line); background: var(--panel-2);
+  color: var(--text-dim); border-radius: 8px; font-size: 12px;
+}
+.story-mode-toggle button.active { border-color: var(--accent); color: var(--text); background: rgba(110,231,255,0.08); }
+
+/* 모달 */
+.modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+  padding: 40px;
+}
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  width: 100%;
+  max-width: 720px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.modal-header {
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.modal-header h2 { margin: 0; font-size: 16px; }
+.modal-header .close {
+  background: transparent; border: 0;
+  color: var(--text-dim); font-size: 24px;
+  width: 32px; height: 32px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-header .close:hover { color: var(--text); background: var(--panel-2); }
+.modal-body { padding: 24px; overflow-y: auto; flex: 1; }
+.modal-body p.intro {
+  margin: 0 0 16px;
+  color: var(--text-dim);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+.modal-body textarea {
+  width: 100%;
+  min-height: 220px;
+  padding: 14px 16px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.6;
+  resize: vertical;
+}
+.modal-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 16px;
+}
+.modal-options .opt {
+  display: flex; flex-direction: column; gap: 4px;
+}
+.modal-options label {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.modal-options select, .modal-options input {
+  padding: 8px 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 12px;
+}
+.modal-footer {
+  padding: 14px 20px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.modal-footer .hint { font-size: 11px; color: var(--text-faint); }
+.modal-footer-actions { display: flex; gap: 8px; }
+.modal-footer .btn { padding: 9px 18px; font-size: 12px; }
+
+.modal-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  gap: 16px;
+}
+.modal-loading .spinner {
+  width: 44px; height: 44px;
+  border: 3px solid var(--line);
+  border-top-color: var(--ai);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+.modal-loading .label { color: var(--ai); font-size: 13px; font-weight: 600; }
+.modal-loading .sub { color: var(--text-dim); font-size: 11px; }
+
+/* === 이미지 업로드 영역 === */
+.upload-area {
+  border: 2px dashed var(--line);
+  border-radius: 10px;
+  padding: 18px;
+  text-align: center;
+  background: var(--panel-2);
+  transition: all 0.15s;
+  margin-bottom: 14px;
+}
+.upload-area.dragging {
+  border-color: var(--ai);
+  background: rgba(200,155,255,0.08);
+}
+.upload-prompt {
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.upload-prompt .link-btn {
+  background: transparent;
+  border: 0;
+  color: var(--ai);
+  cursor: pointer;
+  font-weight: 600;
+  text-decoration: underline;
+  font-size: 12px;
+  padding: 0;
+}
+.upload-prompt .hint {
+  font-size: 10.5px;
+  color: var(--text-faint);
+  margin-top: 4px;
+}
+.upload-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.upload-list:empty { display: none; }
+.upload-thumb {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+.upload-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.upload-thumb .remove {
+  position: absolute;
+  top: 2px; right: 2px;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.7);
+  color: #fff;
+  border: 0;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.upload-thumb .name {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  font-size: 8.5px;
+  background: rgba(0,0,0,0.7);
+  color: #fff;
+  padding: 2px 4px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 캡션 결과 */
+.caption-result {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px 16px;
+  font-size: 13px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  color: var(--text);
+  min-height: 120px;
+}
+.caption-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* 토스트 */
+.toast {
+  position: fixed;
+  bottom: 24px; left: 50%;
+  transform: translateX(-50%);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  z-index: 2000;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.toast.error { border-color: var(--danger); color: var(--danger); }
+.toast.success { border-color: var(--accent); }
+
+/* 스크롤바 */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<div class="tabbar" id="project-tabs"></div>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <h1>Cardnews Studio</h1>
+      <span class="ver">v3 · AI</span>
+    </div>
+
+    <div class="ai-hero">
+      <button class="ai-hero-btn" id="btn-one-shot">
+        ✨ 내용 입력 → 카드뉴스 자동 완성
+      </button>
+      <p class="ai-hero-desc">Claude AI가 요약·구조·테마까지 한 번에</p>
+    </div>
+
+    <div class="section">
+      <h3>컬러 테마 <span class="help">10종</span></h3>
+      <div class="theme-grid" id="theme-grid"></div>
+    </div>
+
+    <div class="section" style="flex:1; overflow:hidden; display:flex; flex-direction:column; padding-bottom:6px;">
+      <h3>카드 (<span id="card-count">0</span>) <span class="help">드래그 정렬</span></h3>
+      <div class="card-list-wrap" id="card-list"></div>
+    </div>
+
+    <div class="section">
+      <h3>수동 카드 추가</h3>
+      <div class="add-grid">
+        <button class="add-btn" data-add="cover"><b>표지</b><span>5종 레이아웃</span></button>
+        <button class="add-btn" data-add="topic"><b>주제</b><span>5종 레이아웃</span></button>
+        <button class="add-btn" data-add="list"><b>리스트</b><span>5종 레이아웃</span></button>
+        <button class="add-btn" data-add="highlight"><b>포인트</b><span>5종 레이아웃</span></button>
+        <button class="add-btn" data-add="closing"><b>마무리</b><span>5종 레이아웃</span></button>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-ghost" id="btn-brand">🎙 브랜드 설정</button>
+      <button class="btn btn-ai" id="btn-caption">📝 AI 캡션 생성</button>
+      <button class="btn btn-ai" id="btn-story">📱 스토리 요약 카드 (1장)</button>
+      <div class="btn-row">
+        <button class="btn btn-ghost" id="btn-save">저장</button>
+        <button class="btn btn-ghost" id="btn-load">불러오기</button>
+        <button class="btn btn-ghost" id="btn-reset">초기화</button>
+      </div>
+      <button class="btn btn-primary" id="btn-export">📥 전체 PNG 다운로드 (ZIP)</button>
+      <button class="btn btn-primary" id="btn-publish" style="background:linear-gradient(135deg,#e1306c,#833ab4);color:#fff;border:none">📲 인스타·스레드 발행</button>
+    </div>
+  </aside>
+
+  <section class="editor">
+    <div class="editor-header" id="editor-header">
+      <div class="editor-header-top">
+        <h2 id="editor-title">카드를 선택하세요</h2>
+        <span class="ec" id="editor-counter"></span>
+      </div>
+      <p id="editor-sub">상단의 AI 생성 버튼으로 시작하거나, 수동으로 카드를 추가하세요</p>
+      <div class="layout-chips" id="layout-chips"></div>
+      <div class="card-action-row" id="card-actions" style="display:none">
+        <button class="btn btn-ai" id="btn-polish">✨ AI로 다듬기</button>
+      </div>
+    </div>
+    <div class="editor-body" id="editor-body">
+      <div class="empty">
+        <div class="empty-emoji">✨</div>
+        <strong style="font-size:13px; color:var(--text);">원버튼으로 시작하기</strong><br>
+        <span style="color:var(--text-faint); font-size:11px;">
+          좌측 상단 [내용 입력 → 카드뉴스 자동 완성]<br>
+          전달하고 싶은 내용을 붙여넣으면 끝
+        </span>
+      </div>
+    </div>
+  </section>
+
+  <section class="preview-pane">
+    <div class="preview-header">
+      <h2 id="preview-title">Preview</h2>
+      <div class="meta">1080 × 1350 · 4:5 · Pretendard</div>
+    </div>
+    <div class="preview-stage" id="preview-stage">
+      <div class="preview-scaler theme-navy" id="preview-scaler"></div>
+    </div>
+  </section>
+</div>
+
+<div class="render-area theme-navy" id="render-area"></div>
+
+<script>
+// ====================================================================
+// THEMES
+// ====================================================================
+const THEMES = {
+  navy:  { name: "Navy",  swatch: ["#eef0f4","#0e1f4d","#1e3fa8"], light: {bg:"#eef0f4",text:"#0e1422",sub:"#5b6275",accent:"#1e3fa8",line:"#dde1e9"}, bold: {bg:"#0e1f4d",text:"#ffffff",sub:"#b8c4e6",accent:"#6ee7ff",line:"rgba(255,255,255,0.18)"} },
+  mono:  { name: "Mono",  swatch: ["#eeeeec","#111111","#ff5436"], light: {bg:"#eeeeec",text:"#111111",sub:"#6a6a6a",accent:"#ff5436",line:"#dedede"}, bold: {bg:"#111111",text:"#ffffff",sub:"#b5b5b5",accent:"#ff7a5c",line:"rgba(255,255,255,0.18)"} },
+  mint:  { name: "Mint",  swatch: ["#e8f1ec","#0f3a2f","#14a878"], light: {bg:"#e8f1ec",text:"#0f1d1a",sub:"#5b6e69",accent:"#14a878",line:"#d2e2db"}, bold: {bg:"#0f3a2f",text:"#ffffff",sub:"#b8d8cd",accent:"#6effc3",line:"rgba(255,255,255,0.18)"} },
+  sand:  { name: "Sand",  swatch: ["#ece2d0","#3a2a1e","#d97849"], light: {bg:"#ece2d0",text:"#3a2a1e",sub:"#7c6951",accent:"#d97849",line:"#ddd2bd"}, bold: {bg:"#3a2a1e",text:"#f6efe2",sub:"#d4c4a8",accent:"#f0a060",line:"rgba(255,255,255,0.18)"} },
+  berry: { name: "Berry", swatch: ["#f4dae6","#3d0e2f","#e6005c"], light: {bg:"#f4dae6",text:"#3d0e2f",sub:"#8a4a6d",accent:"#e6005c",line:"#ecc7d8"}, bold: {bg:"#3d0e2f",text:"#ffffff",sub:"#e5b8d2",accent:"#ff5fa8",line:"rgba(255,255,255,0.18)"} },
+  ocean: { name: "Ocean", swatch: ["#d9e8ef","#0a2540","#0085c7"], light: {bg:"#d9e8ef",text:"#0a2540",sub:"#4a6577",accent:"#0085c7",line:"#c2d6e1"}, bold: {bg:"#0a2540",text:"#ffffff",sub:"#a8c4d6",accent:"#4ec5f1",line:"rgba(255,255,255,0.18)"} },
+  sunny: { name: "Sunny", swatch: ["#f4ead0","#1a1a1a","#ff4400"], light: {bg:"#f4ead0",text:"#1a1a1a",sub:"#5a5240",accent:"#ff4400",line:"#e6dab0"}, bold: {bg:"#ffd60a",text:"#1a1a1a",sub:"#4a4520",accent:"#ff2200",line:"rgba(0,0,0,0.2)"} },
+  tech:  { name: "Tech",  swatch: ["#e3e7ed","#0a0a0a","#00d4ff"], light: {bg:"#e3e7ed",text:"#0a0a0a",sub:"#5a5e6b",accent:"#0066cc",line:"#cdd2db"}, bold: {bg:"#0a0a0a",text:"#f0f2f5",sub:"#7a8090",accent:"#00d4ff",line:"rgba(255,255,255,0.18)"} },
+  paper: { name: "Paper", swatch: ["#e9e4d6","#1a1a1a","#c8102e"], light: {bg:"#e9e4d6",text:"#1a1a1a",sub:"#5a5a52",accent:"#c8102e",line:"#d8d2c0"}, bold: {bg:"#2d2a24",text:"#f4f1e8",sub:"#b8b0a0",accent:"#e63946",line:"rgba(255,255,255,0.18)"} },
+  lav:   { name: "Lav",   swatch: ["#ddd3ec","#2d1b4e","#7c3aed"], light: {bg:"#ddd3ec",text:"#2d1b4e",sub:"#6a5a85",accent:"#7c3aed",line:"#cfc2e2"}, bold: {bg:"#2d1b4e",text:"#ece4f5",sub:"#c8b8e0",accent:"#b794f4",line:"rgba(255,255,255,0.18)"} },
+};
+
+// ====================================================================
+// LAYOUTS — 5종씩
+// ====================================================================
+const LAYOUTS = {
+  cover: [
+    { id: "bold", name: "Bold", desc: "큰 타이틀" },
+    { id: "number", name: "Number", desc: "숫자 강조" },
+    { id: "question", name: "Question", desc: "질문 후크" },
+    { id: "split", name: "Split", desc: "컬러 분할" },
+    { id: "minimal", name: "Minimal", desc: "미니멀" },
+  ],
+  topic: [
+    { id: "centered", name: "Center", desc: "중앙 정렬" },
+    { id: "index", name: "Index", desc: "번호 인덱스" },
+    { id: "qa", name: "Q&A", desc: "질문/답변" },
+    { id: "definition", name: "Define", desc: "정의/용어" },
+    { id: "compare", name: "Compare", desc: "좌우 비교" },
+  ],
+  list: [
+    { id: "numbered", name: "Numbered", desc: "원형 번호" },
+    { id: "check", name: "Check", desc: "체크박스" },
+    { id: "desc", name: "Detail", desc: "번호+설명" },
+    { id: "icon", name: "Dot", desc: "점 불릿" },
+    { id: "timeline", name: "Timeline", desc: "타임라인" },
+  ],
+  highlight: [
+    { id: "quote", name: "Quote", desc: "인용문" },
+    { id: "stat", name: "Stat", desc: "큰 숫자" },
+    { id: "emphasis", name: "Word", desc: "한 단어 강조" },
+    { id: "pull", name: "Pull", desc: "사이드바 인용" },
+    { id: "tip", name: "Tip", desc: "팁 박스" },
+  ],
+  closing: [
+    { id: "next", name: "Next", desc: "다음 예고" },
+    { id: "save", name: "Save", desc: "저장 유도" },
+    { id: "ask", name: "Ask", desc: "댓글 유도" },
+    { id: "multi", name: "Multi-CTA", desc: "팔로우+저장+공유" },
+    { id: "thanks", name: "Thanks", desc: "감사 인사" },
+  ],
+};
+
+const TYPE_LABEL = { cover:"표지", topic:"주제", list:"리스트", highlight:"포인트", closing:"마무리" };
+
+// 레이아웃별 필수 필드 (AI 호출 시 스키마용)
+const LAYOUT_FIELDS = {
+  "cover/bold": ["eyebrow","title","subtitle","badge"],
+  "cover/number": ["number","eyebrow","title","subtitle"],
+  "cover/question": ["title","subtitle"],
+  "cover/split": ["eyebrow","badge","title","subtitle"],
+  "cover/minimal": ["eyebrow","title","badge"],
+  "topic/centered": ["label","title","body"],
+  "topic/index": ["number","label","title","body"],
+  "topic/qa": ["question","answer"],
+  "topic/definition": ["term","pron","body"],
+  "topic/compare": ["compareTitle","labelA","titleA","bodyA","labelB","titleB","bodyB"],
+  "list/numbered": ["title","sub","items"],
+  "list/check": ["title","sub","items"],
+  "list/desc": ["title","descItems"],
+  "list/icon": ["title","sub","items"],
+  "list/timeline": ["title","timelineItems"],
+  "highlight/quote": ["quote","attribution"],
+  "highlight/stat": ["statPre","stat","statUnit","statLabel","statNote"],
+  "highlight/emphasis": ["emphPre","emphasis","emphPost"],
+  "highlight/pull": ["quote","attribution"],
+  "highlight/tip": ["tipLabel","tipBody"],
+  "closing/next": ["eyebrow","title","account","hashtag"],
+  "closing/save": ["title","saveReason","account"],
+  "closing/ask": ["eyebrow","askQuestion","askCta","account"],
+  "closing/multi": ["eyebrow","title","account"],
+  "closing/thanks": ["title","subtitle","account"],
+};
+
+// ====================================================================
+// DEFAULTS (수동 추가 시 빈 카드 기본값)
+// ====================================================================
+const DEFAULTS = {
+  cover: () => ({ eyebrow:"인공지능사관학교 서포터즈", title:"여기에 타이틀", subtitle:"여기에 부제목", badge:"황미르 · 8기 서포터즈", number:"01" }),
+  topic: () => ({ label:"주제", title:"여기에 제목", body:"여기에 본문 1-2문장", number:"01", question:"질문은?", answer:"답변", term:"용어", pron:"Pronunciation", compareTitle:"비교 주제", labelA:"A", titleA:"옵션 A", bodyA:"A 설명", labelB:"B", titleB:"옵션 B", bodyB:"B 설명" }),
+  list: () => ({ title:"리스트 제목", sub:"보조 설명", items:["항목 1","항목 2","항목 3"], descItems:[{title:"항목 1",desc:"설명"},{title:"항목 2",desc:"설명"}], timelineItems:[{label:"단계 1",content:"내용"},{label:"단계 2",content:"내용"}] }),
+  highlight: () => ({ quote:"인용 또는\n핵심 메시지", attribution:"출처", stat:"73", statUnit:"%", statPre:"수료생 중", statLabel:"6개월 내 취업", statNote:"*2024 조사", emphPre:"결국 중요한 건", emphasis:"꾸준함", emphPost:"이라는 걸 느낀 한 주", tipLabel:"PRO TIP", tipBody:"여기에 팁 내용을 적으세요" }),
+  closing: () => ({ eyebrow:"NEXT", title:"여기에 마무리 메시지", account:"@dailysync_ai", hashtag:"#태그1 #태그2", saveReason:"다시 보고 싶을 때 꺼내 볼 수 있게", askQuestion:"여러분의 생각은?", askCta:"댓글로 들려주세요 💬", subtitle:"끝까지 읽어주셔서 감사합니다" }),
+};
+
+// ====================================================================
+// LAYOUT RENDERERS
+// ====================================================================
+function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function nl(s) { return esc(s).replace(/\n/g, "<br>"); }
+
+const RENDERERS = {
+  "cover/bold": d => `<div class="card-inner"><div class="eyebrow">${esc(d.eyebrow)}</div><div><h1 class="title">${nl(d.title)}</h1><div class="subtitle">${nl(d.subtitle)}</div></div><div class="badge"><span class="dot"></span>${esc(d.badge)}</div></div>`,
+  "cover/number": d => `<div class="card-inner"><div class="big-num">${esc(d.number||"01")}</div><div><div class="eyebrow">${esc(d.eyebrow)}</div><h1 class="title">${nl(d.title)}</h1><div class="subtitle">${nl(d.subtitle)}</div></div></div>`,
+  "cover/question": d => `<div class="card-inner"><div class="q-mark">?</div><h1 class="title">${nl(d.title)}</h1><div class="subtitle">${nl(d.subtitle)}</div></div>`,
+  "cover/split": d => `<div class="card-inner"><div class="top-half"><div class="eyebrow">${esc(d.eyebrow)}</div><div class="badge">${esc(d.badge)}</div></div><div class="bottom-half"><h1 class="title">${nl(d.title)}</h1><div class="subtitle">${nl(d.subtitle)}</div></div></div>`,
+  "cover/minimal": d => `<div class="card-inner"><div class="top-badge">${esc(d.eyebrow)}</div><h1 class="title">${nl(d.title)}</h1><div class="line"></div><div class="badge">${esc(d.badge)}</div></div>`,
+
+  "topic/centered": d => `<div class="card-inner"><div class="label">${esc(d.label)}</div><h2 class="title">${nl(d.title)}</h2><div class="body">${nl(d.body)}</div></div>`,
+  "topic/index": d => `<div class="card-inner"><div class="idx-row"><span class="idx">${esc(d.number||"01")}</span><span class="label">${esc(d.label)}</span></div><h2 class="title">${nl(d.title)}</h2><div class="body">${nl(d.body)}</div></div>`,
+  "topic/qa": d => `<div class="card-inner"><div class="qa-block"><div class="qa-tag">Q</div><div class="qa-text">${nl(d.question)}</div></div><div class="qa-block"><div class="qa-tag a">A</div><div class="qa-text a">${nl(d.answer)}</div></div></div>`,
+  "topic/definition": d => `<div class="card-inner"><h2 class="term">${esc(d.term)}</h2><div class="pronunciation">${esc(d.pron)}</div><div class="divider"></div><div class="body">${nl(d.body)}</div></div>`,
+  "topic/compare": d => `<div class="card-inner"><h3 class="compare-title">${nl(d.compareTitle)}</h3><div class="compare-row"><div class="compare-col"><div class="compare-label">${esc(d.labelA)}</div><h4 class="compare-h">${nl(d.titleA)}</h4><div class="compare-body">${nl(d.bodyA)}</div></div><div class="compare-col b"><div class="compare-label">${esc(d.labelB)}</div><h4 class="compare-h">${nl(d.titleB)}</h4><div class="compare-body">${nl(d.bodyB)}</div></div></div></div>`,
+
+  "list/numbered": d => `<div class="card-inner"><div class="list-header"><h2 class="title">${nl(d.title)}</h2><div class="sub">${esc(d.sub)}</div></div><div class="items">${(d.items||[]).map((t,i)=>`<div class="row"><div class="bullet">${i+1}</div><div class="text">${esc(t)}</div></div>`).join("")}</div></div>`,
+  "list/check": d => `<div class="card-inner"><div class="list-header"><h2 class="title">${nl(d.title)}</h2><div class="sub">${esc(d.sub)}</div></div><div class="items">${(d.items||[]).map(t=>`<div class="row"><div class="box">✓</div><div class="text">${esc(t)}</div></div>`).join("")}</div></div>`,
+  "list/desc": d => `<div class="card-inner"><h2 class="title">${nl(d.title)}</h2><div class="items">${(d.descItems||[]).map((it,i)=>`<div class="row"><div class="idx">${String(i+1).padStart(2,'0')}</div><div class="body"><div class="item-title">${esc(it.title)}</div><div class="item-desc">${esc(it.desc)}</div></div></div>`).join("")}</div></div>`,
+  "list/icon": d => `<div class="card-inner"><div class="list-header"><h2 class="title">${nl(d.title)}</h2><div class="sub">${esc(d.sub)}</div></div><div class="items">${(d.items||[]).map(t=>`<div class="row"><div class="dot"></div><div class="text">${esc(t)}</div></div>`).join("")}</div></div>`,
+  "list/timeline": d => `<div class="card-inner"><h2 class="title">${nl(d.title)}</h2><div class="timeline">${(d.timelineItems||[]).map((it,i)=>`<div class="tl-row"><div class="tl-dot">${i+1}</div><div class="tl-content"><div class="tl-label">${esc(it.label)}</div><div class="tl-body">${esc(it.content)}</div></div></div>`).join("")}</div></div>`,
+
+  "highlight/quote": d => `<div class="card-inner"><div class="q-mark">"</div><div class="quote">${nl(d.quote)}</div><div class="attr">— ${esc(d.attribution)}</div></div>`,
+  "highlight/stat": d => `<div class="card-inner"><div class="pre">${esc(d.statPre)}</div><div><span class="stat">${esc(d.stat)}</span><span class="stat-unit">${esc(d.statUnit)}</span></div><div class="label">${nl(d.statLabel)}</div><div class="note">${esc(d.statNote)}</div></div>`,
+  "highlight/emphasis": d => `<div class="card-inner"><div class="pre">${nl(d.emphPre)}</div><div class="emphasis">${esc(d.emphasis)}</div><div class="post">${nl(d.emphPost)}</div></div>`,
+  "highlight/pull": d => `<div class="card-inner"><div class="pull-row"><div class="pull-bar"></div><div class="pull-body"><div class="quote">${nl(d.quote)}</div><div class="attr">— ${esc(d.attribution)}</div></div></div></div>`,
+  "highlight/tip": d => `<div class="card-inner"><div class="tip-box"><div class="tip-icon">💡</div><div class="tip-label">${esc(d.tipLabel)}</div><div class="tip-body">${nl(d.tipBody)}</div></div></div>`,
+
+  "closing/next": d => `<div class="card-inner"><div><div class="eyebrow">${esc(d.eyebrow)}</div><h2 class="title">${nl(d.title)}</h2></div><div class="cta"><div class="account">${esc(d.account)}</div><div class="hashtag">${esc(d.hashtag)}</div></div></div>`,
+  "closing/save": d => `<div class="card-inner"><div class="icon">📌</div><h2 class="title">${nl(d.title)}</h2><div class="reason">${nl(d.saveReason)}</div><div class="account">${esc(d.account)}</div></div>`,
+  "closing/ask": d => `<div class="card-inner"><div class="eyebrow">${esc(d.eyebrow)}</div><h2 class="question">${nl(d.askQuestion)}</h2><div class="cta-box">${esc(d.askCta)}</div><div class="account">${esc(d.account)}</div></div>`,
+  "closing/multi": d => `<div class="card-inner"><div><div class="eyebrow">${esc(d.eyebrow)}</div><h2 class="title">${nl(d.title)}</h2></div><div class="actions-row"><div class="act-row"><div class="act-icon">+</div>팔로우하고 매주 받아보기</div><div class="act-row"><div class="act-icon">📌</div>나중에 다시 볼 수 있게 저장</div><div class="act-row"><div class="act-icon">↗</div>도움됐다면 공유 부탁드려요</div></div><div class="account">${esc(d.account)}</div></div>`,
+  "closing/thanks": d => `<div class="card-inner"><div class="icon">🙏</div><h2 class="title">${nl(d.title)}</h2><div class="subtitle">${nl(d.subtitle)}</div><div class="account">${esc(d.account)}</div></div>`,
+};
+
+// 필드 key → 카드 안에서 해당 텍스트를 표시하는 element selector (첫 매치)
+// compare A/B 처럼 같은 클래스가 두 번 나오는 layout 은 nth-of-type 으로 위치 지정.
+const FIELD_TO_SELECTOR = {
+  // 공용 (단일 element)
+  eyebrow: ".eyebrow", title: ".title", subtitle: ".subtitle", badge: ".badge",
+  body: ".body", sub: ".sub", label: ".label", account: ".account",
+  hashtag: ".hashtag", attribution: ".attr", quote: ".quote",
+  term: ".term", pron: ".pronunciation",
+  // number layout 별 대응 — selector list 로 첫 매치
+  number: ".big-num, .idx",
+  // QA: 같은 .qa-text 두 개 → :nth-of-type 으로
+  question: ".question, .qa-text:nth-of-type(1)",
+  answer: ".qa-text:nth-of-type(2)",
+  // compare: A/B 컬럼 .col-a / .col-b 또는 인덱스 fallback
+  compareTitle: ".compare-h", // cover 위치의 메인 제목 (단일)
+  // compare 좌/우 분리는 후처리에서 위치 인덱스 기반
+  labelA: { sel: ".compare-label", index: 0 },
+  titleA: { sel: ".compare-h", index: 0 },
+  bodyA:  { sel: ".compare-body", index: 0 },
+  labelB: { sel: ".compare-label", index: 1 },
+  titleB: { sel: ".compare-h", index: 1 },
+  bodyB:  { sel: ".compare-body", index: 1 },
+  // highlight/stat
+  statPre: ".pre", stat: ".stat", statUnit: ".stat-unit",
+  statLabel: ".label", statNote: ".note",
+  // highlight/emphasis
+  emphPre: ".pre", emphasis: ".emphasis", emphPost: ".post",
+  // highlight/tip
+  tipLabel: ".tip-label", tipBody: ".tip-body",
+  // closing
+  saveReason: ".reason", askQuestion: ".question", askCta: ".cta-box",
+};
+
+// 배열 필드 (descItems/timelineItems/items) → 카드 안 N번째 element selector
+const ARRAY_FIELD_TO_SELECTOR = {
+  "descItems.title":       ".item-title",
+  "descItems.desc":        ".item-desc",
+  "timelineItems.label":   ".tl-label",
+  "timelineItems.content": ".tl-body",
+  "items":                 ".text",
+};
+
+function applyFieldStyles(card, rootEl) {
+  const fs = card.fieldStyles;
+  if (!fs || typeof fs !== "object") return;
+  for (const [field, sty] of Object.entries(fs)) {
+    if (!sty) continue;
+    let el = null;
+    // dotted key: arrayName.index 또는 arrayName.index.subKey
+    const m = field.match(/^(\w+)\.(\d+)(?:\.(\w+))?$/);
+    if (m) {
+      const arrayName = m[1], idx = +m[2], subKey = m[3];
+      const lookup = subKey ? `${arrayName}.${subKey}` : arrayName;
+      const sel = ARRAY_FIELD_TO_SELECTOR[lookup];
+      if (sel) {
+        const all = rootEl.querySelectorAll(sel);
+        el = all[idx] || null;
+      }
+    } else {
+      const map = FIELD_TO_SELECTOR[field];
+      if (typeof map === "string") {
+        el = rootEl.querySelector(map);
+      } else if (map && map.sel) {
+        const all = rootEl.querySelectorAll(map.sel);
+        el = all[map.index] || null;
+      }
+    }
+    if (!el) continue;
+    if (typeof sty.scale === "number" && sty.scale > 0 && sty.scale !== 1) {
+      el.style.setProperty("--field-scale", sty.scale);
+    }
+    if (typeof sty.color === "string" && /^#[0-9a-f]{3,8}$/i.test(sty.color)) {
+      el.style.setProperty("color", sty.color, "important");
+    }
+  }
+}
+
+function renderCard(card, pageNum, total) {
+  const key = `${card.type}/${card.layout}`;
+  const inner = RENDERERS[key] ? RENDERERS[key](card.data) : `<div class="card-inner">레이아웃 오류: ${key}</div>`;
+  const isCover = card.type === "cover";
+  const isLast = pageNum === total;
+  const showSwipe = isCover && total > 1;
+  const brand = STATE.brand;
+
+  // 배경 이미지 (per-card)
+  const bg = card.data && card.data.bgImage;
+  const hasBg = bg && bg.url;
+  const darkenPct = hasBg ? (typeof bg.darken === "number" ? bg.darken : 55) : 0;
+  // 배경 이미지 zoom/position (디폴트: cover 가득 채움)
+  const bgScale = (hasBg && typeof bg.scale === "number" && bg.scale > 0) ? bg.scale : 1;
+  const bgOffX = hasBg && typeof bg.offsetX === "number" ? bg.offsetX : 50;
+  const bgOffY = hasBg && typeof bg.offsetY === "number" ? bg.offsetY : 50;
+
+  const styleVars = [];
+  if (hasBg) {
+    styleVars.push(`--bg-darken: ${darkenPct / 100}`);
+    styleVars.push(`--bg-zoom: ${bgScale}`);
+    styleVars.push(`--bg-pos-x: ${bgOffX}%`);
+    styleVars.push(`--bg-pos-y: ${bgOffY}%`);
+  }
+  const bgStyle = styleVars.length ? `style="${styleVars.join('; ')}"` : "";
+  const bgLayer = hasBg ? `
+      <div class="bg-image-layer" style="background-image:url('${esc(bg.url)}')"></div>
+      <div class="bg-image-overlay"></div>` : "";
+
+  const html = `
+    <div class="card lo-${card.type}-${card.layout}${hasBg ? " has-bg-image" : ""}" ${bgStyle}>
+      ${bgLayer}
+      ${inner}
+      ${!isCover && !isLast ? `<div class="footer-mark">${esc(brand.footer || "")}</div>` : ""}
+      ${!isCover && !isLast ? `<div class="page-num">${String(pageNum).padStart(2,'0')} / ${String(total).padStart(2,'0')}</div>` : ""}
+      ${showSwipe ? `<div class="swipe-hint">SWIPE <span class="arrow">→</span></div>` : ""}
+    </div>`;
+  // fieldStyles 후처리 — 카드 root 안의 element 에 인라인 style 주입
+  if (card.fieldStyles && Object.keys(card.fieldStyles).length) {
+    const tmp = document.createElement("div");
+    tmp.innerHTML = html;
+    const root = tmp.firstElementChild;
+    if (root) applyFieldStyles(card, root);
+    return tmp.innerHTML;
+  }
+  return html;
+}
+
+// ====================================================================
+// STATE
+// ====================================================================
+const STATE = {
+  theme: "navy",
+  brand: {
+    name: "인공지능사관학교 서포터즈",
+    handle: "@dailysync_ai",
+    footer: "인공지능사관학교 서포터즈",
+  },
+  cards: [],
+  activeId: null,
+  lastSourceText: "", // 마지막 원본 텍스트 (재생성 시 참조)
+  meta: {}, // 세션 메타 (cluster_id 등 — 봇 인테그레이션 시 채워짐)
+};
+
+const LS_KEY = "cardnews_studio_v3";          // (구) 단일 세션 키 — 마이그레이션용
+const LS_WS_KEY = "cardnews_studio_ws_v1";    // 멀티 프로젝트 워크스페이스 키
+
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+// ====================================================================
+// WORKSPACE — 여러 카드뉴스(프로젝트)를 탭으로 관리
+//   STATE 는 항상 "활성 프로젝트"를 가리킨다(기존 코드 호환).
+//   WORKSPACE.projects 에 모든 프로젝트를 보관한다.
+// ====================================================================
+const WORKSPACE = { activeId: null, projects: [] };
+
+function blankProjectData(name) {
+  return {
+    id: uid(),
+    name: name || "새 카드뉴스",
+    theme: "navy",
+    brand: { name: "인공지능사관학교 서포터즈", handle: "@dailysync_ai", footer: "인공지능사관학교 서포터즈" },
+    cards: [],
+    activeId: null,
+    lastSourceText: "",
+    meta: {},
+  };
+}
+
+function activeProject() { return WORKSPACE.projects.find(p => p.id === WORKSPACE.activeId) || null; }
+
+// STATE -> 활성 프로젝트 레코드로 저장
+function syncStateToProject() {
+  const p = activeProject();
+  if (!p) return;
+  p.theme = STATE.theme;
+  p.brand = STATE.brand;
+  p.cards = STATE.cards;
+  p.activeId = STATE.activeId;
+  p.lastSourceText = STATE.lastSourceText;
+  p.meta = STATE.meta;
+}
+
+// 프로젝트 레코드 -> STATE 로 로드
+function loadProjectToState(p) {
+  STATE.theme = p.theme || "navy";
+  STATE.brand = p.brand || { name: "", handle: "@dailysync_ai", footer: "" };
+  STATE.cards = p.cards || [];
+  STATE.activeId = p.activeId || (STATE.cards[0]?.id ?? null);
+  STATE.lastSourceText = p.lastSourceText || "";
+  STATE.meta = p.meta || {};
+}
+
+function ensureAtLeastOneProject() {
+  if (WORKSPACE.projects.length === 0) {
+    const p = blankProjectData("카드뉴스 1");
+    WORKSPACE.projects.push(p);
+    WORKSPACE.activeId = p.id;
+    loadProjectToState(p);
+  }
+}
+
+function activateProject(id) {
+  if (id === WORKSPACE.activeId) return;
+  syncStateToProject();
+  const p = WORKSPACE.projects.find(x => x.id === id);
+  if (!p) return;
+  WORKSPACE.activeId = id;
+  loadProjectToState(p);
+  setTheme(STATE.theme);
+  renderTabs();
+  renderAll();
+  autoSave();
+}
+
+function addProject(name) {
+  syncStateToProject();
+  const p = blankProjectData(name || `카드뉴스 ${WORKSPACE.projects.length + 1}`);
+  WORKSPACE.projects.push(p);
+  WORKSPACE.activeId = p.id;
+  loadProjectToState(p);
+  setTheme(STATE.theme);
+  renderTabs();
+  renderAll();
+  autoSave();
+  toast("✓ 새 카드뉴스 탭 생성", "success");
+}
+
+function renameProject(id) {
+  const p = WORKSPACE.projects.find(x => x.id === id);
+  if (!p) return;
+  const name = prompt("카드뉴스 이름", p.name);
+  if (name && name.trim()) { p.name = name.trim(); renderTabs(); autoSave(); }
+}
+
+function deleteProject(id) {
+  const p = WORKSPACE.projects.find(x => x.id === id);
+  if (!p) return;
+  if (!confirm(`"${p.name}" 탭을 삭제할까요?\n이 카드뉴스의 카드가 모두 사라집니다.`)) return;
+  const wasActive = (id === WORKSPACE.activeId);
+  const idx = WORKSPACE.projects.findIndex(x => x.id === id);
+  WORKSPACE.projects.splice(idx, 1);
+  if (WORKSPACE.projects.length === 0) {
+    const np = blankProjectData("카드뉴스 1");
+    WORKSPACE.projects.push(np);
+    WORKSPACE.activeId = np.id;
+    loadProjectToState(np);
+  } else if (wasActive) {
+    const next = WORKSPACE.projects[Math.max(0, idx - 1)];
+    WORKSPACE.activeId = next.id;
+    loadProjectToState(next);
+  }
+  setTheme(STATE.theme);
+  renderTabs();
+  renderAll();
+  autoSave();
+}
+
+function renderTabs() {
+  const bar = document.getElementById("project-tabs");
+  if (!bar) return;
+  bar.innerHTML = "";
+  WORKSPACE.projects.forEach(p => {
+    const isActive = p.id === WORKSPACE.activeId;
+    const count = isActive ? STATE.cards.length : (p.cards ? p.cards.length : 0);
+    const tab = document.createElement("div");
+    tab.className = "tab" + (isActive ? " active" : "");
+    tab.title = `${p.name} — 더블클릭으로 이름 변경`;
+    tab.innerHTML =
+      `<span class="tab-name"></span>` +
+      `<span class="tab-count">${count}</span>` +
+      (WORKSPACE.projects.length > 1 ? `<span class="tab-close" title="탭 닫기">✕</span>` : ``);
+    tab.querySelector(".tab-name").textContent = p.name;
+    tab.onclick = e => { if (e.target.classList.contains("tab-close")) return; activateProject(p.id); };
+    tab.ondblclick = e => { if (e.target.classList.contains("tab-close")) return; renameProject(p.id); };
+    const closeBtn = tab.querySelector(".tab-close");
+    if (closeBtn) closeBtn.onclick = e => { e.stopPropagation(); deleteProject(p.id); };
+    bar.appendChild(tab);
+  });
+  const add = document.createElement("button");
+  add.className = "tab-add";
+  add.textContent = "+ 새 카드뉴스";
+  add.onclick = () => addProject();
+  bar.appendChild(add);
+
+  const queue = document.createElement("button");
+  queue.className = "tab-add";
+  queue.textContent = "📥 발행큐에서 불러오기";
+  queue.title = "카드뉴스 오토의 발행큐에 있는 기사를 새 탭으로 불러오기";
+  queue.onclick = () => openQueuePickerModal();
+  bar.appendChild(queue);
+}
+
+// 발행큐(/api/sessions)에서 기사를 골라 새 탭으로 불러오기
+function openQueuePickerModal() {
+  const back = document.createElement("div");
+  back.className = "modal-backdrop";
+  back.innerHTML = `
+    <div class="modal" style="max-width:680px">
+      <div class="modal-header">
+        <h2>📥 발행큐에서 불러오기</h2>
+        <button class="close">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="intro">카드뉴스 오토의 발행큐에 있는 기사를 새 탭으로 불러옵니다. 불러온 탭을 편집하면 해당 세션에 자동 저장됩니다.</p>
+        <input type="text" id="queue-filter" placeholder="제목·ID 검색…" style="width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px 11px;font-size:13px;margin-bottom:12px" autocomplete="off">
+        <div id="queue-list" style="display:flex;flex-direction:column;gap:8px;min-height:140px;max-height:52vh;overflow-y:auto">
+          <div style="color:var(--text-dim);font-size:12px;padding:24px;text-align:center">불러오는 중…</div>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(back);
+  const close = () => back.remove();
+  back.querySelector(".close").onclick = close;
+  back.onclick = e => { if (e.target === back) close(); };
+
+  const listEl = back.querySelector("#queue-list");
+  const filterEl = back.querySelector("#queue-filter");
+  let items = [];
+
+  const KIND = { daily_news: "데일리뉴스", tool_tip: "툴팁", tooltip: "툴팁", academy: "아카데미", freeform: "자유", studio: "스튜디오" };
+  function kindLabel(meta) { const k = (meta && meta.kind) || ""; return KIND[k] || k || ""; }
+  function fmtDate(ts) {
+    if (!ts) return "";
+    const d = new Date(ts * 1000);
+    return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  }
+  const openIds = new Set(WORKSPACE.projects.map(p => p.meta && p.meta.sessionId).filter(Boolean));
+
+  function render(list) {
+    if (!list.length) { listEl.innerHTML = `<div style="color:var(--text-faint);font-size:12px;padding:24px;text-align:center">결과 없음</div>`; return; }
+    listEl.innerHTML = "";
+    list.forEach(it => {
+      const isOpen = openIds.has(it.id);
+      const row = document.createElement("button");
+      row.style.cssText = "text-align:left;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;cursor:pointer;display:flex;flex-direction:column;gap:4px";
+      row.onmouseenter = () => row.style.borderColor = "var(--accent)";
+      row.onmouseleave = () => row.style.borderColor = "var(--line)";
+      const kl = kindLabel(it.meta);
+      row.innerHTML = `
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:13px;color:var(--text);font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.title || it.id)}</span>
+          ${isOpen ? `<span style="font-size:9px;color:var(--accent);border:1px solid var(--accent);border-radius:100px;padding:1px 6px">열림</span>` : ""}
+          <span style="font-size:10px;color:var(--text-faint)">${fmtDate(it.mtime)}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text-dim)">
+          ${kl ? `<span style="border:1px solid var(--line);border-radius:100px;padding:1px 7px">${esc(kl)}</span>` : ""}
+          <span>${it.cardCount || 0}장</span>
+          <span>· ${esc(it.theme || "navy")}</span>
+          <span style="margin-left:auto;color:var(--text-faint)">${esc(it.id)}</span>
+        </div>`;
+      row.onclick = () => { loadFromQueue(it.id); close(); };
+      listEl.appendChild(row);
+    });
+  }
+
+  filterEl.addEventListener("input", () => {
+    const q = filterEl.value.trim().toLowerCase();
+    render(!q ? items : items.filter(it => (it.title || "").toLowerCase().includes(q) || String(it.id).toLowerCase().includes(q)));
+  });
+
+  fetch("/api/sessions")
+    .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(list => { items = Array.isArray(list) ? list : []; render(items); filterEl.focus(); })
+    .catch(err => {
+      listEl.innerHTML = `<div style="color:var(--danger);font-size:12px;padding:24px;text-align:center">큐를 불러오지 못했습니다: ${esc(err.message)}<br><span style="color:var(--text-faint);font-size:11px">서버로 띄운 스튜디오( / )에서만 가능합니다.</span></div>`;
+    });
+}
+
+function loadFromQueue(id) {
+  // 서버 연동 스크립트가 노출한 loadSessionAsTab 우선 사용(중복 방지·세션 자동 동기화 포함)
+  if (typeof window.loadSessionAsTab === "function") {
+    window.loadSessionAsTab(id);
+    return;
+  }
+  // 폴백: 직접 불러오기 (서버 자동 동기화는 없음)
+  fetch(`/api/sessions/${id}`)
+    .then(r => { if (!r.ok) throw new Error("세션 없음"); return r.json(); })
+    .then(p => {
+      const existing = WORKSPACE.projects.find(pr => pr.meta && pr.meta.sessionId === id);
+      if (existing) { activateProject(existing.id); return; }
+      syncStateToProject();
+      const proj = blankProjectData((p.meta && p.meta.title) || p.name || ("세션 " + id));
+      proj.theme = p.theme || "navy";
+      proj.brand = p.brand || proj.brand;
+      proj.cards = p.cards || [];
+      proj.activeId = p.activeId || (proj.cards[0]?.id ?? null);
+      proj.lastSourceText = p.lastSourceText || "";
+      proj.meta = p.meta || {};
+      proj.meta.sessionId = id;
+      WORKSPACE.projects.push(proj);
+      WORKSPACE.activeId = proj.id;
+      loadProjectToState(proj);
+      setTheme(STATE.theme);
+      renderTabs();
+      renderAll();
+      autoSave();
+      toast(`✓ 새 탭으로 불러옴: ${id}`, "success");
+    })
+    .catch(err => toast("불러오기 실패: " + err.message, "error"));
+}
+
+function applyTheme(themeId) {
+  const t = THEMES[themeId];
+  if (!t) return;
+  let style = document.getElementById("theme-style");
+  if (!style) { style = document.createElement("style"); style.id = "theme-style"; document.head.appendChild(style); }
+  style.textContent = `
+    .theme-${themeId} .card { --c-bg:${t.light.bg}; --c-text:${t.light.text}; --c-sub:${t.light.sub}; --c-accent:${t.light.accent}; --c-line:${t.light.line}; }
+    .theme-${themeId} .lo-cover-bold, .theme-${themeId} .lo-cover-number, .theme-${themeId} .lo-cover-question, .theme-${themeId} .lo-cover-split, .theme-${themeId} .lo-cover-minimal {
+      --c-bg:${t.bold.bg}; --c-text:${t.bold.text}; --c-sub:${t.bold.sub}; --c-accent:${t.bold.accent}; --c-line:${t.bold.line};
+    }
+  `;
+}
+
+// ====================================================================
+// CLAUDE API 통합
+// ====================================================================
+async function callClaude(systemPrompt, userPrompt, maxTokens = 1000, images = []) {
+  // user 메시지의 content 배열 구성 (이미지 먼저, 텍스트 마지막)
+  const userContent = [];
+  for (const img of images) {
+    userContent.push({
+      type: "image",
+      source: { type: "base64", media_type: img.mediaType, data: img.base64 }
+    });
+  }
+  userContent.push({ type: "text", text: userPrompt });
+
+  // 프록시 우선, 안되면 직접 호출 (artifact 환경 fallback)
+  const useProxy = !window.location.protocol.startsWith("file");
+  const endpoint = useProxy ? "/api/claude" : "https://api.anthropic.com/v1/messages";
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: maxTokens,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userContent }],
+    }),
+  });
+  if (!response.ok) {
+    let errMsg = `API 오류 ${response.status}`;
+    try {
+      const errData = await response.json();
+      errMsg += `: ${errData.error || JSON.stringify(errData).slice(0, 200)}`;
+    } catch {
+      errMsg += `: ${(await response.text()).slice(0, 200)}`;
+    }
+    throw new Error(errMsg);
+  }
+  const data = await response.json();
+  const text = data.content.filter(b => b.type === "text").map(b => b.text).join("");
+  return text;
+}
+
+function extractJSON(text) {
+  // 코드블럭 제거
+  let cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  // JSON 객체 부분만 추출
+  const objMatch = cleaned.match(/\{[\s\S]*\}/);
+  if (objMatch) cleaned = objMatch[0];
+  return JSON.parse(cleaned);
+}
+
+// 원버튼: 전체 텍스트/이미지 → 카드뉴스 구조
+async function aiGenerateCards(sourceText, opts = {}) {
+  const tone = opts.tone || "친근한 정보 전달";
+  const images = opts.images || [];
+  const layoutsList = Object.entries(LAYOUTS).map(([type, vs]) =>
+    `${type}: ${vs.map(v => v.id).join(", ")}`
+  ).join("\n");
+
+  const fieldsList = Object.entries(LAYOUT_FIELDS).map(([k, fs]) =>
+    `  "${k}": [${fs.map(f => `"${f}"`).join(", ")}]`
+  ).join(",\n");
+
+  const themesList = Object.keys(THEMES).join(", ");
+
+  const system = `당신은 인스타그램 카드뉴스 전문 에디터입니다. 100만 팔로워 계정을 운영해온 경험으로, 사용자가 전달한 내용을 카드뉴스 5-7장으로 재구성합니다.
+
+## 입력 소스
+- 텍스트만: 텍스트 분석 후 카드 구조 생성
+- 이미지만: 이미지 안의 모든 텍스트(OCR), 표, 차트, 도식, 손글씨까지 모두 추출해서 분석 후 카드 구조 생성
+- 텍스트 + 이미지: 이미지에서 추출한 정보와 텍스트를 종합
+
+## 사용 가능한 카드 타입과 레이아웃
+${layoutsList}
+
+## 각 레이아웃이 요구하는 데이터 필드
+{
+${fieldsList}
+}
+
+## 필드 의미
+- eyebrow: 짧은 영문 라벨 (대문자, 20자 이내)
+- title/subtitle: 한국어 헤드라인. 14자 근처에서 자연스럽게 \\n 줄바꿈
+- badge: 배지 텍스트 (회차·작성자 등)
+- number: "01"-"99" 두 자리
+- label: 한국어 짧은 라벨 (15자 이내)
+- body: 본문 1-2문장 (80자 이내)
+- question/answer: Q&A 텍스트
+- term/pron: 용어와 발음/원어
+- compareTitle, labelA/B, titleA/B, bodyA/B: 좌우 비교 (labelA="기존" labelB="대안" 같은 식)
+- items[]: 문자열 배열 3-5개, 각 25자 이내
+- descItems[]: {title, desc} 배열 3-4개, title 15자/desc 30자
+- timelineItems[]: {label, content} 배열 3-5개. label="1주차" 같은 단계 표시
+- quote/attribution: 인용문과 출처
+- stat/statUnit/statPre/statLabel/statNote: 통계 카드. 원문/이미지에 실제 숫자 있을 때만 사용
+- emphPre/emphasis/emphPost: 앞 문장, 강조 단어 (3-5자), 뒷 문장
+- tipLabel/tipBody: PRO TIP 같은 라벨과 팁 본문
+- saveReason: 왜 저장해야 하는지 짧은 이유
+- askQuestion/askCta: 댓글 유도 질문과 CTA 박스 텍스트
+- account: "@핸들" (사용자가 따로 설정)
+- hashtag: "#태그1 #태그2" 형식, 5-10개
+
+## 규칙
+1. 첫 카드는 반드시 type="cover", 마지막은 type="closing"
+2. 5-7장으로 압축 (너무 길면 안 됨)
+3. 각 카드는 한 가지 핵심만
+4. 한국어는 word-break 고려해 자연스러운 곳에서 \\n
+5. 통계 숫자가 원문/이미지에 없으면 stat 레이아웃 쓰지 말 것
+6. 비교 구조가 명확할 때만 compare 사용
+7. 시간/단계 순서가 있을 때만 timeline 사용
+8. 톤: ${tone}
+9. 내용에 어울리는 테마 추천 (${themesList} 중 하나)
+
+## 출력
+오직 JSON만. 마크다운 코드블럭 금지. 형식:
+{
+  "theme": "navy",
+  "cards": [
+    { "type": "cover", "layout": "bold", "data": { "eyebrow": "...", "title": "...", ... } },
+    ...
+  ]
+}`;
+
+  // 사용자 메시지 구성
+  let user;
+  if (sourceText && images.length > 0) {
+    user = `첨부된 ${images.length}장의 이미지와 아래 텍스트를 종합 분석해서 카드뉴스를 만들어주세요.\n\n[텍스트]\n${sourceText}\n\n계정 핸들: ${STATE.brand.handle}\n브랜드명: ${STATE.brand.name}`;
+  } else if (images.length > 0) {
+    user = `첨부된 ${images.length}장의 이미지를 분석해서 카드뉴스로 만들어주세요. 이미지 안의 텍스트(OCR), 표, 차트, 도식을 모두 활용하세요.\n\n계정 핸들: ${STATE.brand.handle}\n브랜드명: ${STATE.brand.name}`;
+  } else {
+    user = `다음 내용을 카드뉴스로 만들어주세요:\n\n${sourceText}\n\n계정 핸들: ${STATE.brand.handle}\n브랜드명: ${STATE.brand.name}`;
+  }
+
+  const raw = await callClaude(system, user, 3000, images);
+  const parsed = extractJSON(raw);
+  parsed.cards = parsed.cards.map(c => ({ ...c, id: uid() }));
+  return parsed;
+}
+
+// 레이아웃 변경 시 데이터 재구성
+async function aiAdaptLayout(card, newLayout) {
+  const oldKey = `${card.type}/${card.layout}`;
+  const newKey = `${card.type}/${newLayout}`;
+  const oldFields = LAYOUT_FIELDS[oldKey];
+  const newFields = LAYOUT_FIELDS[newKey];
+
+  // 같은 필드 거의 그대로면 굳이 AI 안 부르고 매핑
+  const overlap = oldFields.filter(f => newFields.includes(f));
+  const needsNew = newFields.filter(f => !oldFields.includes(f));
+  if (needsNew.length === 0) {
+    // 모든 새 필드가 기존에 존재 → 그대로 사용
+    return card.data;
+  }
+
+  const system = `당신은 카드뉴스 에디터입니다. 같은 카드 내용을 다른 레이아웃으로 옮길 때, 새 레이아웃에 맞게 필드를 재구성합니다.
+
+기존 레이아웃: ${oldKey}
+기존 필드: ${JSON.stringify(oldFields)}
+
+새 레이아웃: ${newKey}
+새 필드: ${JSON.stringify(newFields)}
+
+## 필드 의미 (요약)
+- title/subtitle/body: 한국어 텍스트, 14자 근처 \\n 줄바꿈
+- eyebrow: 짧은 영문 라벨 대문자
+- items[]: 문자열 배열 3-5개
+- descItems[]: {title, desc} 배열
+- timelineItems[]: {label, content} 배열
+- compareTitle/labelA/titleA/bodyA/labelB/titleB/bodyB: 비교용
+- question/answer: Q&A
+- term/pron: 용어/원어
+- quote/attribution: 인용
+- stat/statUnit/statPre/statLabel: 숫자 강조
+- emphPre/emphasis/emphPost: 한 단어 강조
+- tipLabel/tipBody: 팁
+
+규칙:
+1. 기존 의미·내용 최대한 보존
+2. 새 필드만 채워주면 됨 (오버랩 필드는 같은 값 유지)
+3. 정보가 부족하면 자연스럽게 추론·보완
+4. 통계 숫자 없는데 stat 가면 가상으로 만들지 말고 의미있는 값 유지 불가하면 placeholder
+
+오직 JSON만 출력:
+{
+  "data": { 새 레이아웃의 모든 필드 }
+}`;
+
+  const user = `기존 데이터:\n${JSON.stringify(card.data, null, 2)}\n\n위 내용을 새 레이아웃(${newKey})에 맞게 재구성해주세요.`;
+
+  const raw = await callClaude(system, user, 1500);
+  const parsed = extractJSON(raw);
+  // 기존 데이터에 새 필드 머지
+  return { ...card.data, ...parsed.data };
+}
+
+// 개별 카드 다듬기
+async function aiPolishCard(card, instruction) {
+  const key = `${card.type}/${card.layout}`;
+  const fields = LAYOUT_FIELDS[key];
+
+  const system = `당신은 인스타 카드뉴스 카피라이터입니다. 한 장의 카드 내용을 사용자 요청대로 다듬어주세요.
+
+레이아웃: ${key}
+필드: ${JSON.stringify(fields)}
+
+규칙:
+- 한국어 14자 근처 자연스러운 \\n 줄바꿈
+- title 30자 이내, body 100자 이내
+- items는 각 25자 이내, 3-5개
+- 의미 유지, 표현만 다듬기
+
+오직 JSON만:
+{ "data": { 다듬어진 필드들 } }`;
+
+  const user = `요청: ${instruction}\n\n현재 데이터:\n${JSON.stringify(card.data, null, 2)}`;
+  const raw = await callClaude(system, user, 1500);
+  const parsed = extractJSON(raw);
+  return { ...card.data, ...parsed.data };
+}
+
+// AI 캡션 생성
+async function aiGenerateCaption() {
+  const cardsSummary = STATE.cards.map((c, i) => {
+    const d = c.data;
+    let preview = "";
+    if (c.type === "cover") preview = `${d.title} / ${d.subtitle || ""}`;
+    else if (c.type === "topic") preview = `${d.title || d.question || d.term}: ${d.body || d.answer || ""}`;
+    else if (c.type === "list") preview = `${d.title}: ${(d.items || []).slice(0,3).join(", ")}`;
+    else if (c.type === "highlight") preview = d.quote || `${d.statPre} ${d.stat}${d.statUnit} ${d.statLabel}` || `${d.emphPre} ${d.emphasis} ${d.emphPost}` || d.tipBody;
+    else if (c.type === "closing") preview = `${d.title || d.askQuestion} ${d.account}`;
+    return `${i+1}. [${c.type}/${c.layout}] ${preview}`;
+  }).join("\n");
+
+  const system = `당신은 인스타그램 카피라이터입니다. 카드뉴스 슬라이드 요약을 보고, 인스타 포스트 캡션을 작성합니다.
+
+규칙:
+1. 첫 줄: 강한 후크 (스와이프 유도)
+2. 본문: 카드 내용을 2-4줄로 압축
+3. CTA: 저장/공유/팔로우 유도 1-2줄
+4. 마지막: 해시태그 8-12개 (#인공지능사관학교 #AI #서포터즈 류 한국어 위주)
+5. 이모지 적절히 (과하지 않게)
+6. 전체 길이: 300-500자
+7. 계정 핸들 ${STATE.brand.handle} 포함
+
+오직 캡션 텍스트만 출력. 설명 금지.`;
+
+  const user = `브랜드: ${STATE.brand.name}\n계정: ${STATE.brand.handle}\n\n카드 슬라이드 요약:\n${cardsSummary}`;
+  return await callClaude(system, user, 1500);
+}
+
+// ====================================================================
+// UI: 사이드바
+// ====================================================================
+function renderThemeGrid() {
+  const grid = document.getElementById("theme-grid");
+  grid.innerHTML = "";
+  Object.entries(THEMES).forEach(([id, t]) => {
+    const isActive = STATE.theme === id;
+    const swatchHtml = t.swatch.map(c => `<span style="background:${c}"></span>`).join("");
+    const chip = document.createElement("button");
+    chip.className = "theme-chip" + (isActive ? " active" : "");
+    chip.dataset.theme = id;
+    chip.innerHTML = `<div class="theme-swatch">${swatchHtml}</div>${t.name}`;
+    chip.onclick = () => setTheme(id);
+    grid.appendChild(chip);
+  });
+}
+
+function renderCardList() {
+  const wrap = document.getElementById("card-list");
+  document.getElementById("card-count").textContent = STATE.cards.length;
+  if (STATE.cards.length === 0) {
+    wrap.innerHTML = `<div style="padding:20px 8px; color:var(--text-faint); font-size:11px; text-align:center; line-height:1.5;">아직 카드가 없어요</div>`;
+    return;
+  }
+  wrap.innerHTML = "";
+  STATE.cards.forEach((c, i) => {
+    const item = document.createElement("div");
+    item.className = "card-item" + (c.id === STATE.activeId ? " active" : "");
+    item.dataset.id = c.id;
+    item.draggable = true;
+    item.innerHTML = `
+      <span class="drag-handle" title="드래그">⋮⋮</span>
+      <div class="card-num">${i + 1}</div>
+      <div class="card-meta">
+        <div class="card-label">${esc(previewLabel(c))}</div>
+        <div class="card-type-mini">${TYPE_LABEL[c.type]} · ${c.layout}</div>
+      </div>
+      <div class="card-actions">
+        <button class="card-act-btn" data-dup="${c.id}" title="복제">⎘</button>
+        <button class="card-act-btn del" data-del="${c.id}" title="삭제">×</button>
+      </div>`;
+    item.addEventListener("click", e => {
+      if (e.target.closest("[data-del]") || e.target.closest("[data-dup]")) return;
+      selectCard(c.id);
+    });
+    item.addEventListener("dragstart", e => {
+      item.classList.add("dragging");
+      e.dataTransfer.setData("text/plain", c.id);
+      e.dataTransfer.effectAllowed = "move";
+    });
+    item.addEventListener("dragend", () => item.classList.remove("dragging"));
+    item.addEventListener("dragover", e => { e.preventDefault(); item.classList.add("drag-over"); });
+    item.addEventListener("dragleave", () => item.classList.remove("drag-over"));
+    item.addEventListener("drop", e => {
+      e.preventDefault();
+      item.classList.remove("drag-over");
+      const fromId = e.dataTransfer.getData("text/plain");
+      moveCard(fromId, c.id);
+    });
+    wrap.appendChild(item);
+  });
+  wrap.querySelectorAll("[data-del]").forEach(b => b.onclick = e => { deleteCard(b.dataset.del); e.stopPropagation(); });
+  wrap.querySelectorAll("[data-dup]").forEach(b => b.onclick = e => { duplicateCard(b.dataset.dup); e.stopPropagation(); });
+}
+
+function previewLabel(card) {
+  const d = card.data;
+  if (card.type === "cover") return (d.title || "표지").split("\n")[0];
+  if (card.type === "topic") {
+    if (card.layout === "qa") return (d.question || "Q&A").split("\n")[0];
+    if (card.layout === "definition") return d.term || "정의";
+    if (card.layout === "compare") return d.compareTitle || "비교";
+    return (d.title || "주제").split("\n")[0];
+  }
+  if (card.type === "list") return (d.title || "리스트").split("\n")[0];
+  if (card.type === "highlight") {
+    if (card.layout === "stat") return `${d.stat}${d.statUnit} · ${(d.statLabel || "").split("\n")[0]}`;
+    if (card.layout === "emphasis") return `${d.emphPre} ${d.emphasis}`;
+    if (card.layout === "tip") return `💡 ${(d.tipBody || "").split("\n")[0]}`;
+    return (d.quote || "포인트").split("\n")[0];
+  }
+  if (card.type === "closing") {
+    if (card.layout === "ask") return (d.askQuestion || "댓글 유도").split("\n")[0];
+    return (d.title || "마무리").split("\n")[0];
+  }
+  return "";
+}
+
+// ====================================================================
+// 에디터
+// ====================================================================
+function renderEditor() {
+  const body = document.getElementById("editor-body");
+  const card = STATE.cards.find(c => c.id === STATE.activeId);
+
+  if (!card) {
+    document.getElementById("editor-title").textContent = "카드를 선택하세요";
+    document.getElementById("editor-counter").textContent = "";
+    document.getElementById("editor-sub").textContent = "상단의 AI 생성 버튼으로 시작하거나, 수동으로 카드를 추가하세요";
+    document.getElementById("layout-chips").innerHTML = "";
+    document.getElementById("card-actions").style.display = "none";
+    body.innerHTML = `
+      <div class="empty">
+        <div class="empty-emoji">✨</div>
+        <strong style="font-size:13px; color:var(--text);">원버튼으로 시작하기</strong><br>
+        <span style="color:var(--text-faint); font-size:11px;">
+          좌측 상단 [내용 입력 → 카드뉴스 자동 완성]<br>
+          전달하고 싶은 내용을 붙여넣으면 끝
+        </span>
+      </div>`;
+    return;
+  }
+
+  const idx = STATE.cards.findIndex(c => c.id === card.id);
+  document.getElementById("editor-title").textContent = `${idx + 1}. ${TYPE_LABEL[card.type]} 카드`;
+  document.getElementById("editor-counter").textContent = `${idx + 1} / ${STATE.cards.length}`;
+  document.getElementById("editor-sub").textContent = "레이아웃 칩 변경 시 AI가 내용을 새 구조에 맞춰 자동 재배치합니다";
+  document.getElementById("card-actions").style.display = "flex";
+
+  // 레이아웃 칩
+  const chips = document.getElementById("layout-chips");
+  chips.innerHTML = "";
+  LAYOUTS[card.type].forEach(lo => {
+    const c = document.createElement("button");
+    c.className = "layout-chip" + (card.layout === lo.id ? " active" : "");
+    c.title = lo.desc;
+    c.textContent = lo.name;
+    c.dataset.layout = lo.id;
+    c.onclick = () => changeLayout(card.id, lo.id, c);
+    chips.appendChild(c);
+  });
+
+  body.innerHTML = renderFields(card);
+  bindEditorEvents(card);
+  updateAllCounters();
+}
+
+// 카드의 현재 활성 필드 스타일 헬퍼
+function _currentFieldStyle(key) {
+  const card = STATE.cards.find(c => c.id === STATE.activeId);
+  if (!card || !card.fieldStyles) return { scale: 1, color: "" };
+  const s = card.fieldStyles[key] || {};
+  return {
+    scale: (typeof s.scale === "number" && s.scale > 0) ? s.scale : 1,
+    color: (typeof s.color === "string" && /^#[0-9a-f]{3,8}$/i.test(s.color)) ? s.color : "",
+  };
+}
+
+// 인라인 미니 컨트롤 (📏 슬라이더 + 🎨 색 + ↺) — fieldKey 단순 또는 dotted 가능
+function fieldStyleCtrl(fieldKey) {
+  const fs = _currentFieldStyle(fieldKey);
+  const hasCol = !!fs.color;
+  return `
+    <div class="field-style-row" data-field="${fieldKey}" style="display:flex;align-items:center;gap:4px;margin-top:4px">
+      <span style="flex:0 0 12px;font-size:10px;color:var(--text-faint)">📏</span>
+      <input type="range" class="ff-scale" data-field="${fieldKey}" min="0.5" max="2.0" step="0.05" value="${fs.scale}" style="flex:1;cursor:pointer;accent-color:var(--accent);height:14px">
+      <span class="ff-scale-val" data-field="${fieldKey}" style="flex:0 0 34px;font-size:10px;color:var(--text-dim);text-align:right;font-variant-numeric:tabular-nums">${Math.round(fs.scale*100)}%</span>
+      <input type="color" class="ff-color" data-field="${fieldKey}" value="${fs.color || '#ffffff'}" title="${hasCol ? '글자색 적용 중 — 더블클릭으로 해제' : '글자색 미적용 — 클릭해서 선택'}" style="flex:0 0 22px;width:22px;height:18px;padding:0;border:1px solid var(--line);border-radius:3px;cursor:pointer;opacity:${hasCol ? 1 : 0.45}">
+      <button type="button" class="ff-reset" data-field="${fieldKey}" title="이 필드 크기·색 원래대로" style="flex:0 0 20px;background:none;border:1px solid var(--line);color:var(--text-faint);cursor:pointer;font-size:10px;padding:0 4px;border-radius:3px">↺</button>
+    </div>`;
+}
+
+function field({key, label, type="input", placeholder="", limit=null, value=""}) {
+  const counter = limit ? `<span class="counter" data-counter="${key}" data-limit="${limit}">0 / ${limit}</span>` : "";
+  const input = type === "textarea"
+    ? `<textarea data-key="${key}" placeholder="${esc(placeholder)}">${esc(value)}</textarea>`
+    : `<input type="text" data-key="${key}" value="${esc(value)}" placeholder="${esc(placeholder)}">`;
+  return `<div class="field"><div class="field-label-row"><label>${label}</label>${counter}</div>${input}${fieldStyleCtrl(key)}</div>`;
+}
+
+function renderFields(card) {
+  const d = card.data;
+  const T = card.type, L = card.layout;
+  let html = "";
+
+  if (T === "cover") {
+    html += field({key:"eyebrow", label:"아이브로우 (영문)", value:d.eyebrow, limit:32});
+    if (L === "number") html += field({key:"number", label:"숫자", value:d.number, limit:3});
+    html += field({key:"title", label:"타이틀", type:"textarea", value:d.title, limit:30});
+    if (L !== "minimal") html += field({key:"subtitle", label:"서브타이틀", type:"textarea", value:d.subtitle, limit:60});
+    if (L !== "question") html += field({key:"badge", label:"배지", value:d.badge, limit:30});
+  }
+  if (T === "topic") {
+    if (L === "qa") {
+      html += field({key:"question", label:"질문", type:"textarea", value:d.question, limit:40});
+      html += field({key:"answer", label:"답변", type:"textarea", value:d.answer, limit:80});
+    } else if (L === "definition") {
+      html += field({key:"term", label:"용어 (1단어)", value:d.term, limit:10});
+      html += field({key:"pron", label:"풀이/원어", value:d.pron, limit:60});
+      html += field({key:"body", label:"본문 (정의)", type:"textarea", value:d.body, limit:120});
+    } else if (L === "compare") {
+      html += field({key:"compareTitle", label:"비교 주제", type:"textarea", value:d.compareTitle, limit:30});
+      html += field({key:"labelA", label:"A 라벨", value:d.labelA, limit:12});
+      html += field({key:"titleA", label:"A 제목", value:d.titleA, limit:20});
+      html += field({key:"bodyA", label:"A 설명", type:"textarea", value:d.bodyA, limit:60});
+      html += field({key:"labelB", label:"B 라벨", value:d.labelB, limit:12});
+      html += field({key:"titleB", label:"B 제목", value:d.titleB, limit:20});
+      html += field({key:"bodyB", label:"B 설명", type:"textarea", value:d.bodyB, limit:60});
+    } else {
+      html += field({key:"label", label:"라벨", value:d.label, limit:20});
+      if (L === "index") html += field({key:"number", label:"인덱스", value:d.number, limit:3});
+      html += field({key:"title", label:"타이틀", type:"textarea", value:d.title, limit:30});
+      html += field({key:"body", label:"본문", type:"textarea", value:d.body, limit:120});
+    }
+  }
+  if (T === "list") {
+    if (L === "timeline") {
+      html += field({key:"title", label:"타이틀", type:"textarea", value:d.title, limit:30});
+      html += `<div class="field"><div class="field-label-row"><label>타임라인 항목 (3-5개)</label></div><div class="list-items" id="tl-items">${(d.timelineItems||[]).map((it,i)=>`
+        <div style="border-bottom:1px dashed var(--line);padding-bottom:8px;margin-bottom:8px">
+          <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-faint);margin-bottom:4px">항목 ${i+1}<button class="icon-btn" data-del-tl="${i}" style="margin-left:auto">×</button></div>
+          <input type="text" data-tl="${i}.label" value="${esc(it.label)}" placeholder="단계 (예: 1주차)" style="width:100%">
+          ${fieldStyleCtrl(`timelineItems.${i}.label`)}
+          <input type="text" data-tl="${i}.content" value="${esc(it.content)}" placeholder="내용" style="width:100%;margin-top:6px">
+          ${fieldStyleCtrl(`timelineItems.${i}.content`)}
+        </div>
+      `).join("")}</div><button class="add-item-btn" id="add-tl">+ 항목 추가</button></div>`;
+    } else if (L === "desc") {
+      html += field({key:"title", label:"타이틀", type:"textarea", value:d.title, limit:30});
+      html += `<div class="field"><div class="field-label-row"><label>항목 (제목+설명)</label></div><div class="list-items" id="desc-items">${(d.descItems||[]).map((it,i)=>`
+        <div style="border-bottom:1px dashed var(--line);padding-bottom:8px;margin-bottom:8px">
+          <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-faint);margin-bottom:4px">항목 ${i+1}<button class="icon-btn" data-del-desc="${i}" style="margin-left:auto">×</button></div>
+          <input type="text" data-desc="${i}.title" value="${esc(it.title)}" placeholder="제목" style="width:100%">
+          ${fieldStyleCtrl(`descItems.${i}.title`)}
+          <input type="text" data-desc="${i}.desc" value="${esc(it.desc)}" placeholder="설명" style="width:100%;margin-top:6px">
+          ${fieldStyleCtrl(`descItems.${i}.desc`)}
+        </div>
+      `).join("")}</div><button class="add-item-btn" id="add-desc">+ 항목 추가</button></div>`;
+    } else {
+      html += field({key:"title", label:"타이틀", type:"textarea", value:d.title, limit:30});
+      html += field({key:"sub", label:"서브타이틀", value:d.sub, limit:30});
+      html += `<div class="field"><div class="field-label-row"><label>항목 (3-5개)</label></div><div class="list-items" id="list-items">${(d.items||[]).map((it,i)=>`
+        <div style="border-bottom:1px dashed var(--line);padding-bottom:6px;margin-bottom:6px">
+          <div class="list-item-row"><input type="text" data-list-idx="${i}" value="${esc(it)}" placeholder="항목 ${i+1}"><button class="icon-btn" data-del-item="${i}">×</button></div>
+          ${fieldStyleCtrl(`items.${i}`)}
+        </div>`).join("")}</div><button class="add-item-btn" id="add-list-item">+ 항목 추가</button></div>`;
+    }
+  }
+  if (T === "highlight") {
+    if (L === "stat") {
+      html += field({key:"statPre", label:"상단 설명", value:d.statPre, limit:30});
+      html += field({key:"stat", label:"숫자", value:d.stat, limit:5});
+      html += field({key:"statUnit", label:"단위", value:d.statUnit, limit:5});
+      html += field({key:"statLabel", label:"라벨", type:"textarea", value:d.statLabel, limit:40});
+      html += field({key:"statNote", label:"각주", value:d.statNote, limit:40});
+    } else if (L === "emphasis") {
+      html += field({key:"emphPre", label:"앞 문장", type:"textarea", value:d.emphPre, limit:25});
+      html += field({key:"emphasis", label:"강조 단어", value:d.emphasis, limit:6});
+      html += field({key:"emphPost", label:"뒷 문장", type:"textarea", value:d.emphPost, limit:25});
+    } else if (L === "tip") {
+      html += field({key:"tipLabel", label:"팁 라벨", value:d.tipLabel, limit:20});
+      html += field({key:"tipBody", label:"팁 본문", type:"textarea", value:d.tipBody, limit:80});
+    } else {
+      html += field({key:"quote", label:"인용/강조", type:"textarea", value:d.quote, limit:60});
+      html += field({key:"attribution", label:"출처", value:d.attribution, limit:30});
+    }
+  }
+  if (T === "closing") {
+    html += field({key:"eyebrow", label:"아이브로우", value:d.eyebrow, limit:24});
+    if (L === "save") {
+      html += field({key:"title", label:"타이틀", type:"textarea", value:d.title, limit:24});
+      html += field({key:"saveReason", label:"저장 이유", type:"textarea", value:d.saveReason, limit:50});
+    } else if (L === "ask") {
+      html += field({key:"askQuestion", label:"질문", type:"textarea", value:d.askQuestion, limit:30});
+      html += field({key:"askCta", label:"CTA 박스", value:d.askCta, limit:30});
+    } else if (L === "thanks") {
+      html += field({key:"title", label:"타이틀", type:"textarea", value:d.title, limit:24});
+      html += field({key:"subtitle", label:"서브타이틀", type:"textarea", value:d.subtitle, limit:60});
+    } else {
+      html += field({key:"title", label:"타이틀", type:"textarea", value:d.title, limit:30});
+    }
+    html += field({key:"account", label:"인스타 계정", value:d.account, limit:30});
+    if (L === "next") html += field({key:"hashtag", label:"해시태그", type:"textarea", value:d.hashtag, limit:200});
+  }
+
+  // ===== 배경 이미지 섹션 (모든 카드 공통, 맨 아래) =====
+  const bg = d.bgImage;
+  const hasBg = bg && bg.url;
+  const bgScale = (typeof bg?.scale === "number" && bg.scale > 0) ? bg.scale : 1;
+  const bgOffX = typeof bg?.offsetX === "number" ? bg.offsetX : 50;
+  const bgOffY = typeof bg?.offsetY === "number" ? bg.offsetY : 50;
+  const sliderRow = (id, label, min, max, step, val, suffix = "%") => `
+    <label style="font-size:10px;color:var(--text-faint);display:flex;align-items:center;gap:4px;margin-top:6px">
+      ${label}
+      <input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}" style="flex:1">
+      <span id="${id}-val" style="min-width:36px;text-align:right;font-variant-numeric:tabular-nums">${val}${suffix}</span>
+    </label>`;
+  html += `
+    <div class="field bg-image-field" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--c-line,#e3e7ef)">
+      <div class="field-label-row">
+        <label>🖼 배경 이미지</label>
+        <span class="counter" style="background:none">${hasBg ? "사용 중" : "사용 안 함"}</span>
+      </div>
+      <input type="file" id="bg-file-input" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none">
+      ${hasBg ? `
+        <div style="display:flex;gap:10px;align-items:flex-start;margin-top:6px">
+          <img src="${esc(bg.url)}" style="width:96px;height:120px;object-fit:cover;border-radius:6px;border:1px solid var(--c-line,#e3e7ef);background:#000"
+               onerror="this.style.opacity=0.3">
+          <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;gap:4px">
+              <button class="btn btn-ghost" id="btn-bg-pick" style="flex:1;font-size:11px">🖼 기사</button>
+              <button class="btn btn-ghost" id="btn-bg-upload" style="flex:1;font-size:11px">📁 파일</button>
+            </div>
+            <button class="btn btn-ghost" id="btn-bg-remove" style="font-size:11px;color:var(--danger,#e11)">✕ 배경 제거</button>
+          </div>
+        </div>
+        <div style="margin-top:8px;padding:8px;background:var(--bg-soft,rgba(0,0,0,0.03));border-radius:6px">
+          ${sliderRow("bg-darken", "어둡기", 0, 85, 5, bg.darken ?? 55)}
+          ${sliderRow("bg-scale", "확대  ", 50, 300, 5, Math.round(bgScale * 100))}
+          ${sliderRow("bg-offx",  "← →  ", 0, 100, 1, bgOffX)}
+          ${sliderRow("bg-offy",  "↑ ↓  ", 0, 100, 1, bgOffY)}
+          <button type="button" id="bg-transform-reset" style="margin-top:6px;width:100%;background:none;border:1px solid var(--c-line,#e3e7ef);color:var(--text-faint);cursor:pointer;font-size:11px;padding:4px;border-radius:4px">확대·위치 원래대로 ↺</button>
+        </div>` : `
+        <div style="margin-top:6px;display:flex;gap:6px">
+          <button class="btn" id="btn-bg-pick" style="flex:1;font-size:11px">🖼 기사 이미지</button>
+          <button class="btn" id="btn-bg-upload" style="flex:1;font-size:11px">📁 파일 업로드</button>
+        </div>
+        <p style="margin:6px 0 0;font-size:10px;color:var(--text-faint)">기사 이미지: 보도한 매체의 og:image / 본문 이미지 자동 수집. 파일 업로드: 본인 보유 이미지 직접 사용.</p>`}
+    </div>`;
+
+  return html;
+}
+
+// 페이지 라이프타임 내 임시 세션 ID (URL ?session=... 없을 때 배경 업로드용)
+function getUploadSessionId() {
+  const params = new URLSearchParams(window.location.search);
+  const fromUrl = params.get("session");
+  if (fromUrl) return fromUrl;
+  if (!window.__cardnewsTempSession) {
+    window.__cardnewsTempSession = "studio_" + Date.now().toString(36);
+  }
+  return window.__cardnewsTempSession;
+}
+
+async function uploadBgFile(file, card) {
+  const sid = getUploadSessionId();
+  const fd = new FormData();
+  fd.append("file", file);
+  try {
+    const r = await fetch(`/api/uploads/bg/${sid}`, { method: "POST", body: fd });
+    const j = await r.json();
+    if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
+    card.data.bgImage = card.data.bgImage || {};
+    card.data.bgImage.url = j.url;
+    card.data.bgImage.darken = card.data.bgImage.darken ?? 55;
+    renderEditor(); renderPreview(); autoSave();
+    if (typeof toast === "function") toast("✓ 배경 이미지 업로드 완료", "success");
+  } catch (e) {
+    alert("배경 업로드 실패: " + e.message);
+  }
+}
+
+function bindEditorEvents(card) {
+  const body = document.getElementById("editor-body");
+  // 배경 이미지 컨트롤
+  const btnPick = body.querySelector("#btn-bg-pick");
+  if (btnPick) btnPick.onclick = () => openBgImagePicker(card);
+  const btnRemove = body.querySelector("#btn-bg-remove");
+  if (btnRemove) btnRemove.onclick = () => {
+    delete card.data.bgImage;
+    renderEditor(); renderPreview(); autoSave();
+  };
+  const darken = body.querySelector("#bg-darken");
+  if (darken) darken.oninput = (e) => {
+    if (!card.data.bgImage) return;
+    card.data.bgImage.darken = +e.target.value;
+    body.querySelector("#bg-darken-val").textContent = e.target.value + "%";
+    renderPreview(); autoSave();
+  };
+
+  // 파일 업로드
+  const fileInput = body.querySelector("#bg-file-input");
+  const btnUpload = body.querySelector("#btn-bg-upload");
+  if (btnUpload && fileInput) {
+    btnUpload.onclick = () => fileInput.click();
+    fileInput.onchange = (e) => {
+      const f = e.target.files && e.target.files[0];
+      if (f) uploadBgFile(f, card);
+      e.target.value = ""; // 같은 파일 재선택 가능
+    };
+  }
+
+  // 확대 (scale)
+  const bgScale = body.querySelector("#bg-scale");
+  if (bgScale) bgScale.oninput = (e) => {
+    if (!card.data.bgImage) return;
+    const pct = +e.target.value;
+    card.data.bgImage.scale = pct / 100;
+    body.querySelector("#bg-scale-val").textContent = pct + "%";
+    renderPreview(); autoSave();
+  };
+  // 위치 X
+  const bgOffX = body.querySelector("#bg-offx");
+  if (bgOffX) bgOffX.oninput = (e) => {
+    if (!card.data.bgImage) return;
+    card.data.bgImage.offsetX = +e.target.value;
+    body.querySelector("#bg-offx-val").textContent = e.target.value + "%";
+    renderPreview(); autoSave();
+  };
+  // 위치 Y
+  const bgOffY = body.querySelector("#bg-offy");
+  if (bgOffY) bgOffY.oninput = (e) => {
+    if (!card.data.bgImage) return;
+    card.data.bgImage.offsetY = +e.target.value;
+    body.querySelector("#bg-offy-val").textContent = e.target.value + "%";
+    renderPreview(); autoSave();
+  };
+  // 변형 리셋
+  const bgReset = body.querySelector("#bg-transform-reset");
+  if (bgReset) bgReset.onclick = () => {
+    if (!card.data.bgImage) return;
+    card.data.bgImage.scale = 1;
+    card.data.bgImage.offsetX = 50;
+    card.data.bgImage.offsetY = 50;
+    renderEditor(); renderPreview(); autoSave();
+  };
+
+  // 필드별 크기 슬라이더 (각 텍스트박스 옆)
+  body.querySelectorAll(".ff-scale").forEach(el => {
+    el.addEventListener("input", e => {
+      const fieldKey = e.target.dataset.field;
+      const v = parseFloat(e.target.value);
+      card.fieldStyles = card.fieldStyles || {};
+      card.fieldStyles[fieldKey] = card.fieldStyles[fieldKey] || {};
+      if (v === 1) delete card.fieldStyles[fieldKey].scale;
+      else card.fieldStyles[fieldKey].scale = v;
+      const valEl = body.querySelector(`.ff-scale-val[data-field="${fieldKey}"]`);
+      if (valEl) valEl.textContent = Math.round(v * 100) + "%";
+      renderPreview(); autoSave();
+    });
+  });
+
+  // 필드별 색 picker
+  body.querySelectorAll(".ff-color").forEach(el => {
+    el.addEventListener("input", e => {
+      const fieldKey = e.target.dataset.field;
+      const c = e.target.value;
+      card.fieldStyles = card.fieldStyles || {};
+      card.fieldStyles[fieldKey] = card.fieldStyles[fieldKey] || {};
+      card.fieldStyles[fieldKey].color = c;
+      e.target.style.opacity = "1";
+      e.target.title = "글자색 적용 중 — 더블클릭으로 해제";
+      renderPreview(); autoSave();
+    });
+    el.addEventListener("dblclick", e => {
+      const fieldKey = e.target.dataset.field;
+      if (card.fieldStyles && card.fieldStyles[fieldKey]) {
+        delete card.fieldStyles[fieldKey].color;
+      }
+      e.target.style.opacity = "0.45";
+      e.target.title = "글자색 미적용 — 클릭해서 선택";
+      renderPreview(); autoSave();
+    });
+  });
+
+  // 필드 리셋 ↺
+  body.querySelectorAll(".ff-reset").forEach(el => {
+    el.addEventListener("click", e => {
+      const fieldKey = e.currentTarget.dataset.field;
+      if (card.fieldStyles) delete card.fieldStyles[fieldKey];
+      const slider = body.querySelector(`.ff-scale[data-field="${fieldKey}"]`);
+      const valEl = body.querySelector(`.ff-scale-val[data-field="${fieldKey}"]`);
+      const picker = body.querySelector(`.ff-color[data-field="${fieldKey}"]`);
+      if (slider) slider.value = 1;
+      if (valEl) valEl.textContent = "100%";
+      if (picker) {
+        picker.style.opacity = "0.45";
+        picker.title = "글자색 미적용 — 클릭해서 선택";
+      }
+      renderPreview(); autoSave();
+    });
+  });
+
+  body.querySelectorAll("[data-key]").forEach(el => {
+    el.addEventListener("input", e => {
+      card.data[e.target.dataset.key] = e.target.value;
+      renderPreview(); renderCardList(); updateAllCounters(); autoSave();
+    });
+  });
+  body.querySelectorAll("[data-list-idx]").forEach(el => {
+    el.addEventListener("input", e => {
+      const i = +e.target.dataset.listIdx;
+      card.data.items[i] = e.target.value;
+      renderPreview(); autoSave();
+    });
+  });
+  body.querySelectorAll("[data-del-item]").forEach(el => {
+    el.addEventListener("click", e => {
+      card.data.items.splice(+e.currentTarget.dataset.delItem, 1);
+      renderEditor(); renderPreview(); autoSave();
+    });
+  });
+  const addLi = document.getElementById("add-list-item");
+  if (addLi) addLi.onclick = () => {
+    if (!card.data.items) card.data.items = [];
+    if (card.data.items.length >= 6) { toast("최대 6개 권장", "error"); return; }
+    card.data.items.push(""); renderEditor(); renderPreview(); autoSave();
+  };
+  // desc
+  body.querySelectorAll("[data-desc]").forEach(el => {
+    el.addEventListener("input", e => {
+      const [i, key] = e.target.dataset.desc.split(".");
+      if (!card.data.descItems) card.data.descItems = [];
+      if (!card.data.descItems[+i]) card.data.descItems[+i] = { title:"", desc:"" };
+      card.data.descItems[+i][key] = e.target.value;
+      renderPreview(); autoSave();
+    });
+  });
+  body.querySelectorAll("[data-del-desc]").forEach(el => {
+    el.addEventListener("click", e => {
+      card.data.descItems.splice(+e.currentTarget.dataset.delDesc, 1);
+      renderEditor(); renderPreview(); autoSave();
+    });
+  });
+  const addDesc = document.getElementById("add-desc");
+  if (addDesc) addDesc.onclick = () => {
+    if (!card.data.descItems) card.data.descItems = [];
+    if (card.data.descItems.length >= 4) { toast("최대 4개 권장", "error"); return; }
+    card.data.descItems.push({title:"", desc:""}); renderEditor(); renderPreview(); autoSave();
+  };
+  // timeline
+  body.querySelectorAll("[data-tl]").forEach(el => {
+    el.addEventListener("input", e => {
+      const [i, key] = e.target.dataset.tl.split(".");
+      if (!card.data.timelineItems) card.data.timelineItems = [];
+      if (!card.data.timelineItems[+i]) card.data.timelineItems[+i] = { label:"", content:"" };
+      card.data.timelineItems[+i][key] = e.target.value;
+      renderPreview(); autoSave();
+    });
+  });
+  body.querySelectorAll("[data-del-tl]").forEach(el => {
+    el.addEventListener("click", e => {
+      card.data.timelineItems.splice(+e.currentTarget.dataset.delTl, 1);
+      renderEditor(); renderPreview(); autoSave();
+    });
+  });
+  const addTl = document.getElementById("add-tl");
+  if (addTl) addTl.onclick = () => {
+    if (!card.data.timelineItems) card.data.timelineItems = [];
+    if (card.data.timelineItems.length >= 5) { toast("최대 5개 권장", "error"); return; }
+    card.data.timelineItems.push({label:"", content:""}); renderEditor(); renderPreview(); autoSave();
+  };
+}
+
+function updateAllCounters() {
+  document.querySelectorAll("[data-counter]").forEach(c => {
+    const key = c.dataset.counter;
+    const limit = +c.dataset.limit;
+    const el = document.querySelector(`[data-key="${key}"]`);
+    if (!el) return;
+    const len = (el.value || "").replace(/\n/g, "").length;
+    c.textContent = `${len} / ${limit}`;
+    c.classList.toggle("warn", len > limit * 0.85 && len <= limit);
+    c.classList.toggle("over", len > limit);
+  });
+}
+
+// ====================================================================
+// 미리보기
+// ====================================================================
+function renderPreview() {
+  const scaler = document.getElementById("preview-scaler");
+  scaler.className = `preview-scaler theme-${STATE.theme}`;
+  const card = STATE.cards.find(c => c.id === STATE.activeId);
+  if (!card) {
+    scaler.innerHTML = `<div class="card" style="display:flex;align-items:center;justify-content:center;color:#999;font-size:48px;">미리보기</div>`;
+    return;
+  }
+  const idx = STATE.cards.findIndex(c => c.id === card.id);
+  scaler.innerHTML = renderCard(card, idx + 1, STATE.cards.length);
+  // 큰 숫자(.stat) 가 컨테이너 폭 넘으면 자동 축소 (한글 포함 stat 줄바꿈 방지)
+  autofitStat(scaler);
+  // 배경 이미지 휘도 분석 → 밝으면 오버레이 자동 강화
+  applyBgLuminance(scaler);
+}
+
+// ====================================================================
+// 배경 이미지 휘도(luminance) 분석 — 토큰 0, 클라이언트 Canvas API
+// 평균 휘도 ≥ 0.6 = 밝은 사진 → .bright-bg 클래스로 오버레이 1.5배 강화
+//             ≥ 0.75 = 매우 밝음 → .very-bright-bg 로 이미지 자체도 brightness 0.75
+// 같은 URL 은 메모리 캐시.
+// ====================================================================
+const _LUMA_CACHE = new Map();
+
+function _measureLuma(url) {
+  if (_LUMA_CACHE.has(url)) return Promise.resolve(_LUMA_CACHE.get(url));
+  return new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        // 다운샘플 (전체 픽셀 분석은 느림)
+        const W = 60, H = 75; // 1080:1350 = 4:5
+        const cv = document.createElement("canvas");
+        cv.width = W; cv.height = H;
+        const ctx = cv.getContext("2d");
+        ctx.drawImage(img, 0, 0, W, H);
+        const data = ctx.getImageData(0, 0, W, H).data;
+        let sum = 0;
+        const n = data.length / 4;
+        for (let i = 0; i < data.length; i += 4) {
+          // ITU-R BT.601 휘도 공식
+          sum += (0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2]) / 255;
+        }
+        const luma = sum / n;
+        _LUMA_CACHE.set(url, luma);
+        resolve(luma);
+      } catch (e) {
+        // CORS 거부 등 — 기본값(중간) 반환
+        _LUMA_CACHE.set(url, 0.5);
+        resolve(0.5);
+      }
+    };
+    img.onerror = () => {
+      _LUMA_CACHE.set(url, 0.5);
+      resolve(0.5);
+    };
+    img.src = url;
+  });
+}
+
+async function applyBgLuminance(scope) {
+  scope = scope || document;
+  const cards = scope.querySelectorAll(".card.has-bg-image");
+  await Promise.all(Array.from(cards).map(async (cardEl) => {
+    const layer = cardEl.querySelector(".bg-image-layer");
+    if (!layer) return;
+    // background-image URL 파싱
+    const bgStyle = layer.style.backgroundImage || "";
+    const m = bgStyle.match(/url\(["']?(.+?)["']?\)/);
+    if (!m) return;
+    const url = m[1];
+    const luma = await _measureLuma(url);
+    cardEl.classList.toggle("bright-bg", luma >= 0.6);
+    cardEl.classList.toggle("very-bright-bg", luma >= 0.75);
+    cardEl.dataset.luma = luma.toFixed(2);
+  }));
+}
+window.applyBgLuminance = applyBgLuminance;
+
+// ====================================================================
+// 배경 이미지 피커 — 클러스터 기반 후보 이미지 그리드 모달
+// ====================================================================
+async function openBgImagePicker(card) {
+  const clusterId = STATE.meta && STATE.meta.cluster_id;
+  // 모달 셸 미리 띄움 (로딩 상태)
+  const back = document.createElement("div");
+  back.className = "modal-backdrop";
+  back.innerHTML = `
+    <div class="modal" style="max-width:760px">
+      <div class="modal-header">
+        <h2>🖼 배경 이미지 선택</h2>
+        <button class="close">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="intro">이 클러스터를 보도한 매체 페이지에서 자동으로 모은 이미지입니다. 카드 가독성을 위해 인물·풍경 사진을 권장합니다.</p>
+        <div id="bg-img-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:14px;min-height:180px">
+          <div style="grid-column:1/-1;text-align:center;color:var(--text-faint);padding:20px">
+            <span class="spinner"></span> 이미지 불러오는 중…
+          </div>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(back);
+  const close = () => back.remove();
+  back.querySelector(".close").onclick = close;
+  back.addEventListener("click", e => { if (e.target === back) close(); });
+
+  const grid = back.querySelector("#bg-img-grid");
+  if (!clusterId) {
+    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--text-faint);padding:20px">
+      이 세션엔 데일리싱크 클러스터 정보가 없어 자동 추출이 안 됩니다.<br>
+      (수동 입력 세션의 경우 직접 URL을 붙여넣어 주세요.)<br><br>
+      <input type="text" id="bg-img-manual" placeholder="이미지 URL 직접 입력" style="width:80%;padding:8px;border:1px solid var(--c-line,#e3e7ef);border-radius:6px"/>
+      <button class="btn primary" id="bg-img-manual-apply" style="margin-top:8px">적용</button>
+    </div>`;
+    grid.querySelector("#bg-img-manual-apply").onclick = () => {
+      const url = grid.querySelector("#bg-img-manual").value.trim();
+      if (!url) return;
+      card.data.bgImage = { url, darken: 55 };
+      close(); renderEditor(); renderPreview(); autoSave();
+    };
+    return;
+  }
+
+  try {
+    const r = await fetch(`/api/article-images?cluster_id=${clusterId}`);
+    const j = await r.json();
+    const items = j.images || [];
+    if (!items.length) {
+      grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--text-faint);padding:20px">
+        이 클러스터의 기사에서 이미지를 찾지 못했습니다.<br>(매체가 이미지를 제공하지 않거나 페이지 접근이 막혔을 수 있음)
+      </div>`;
+      return;
+    }
+    grid.innerHTML = "";
+    items.forEach((img, i) => {
+      const el = document.createElement("button");
+      el.style.cssText = "padding:0;border:2px solid transparent;border-radius:6px;background:#000;cursor:pointer;aspect-ratio:1080/1350;overflow:hidden;position:relative";
+      el.innerHTML = `
+        <img src="${esc(img.proxy_url || img.url)}"
+             style="width:100%;height:100%;object-fit:cover;display:block"
+             loading="lazy"
+             onerror="this.style.opacity=0.2;this.parentElement.style.background='#333'">
+        <div style="position:absolute;bottom:0;left:0;right:0;padding:4px 6px;background:linear-gradient(to top, rgba(0,0,0,0.85), transparent);color:#fff;font-size:10px;text-align:left">
+          ${esc((img.source || "").replace("og_image","og:image"))}
+        </div>`;
+      el.onmouseenter = () => el.style.borderColor = "var(--accent,#6ee7ff)";
+      el.onmouseleave = () => el.style.borderColor = "transparent";
+      el.onclick = () => {
+        // proxy_url 을 우선 저장 (html2canvas 가 CORS 없이 fetch 가능)
+        card.data.bgImage = {
+          url: img.proxy_url || img.url,
+          original: img.url,
+          source: img.source,
+          darken: 55,
+        };
+        close();
+        renderEditor();
+        renderPreview();
+        autoSave();
+        toast(`✓ 배경 이미지 적용`, "success");
+      };
+      grid.appendChild(el);
+    });
+  } catch (e) {
+    grid.innerHTML = `<div style="grid-column:1/-1;color:var(--danger,#e11);padding:20px">로드 실패: ${esc(e.message)}</div>`;
+  }
+}
+
+// ====================================================================
+// 큰 숫자 자동 피팅 — .lo-highlight-stat .stat 가 한 줄에 들어오게 폰트 축소
+// 호출 위치: renderPreview, exportAll 루프, server.py BOT_INTEGRATION 스크립트
+// 함수는 window.autofitStat 으로도 노출 (인젝션 스크립트가 외부에서 호출).
+// ====================================================================
+function autofitStat(scope) {
+  scope = scope || document;
+  scope.querySelectorAll(".lo-highlight-stat").forEach(card => {
+    const inner = card.querySelector(".card-inner");
+    const stat = card.querySelector(".stat");
+    const unit = card.querySelector(".stat-unit");
+    if (!inner || !stat) return;
+
+    // 초기화 (재호출 대비)
+    stat.style.fontSize = "";
+    if (unit) unit.style.fontSize = "";
+
+    // span 자체에 nowrap + overflow-wrap normal — 줄바꿈 절대 안 일어나게.
+    // 글로벌 .card * { overflow-wrap: anywhere } 를 이 두 element만 무력화.
+    stat.style.whiteSpace = "nowrap";
+    stat.style.overflowWrap = "normal";
+    if (unit) {
+      unit.style.whiteSpace = "nowrap";
+      unit.style.overflowWrap = "normal";
+    }
+
+    const baseStat = parseFloat(getComputedStyle(stat).fontSize) || 380;
+    const baseUnit = unit ? (parseFloat(getComputedStyle(unit).fontSize) || 80) : 0;
+
+    // card-inner.clientWidth 는 padding 포함. 실제 사용 가능 폭 계산.
+    const cs = getComputedStyle(inner);
+    const padL = parseFloat(cs.paddingLeft) || 0;
+    const padR = parseFloat(cs.paddingRight) || 0;
+    const avail = inner.clientWidth - padL - padR - 8;
+    if (avail <= 0) return;
+
+    // 두 span 의 실제 렌더 폭 합 (nowrap 상태이므로 자연 폭).
+    const measure = () => stat.offsetWidth + (unit ? unit.offsetWidth : 0);
+
+    let size = baseStat;
+    let safety = 40;
+    while (measure() > avail && size > 80 && safety-- > 0) {
+      size -= 12;
+      stat.style.fontSize = size + "px";
+      if (unit) unit.style.fontSize = (baseUnit * size / baseStat) + "px";
+    }
+  });
+}
+window.autofitStat = autofitStat;
+
+function showPreviewLoading(label) {
+  hidePreviewLoading();
+  const stage = document.getElementById("preview-stage");
+  const overlay = document.createElement("div");
+  overlay.className = "preview-loading";
+  overlay.id = "preview-loading";
+  overlay.innerHTML = `<div class="spinner"></div><div class="label">${esc(label)}</div>`;
+  stage.appendChild(overlay);
+}
+function hidePreviewLoading() {
+  const ol = document.getElementById("preview-loading");
+  if (ol) ol.remove();
+}
+
+// ====================================================================
+// 카드 액션
+// ====================================================================
+function addCard(type) {
+  const card = { id: uid(), type, layout: LAYOUTS[type][0].id, data: DEFAULTS[type]() };
+  STATE.cards.push(card);
+  STATE.activeId = card.id;
+  renderAll(); autoSave();
+}
+
+function selectCard(id) { STATE.activeId = id; renderAll(); }
+
+function deleteCard(id) {
+  const idx = STATE.cards.findIndex(c => c.id === id);
+  if (idx === -1) return;
+  STATE.cards.splice(idx, 1);
+  if (STATE.activeId === id) {
+    STATE.activeId = STATE.cards[Math.max(0, idx - 1)]?.id || null;
+  }
+  renderAll(); autoSave();
+}
+
+function duplicateCard(id) {
+  const idx = STATE.cards.findIndex(c => c.id === id);
+  if (idx === -1) return;
+  const orig = STATE.cards[idx];
+  const dup = { id: uid(), type: orig.type, layout: orig.layout, data: JSON.parse(JSON.stringify(orig.data)) };
+  STATE.cards.splice(idx + 1, 0, dup);
+  STATE.activeId = dup.id;
+  renderAll(); autoSave();
+}
+
+function moveCard(fromId, toId) {
+  if (fromId === toId) return;
+  const from = STATE.cards.findIndex(c => c.id === fromId);
+  if (from === -1) return;
+  const [moved] = STATE.cards.splice(from, 1);
+  const to = STATE.cards.findIndex(c => c.id === toId);
+  STATE.cards.splice(to, 0, moved);
+  renderAll(); autoSave();
+}
+
+async function changeLayout(cardId, newLayout, chipEl) {
+  const card = STATE.cards.find(c => c.id === cardId);
+  if (!card || card.layout === newLayout) return;
+  const oldFields = LAYOUT_FIELDS[`${card.type}/${card.layout}`];
+  const newFields = LAYOUT_FIELDS[`${card.type}/${newLayout}`];
+  const needsAI = newFields.some(f => !oldFields.includes(f));
+
+  if (!needsAI) {
+    card.layout = newLayout;
+    renderAll(); autoSave();
+    return;
+  }
+
+  // AI 호출 필요
+  if (chipEl) chipEl.classList.add("loading");
+  showPreviewLoading("AI가 새 레이아웃에 맞게 내용 재배치 중...");
+  try {
+    const newData = await aiAdaptLayout(card, newLayout);
+    card.layout = newLayout;
+    card.data = newData;
+    autoSave();
+    renderAll();
+    toast("✓ 레이아웃이 새 구조로 재배치됐어요", "success");
+  } catch (err) {
+    toast("재배치 실패: " + err.message, "error");
+    // 그래도 레이아웃은 바꿔주기 (사용자가 수동 수정 가능)
+    card.layout = newLayout;
+    renderAll();
+  } finally {
+    hidePreviewLoading();
+    if (chipEl) chipEl.classList.remove("loading");
+  }
+}
+
+function setTheme(t) {
+  STATE.theme = t;
+  applyTheme(t);
+  document.querySelectorAll(".theme-chip").forEach(el => {
+    el.classList.toggle("active", el.dataset.theme === t);
+  });
+  document.getElementById("preview-scaler").className = `preview-scaler theme-${t}`;
+  document.getElementById("render-area").className = `render-area theme-${t}`;
+  autoSave();
+}
+
+function renderAll() {
+  renderCardList(); renderEditor(); renderPreview(); renderTabs();
+}
+
+// ====================================================================
+// AI 다듬기
+// ====================================================================
+function openPolishModal() {
+  const card = STATE.cards.find(c => c.id === STATE.activeId);
+  if (!card) return;
+
+  const back = document.createElement("div");
+  back.className = "modal-backdrop";
+  back.innerHTML = `
+    <div class="modal" style="max-width:520px">
+      <div class="modal-header">
+        <h2>✨ AI로 카드 다듬기</h2>
+        <button class="close">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="intro">현재 카드 내용을 어떻게 다듬을까요? Claude가 의미는 유지하면서 표현만 바꿔드립니다.</p>
+        <div class="field">
+          <div class="field-label-row"><label>요청 사항</label></div>
+          <textarea id="polish-instr" placeholder="예시:
+• 더 짧고 임팩트 있게
+• 더 친근한 톤으로
+• 후크를 더 강하게
+• 전문 용어 쉽게 풀어서
+• MZ세대 톤으로
+• 진지하고 신뢰감 있게"></textarea>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:6px; margin-top:8px;">
+          <button class="btn btn-ghost" data-preset="더 짧고 임팩트 있게">짧고 강하게</button>
+          <button class="btn btn-ghost" data-preset="더 친근한 톤으로">친근하게</button>
+          <button class="btn btn-ghost" data-preset="후크를 더 강하게, 호기심 자극">후크 강화</button>
+          <button class="btn btn-ghost" data-preset="전문 용어 풀어서 쉽게">쉽게 풀기</button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <span class="hint">현재 내용은 자동 저장됩니다</span>
+        <div class="modal-footer-actions">
+          <button class="btn btn-ghost" data-cancel>취소</button>
+          <button class="btn btn-primary" data-confirm>다듬기</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(back);
+  back.querySelector(".close").onclick = () => back.remove();
+  back.querySelector("[data-cancel]").onclick = () => back.remove();
+  back.onclick = e => { if (e.target === back) back.remove(); };
+  back.querySelectorAll("[data-preset]").forEach(b => b.onclick = () => {
+    back.querySelector("#polish-instr").value = b.dataset.preset;
+  });
+  back.querySelector("[data-confirm]").onclick = async () => {
+    const instr = back.querySelector("#polish-instr").value.trim();
+    if (!instr) { toast("요청 사항을 입력해주세요", "error"); return; }
+    back.remove();
+    showPreviewLoading("AI가 카드를 다듬는 중...");
+    try {
+      const newData = await aiPolishCard(card, instr);
+      card.data = newData;
+      autoSave();
+      renderAll();
+      toast("✓ 다듬기 완료", "success");
+    } catch (err) {
+      toast("실패: " + err.message, "error");
+    } finally {
+      hidePreviewLoading();
+    }
+  };
+}
+
+// ====================================================================
+// PNG EXPORT
+// ====================================================================
+async function exportAll() {
+  if (STATE.cards.length === 0) { toast("내보낼 카드가 없습니다", "error"); return; }
+  const btn = document.getElementById("btn-export");
+  const orig = btn.textContent;
+  btn.disabled = true;
+  const zip = new JSZip();
+  const renderArea = document.getElementById("render-area");
+  renderArea.className = `render-area theme-${STATE.theme}`;
+  for (let i = 0; i < STATE.cards.length; i++) {
+    const card = STATE.cards[i];
+    btn.textContent = `🎨 ${i + 1} / ${STATE.cards.length}`;
+    renderArea.innerHTML = renderCard(card, i + 1, STATE.cards.length);
+    await new Promise(r => setTimeout(r, 120));
+    autofitStat(renderArea);
+    // 배경 이미지가 있으면 휘도 분석 완료까지 대기 (밝은 배경 자동 감지)
+    await applyBgLuminance(renderArea);
+    const cardEl = renderArea.querySelector(".card");
+    const canvas = await html2canvas(cardEl, { width:1080, height:1350, scale:1, useCORS:true, backgroundColor:null });
+    const blob = await new Promise(res => canvas.toBlob(res, "image/png"));
+    const num = String(i + 1).padStart(2, "0");
+    zip.file(`cardnews-${num}-${card.type}-${card.layout}.png`, blob);
+  }
+  btn.textContent = "📦 ZIP 생성 중...";
+  const zipBlob = await zip.generateAsync({ type: "blob" });
+  const url = URL.createObjectURL(zipBlob);
+  const a = document.createElement("a");
+  const today = new Date().toISOString().slice(0, 10);
+  a.href = url; a.download = `cardnews_${today}.zip`; a.click();
+  URL.revokeObjectURL(url);
+  renderArea.innerHTML = "";
+  btn.disabled = false;
+  btn.textContent = orig;
+  toast(`✓ ${STATE.cards.length}장 다운로드 완료`, "success");
+}
+
+// ====================================================================
+// 인스타 스토리 요약 카드 (여러 카드 → 1장, 하이라이트 보관용)
+// ====================================================================
+function cardPlainText(card) {
+  const d = card.data || {};
+  const out = [];
+  const push = v => { if (typeof v === "string") { const s = v.replace(/\s*\n\s*/g, " ").trim(); if (s) out.push(s); } };
+  const SKIP = new Set(["bgImage", "number", "account", "hashtag", "pron", "badge", "eyebrow"]);
+  for (const k of Object.keys(d)) {
+    if (SKIP.has(k)) continue;
+    const v = d[k];
+    if (typeof v === "string") push(v);
+    else if (Array.isArray(v)) v.forEach(it => {
+      if (typeof it === "string") push(it);
+      else if (it && typeof it === "object") { push(it.title); push(it.desc); push(it.label); push(it.content); }
+    });
+  }
+  return out.join(" · ");
+}
+
+function buildCardsCorpus() {
+  return STATE.cards
+    .map((c, i) => `[${i + 1}. ${TYPE_LABEL[c.type] || c.type}] ${cardPlainText(c)}`)
+    .filter(line => line.replace(/\[[^\]]*\]/, "").trim())
+    .join("\n");
+}
+
+async function summarizeToStory() {
+  const corpus = buildCardsCorpus();
+  const system = `당신은 인스타그램 스토리용 '1장 요약'을 만드는 카피라이터입니다. 여러 장의 카드뉴스를 단 1장으로 압축합니다. 인스타 스토리에 올려 하이라이트에 보관하는 용도라, 한눈에 핵심이 읽혀야 합니다.
+
+규칙:
+- title: 전체를 관통하는 핵심 헤드라인. 20자 이내. 임팩트 있게. 너무 길면 자연스러운 곳에서 \\n 한 번으로 2줄.
+- points: 핵심 포인트 **6~8개** (내용이 많으면 8개까지 꽉 채워라). 각 28자 이내. 카드 순서대로 원문의 핵심 정보를 **하나도 빠뜨리지 말고** 최대한 많이 담아라. 명사형/체언 종결로 통일하되, 정보 손실보다 약간 길어지는 게 낫다.
+- cta: 한 줄 행동유도(선택, 없으면 빈 문자열). 예: "자세한 내용은 피드에서". 14자 이내.
+- 과장·이모지 금지, 원문 사실에 근거. 원문에 없는 숫자를 지어내지 말 것.
+- 카드가 적어 내용이 부족하면 무리하게 늘리지 말고 있는 핵심만 정확히.
+
+오직 JSON만 출력(마크다운 금지):
+{"title":"...","points":["...","...","...","...","...","..."],"cta":"..."}`;
+  const user = `브랜드: ${STATE.brand.name} (${STATE.brand.handle})\n\n아래 ${STATE.cards.length}장 카드뉴스를 스토리 1장으로 요약해줘. 빈 공간 없이 최대한 많은 핵심을 담아줘:\n\n${corpus}`;
+  const raw = await callClaude(system, user, 1100);
+  const parsed = extractJSON(raw);
+  return {
+    title: (parsed.title || "").trim(),
+    points: Array.isArray(parsed.points) ? parsed.points.map(p => String(p).trim()).filter(Boolean).slice(0, 8) : [],
+    cta: (parsed.cta || "").trim(),
+  };
+}
+
+function renderStoryCard(data, opts) {
+  const t = THEMES[opts.theme] || THEMES.navy;
+  const c = opts.mode === "light" ? t.light : t.bold;
+  const st = (opts && opts.style) || {};
+  const isHex = v => typeof v === "string" && /^#[0-9a-f]{3,8}$/i.test(v);
+  const v = [
+    `--s-bg:${c.bg}`, `--s-text:${c.text}`, `--s-sub:${c.sub}`,
+    `--s-accent:${isHex(st.accent) ? st.accent : c.accent}`, `--s-line:${c.line}`,
+    `--s-fit:1`,
+    `--u-title:${(typeof st.titleScale === "number" && st.titleScale > 0) ? st.titleScale : 1}`,
+    `--u-points:${(typeof st.pointsScale === "number" && st.pointsScale > 0) ? st.pointsScale : 1}`,
+  ];
+  if (isHex(st.titleColor)) v.push(`--s-title-color:${st.titleColor}`);
+  if (isHex(st.pointsColor)) v.push(`--s-tx-color:${st.pointsColor}`);
+  const vars = v.join(";");
+  const title = esc(data.title || "").replace(/\n/g, "<br>");
+  const points = (data.points || [])
+    .filter(p => String(p).trim())
+    .map((p, i) => `<div class="s-point"><div class="s-n">${i + 1}</div><div class="s-tx">${esc(p)}</div></div>`)
+    .join("");
+  const brandName = esc(STATE.brand.name || "");
+  const handle = esc(STATE.brand.handle || "");
+  const cta = data.cta && data.cta.trim() ? `<div class="s-cta">${esc(data.cta)} →</div>` : "";
+  return `<div class="story-card" style="${vars}">
+    <div class="s-top"><span class="s-tag">SUMMARY</span><span class="s-brand">${brandName}</span></div>
+    <h2 class="s-headline">${title || "요약 제목"}</h2>
+    <div class="s-rule"></div>
+    <div class="s-points">${points}</div>
+    <div class="s-foot"><div class="s-handle">${handle}</div>${cta}</div>
+  </div>`;
+}
+
+// 카드 높이에 맞춰 본문이 빈 공간 없이 꽉 차도록 자동 배율(--s-fit) 탐색
+function fitStoryCard(el) {
+  if (!el) return;
+  const pts = el.querySelector(".s-points");
+  if (!pts) return;
+  const prevFlex = pts.style.flex;
+  pts.style.flex = "0 0 auto"; // 자연 높이로 측정
+  const fits = (k) => {
+    el.style.setProperty("--s-fit", k);
+    void el.offsetHeight; // 강제 reflow
+    return el.scrollHeight <= el.clientHeight;
+  };
+  let lo = 0.55, hi = 1.6, best = lo;
+  // hi 가 이미 맞으면 그대로(콘텐츠 매우 적음)
+  if (fits(hi)) { best = hi; }
+  else {
+    for (let i = 0; i < 16; i++) {
+      const mid = (lo + hi) / 2;
+      if (fits(mid)) { best = mid; lo = mid; } else { hi = mid; }
+    }
+  }
+  el.style.setProperty("--s-fit", best);
+  pts.style.flex = prevFlex || ""; // 복원 → 남는 미세 공간은 균등 배치
+}
+
+function ensureStoryRenderArea() {
+  let area = document.getElementById("story-render-area");
+  if (!area) {
+    area = document.createElement("div");
+    area.id = "story-render-area";
+    area.className = "story-render-area";
+    document.body.appendChild(area);
+  }
+  return area;
+}
+
+async function downloadStoryPng(data, opts, btn) {
+  const area = ensureStoryRenderArea();
+  area.innerHTML = renderStoryCard(data, opts);
+  await new Promise(r => setTimeout(r, 150));
+  const el = area.querySelector(".story-card");
+  if (!opts.style || opts.style.autofit !== false) fitStoryCard(el);
+  const canvas = await html2canvas(el, { width: 1080, height: 1920, scale: 1, useCORS: true, backgroundColor: null });
+  const blob = await new Promise(res => canvas.toBlob(res, "image/png"));
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const today = new Date().toISOString().slice(0, 10);
+  a.href = url; a.download = `story_summary_${today}.png`; a.click();
+  URL.revokeObjectURL(url);
+  area.innerHTML = "";
+}
+
+function openStorySummaryModal() {
+  if (STATE.cards.length === 0) { toast("먼저 카드를 만들어주세요", "error"); return; }
+
+  const opts = { theme: STATE.theme, mode: "bold", style: { titleScale: 1, pointsScale: 1, autofit: true } };
+  let data = { title: "요약을 생성하는 중…", points: [], cta: "" };
+
+  const themeOptions = Object.entries(THEMES)
+    .map(([id, t]) => `<option value="${id}"${id === opts.theme ? " selected" : ""}>${t.name}</option>`).join("");
+  // 색 입력 기본값(테마색) — 미적용 상태에서도 자연스러운 시작값
+  const baseCol = (opts.mode === "light" ? THEMES[opts.theme].light : THEMES[opts.theme].bold);
+
+  const back = document.createElement("div");
+  back.className = "modal-backdrop";
+  back.innerHTML = `
+    <div class="modal wide" style="max-width:900px">
+      <div class="modal-header">
+        <h2>📱 인스타 스토리 요약 카드 (1080×1920)</h2>
+        <button class="close">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="intro">현재 카드뉴스 ${STATE.cards.length}장을 AI가 1장으로 요약합니다. 문구를 다듬고 스타일을 고른 뒤 PNG로 받아 스토리에 올리세요.</p>
+        <div class="story-summary-body">
+          <div class="story-preview" id="story-preview"></div>
+          <div class="story-summary-controls">
+            <div>
+              <label>제목 (줄바꿈은 Enter)</label>
+              <textarea id="ss-title" rows="2"></textarea>
+            </div>
+            <div>
+              <label>핵심 포인트 (한 줄에 하나, 많을수록 꽉 참 · 6~8개 권장)</label>
+              <textarea id="ss-points" rows="7"></textarea>
+            </div>
+            <div>
+              <label>하단 한 줄 (선택)</label>
+              <input id="ss-cta" type="text" placeholder="예: 자세한 내용은 피드에서" />
+            </div>
+            <div style="display:flex; gap:12px;">
+              <div style="flex:1">
+                <label>테마 색</label>
+                <select id="ss-theme">${themeOptions}</select>
+              </div>
+              <div style="flex:1">
+                <label>배경</label>
+                <div class="story-mode-toggle" id="ss-mode">
+                  <button data-mode="bold" class="active">다크</button>
+                  <button data-mode="light">라이트</button>
+                </div>
+              </div>
+            </div>
+            <div style="border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:12px">
+              <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:12px;color:var(--text)">
+                <input type="checkbox" id="ss-autofit" checked style="width:auto"> 자동 채움 — 빈 공간 없이 글자 크기 자동 조절
+              </label>
+              <div style="display:flex;gap:12px;align-items:center">
+                <div style="flex:1">
+                  <label>제목 크기</label>
+                  <input type="range" id="ss-title-scale" min="0.6" max="1.8" step="0.05" value="1" style="width:100%;accent-color:var(--accent)">
+                </div>
+                <div style="flex:0 0 auto;text-align:center">
+                  <label>제목색</label>
+                  <div style="display:flex;gap:4px;align-items:center">
+                    <input type="color" id="ss-title-color" value="${baseCol.text}" style="width:26px;height:24px;padding:0;border:1px solid var(--line);border-radius:4px;opacity:0.5">
+                    <button type="button" id="ss-title-color-clear" title="기본색" style="background:none;border:1px solid var(--line);color:var(--text-faint);border-radius:4px;font-size:10px;padding:2px 5px">↺</button>
+                  </div>
+                </div>
+              </div>
+              <div style="display:flex;gap:12px;align-items:center">
+                <div style="flex:1">
+                  <label>포인트 크기</label>
+                  <input type="range" id="ss-points-scale" min="0.6" max="1.8" step="0.05" value="1" style="width:100%;accent-color:var(--accent)">
+                </div>
+                <div style="flex:0 0 auto;text-align:center">
+                  <label>포인트색</label>
+                  <div style="display:flex;gap:4px;align-items:center">
+                    <input type="color" id="ss-points-color" value="${baseCol.text}" style="width:26px;height:24px;padding:0;border:1px solid var(--line);border-radius:4px;opacity:0.5">
+                    <button type="button" id="ss-points-color-clear" title="기본색" style="background:none;border:1px solid var(--line);color:var(--text-faint);border-radius:4px;font-size:10px;padding:2px 5px">↺</button>
+                  </div>
+                </div>
+                <div style="flex:0 0 auto;text-align:center">
+                  <label>강조색</label>
+                  <div style="display:flex;gap:4px;align-items:center">
+                    <input type="color" id="ss-accent" value="${baseCol.accent}" style="width:26px;height:24px;padding:0;border:1px solid var(--line);border-radius:4px;opacity:0.5">
+                    <button type="button" id="ss-accent-clear" title="기본색" style="background:none;border:1px solid var(--line);color:var(--text-faint);border-radius:4px;font-size:10px;padding:2px 5px">↺</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ai" id="ss-regen">✨ AI 다시 요약</button>
+        <button class="btn btn-primary" id="ss-download">📥 PNG 다운로드</button>
+      </div>
+    </div>`;
+  document.body.appendChild(back);
+
+  const previewEl = back.querySelector("#story-preview");
+  const titleEl = back.querySelector("#ss-title");
+  const pointsEl = back.querySelector("#ss-points");
+  const ctaEl = back.querySelector("#ss-cta");
+  const themeEl = back.querySelector("#ss-theme");
+  const dlBtn = back.querySelector("#ss-download");
+  const regenBtn = back.querySelector("#ss-regen");
+  const autofitEl = back.querySelector("#ss-autofit");
+  const titleScaleEl = back.querySelector("#ss-title-scale");
+  const pointsScaleEl = back.querySelector("#ss-points-scale");
+  const titleColorEl = back.querySelector("#ss-title-color");
+  const pointsColorEl = back.querySelector("#ss-points-color");
+  const accentEl = back.querySelector("#ss-accent");
+
+  function currentData() {
+    return {
+      title: titleEl.value,
+      points: pointsEl.value.split("\n").map(s => s.trim()).filter(Boolean),
+      cta: ctaEl.value,
+    };
+  }
+  function refresh() {
+    previewEl.innerHTML = renderStoryCard(currentData(), opts);
+    if (opts.style.autofit) fitStoryCard(previewEl.querySelector(".story-card"));
+  }
+  function fillFields() {
+    titleEl.value = data.title || "";
+    pointsEl.value = (data.points || []).join("\n");
+    ctaEl.value = data.cta || "";
+  }
+
+  [titleEl, pointsEl, ctaEl].forEach(el => el.addEventListener("input", refresh));
+  themeEl.addEventListener("change", () => { opts.theme = themeEl.value; refresh(); });
+  back.querySelectorAll("#ss-mode button").forEach(b => b.onclick = () => {
+    opts.mode = b.dataset.mode;
+    back.querySelectorAll("#ss-mode button").forEach(x => x.classList.toggle("active", x === b));
+    refresh();
+  });
+
+  // 자동 채움 토글
+  autofitEl.addEventListener("change", () => { opts.style.autofit = autofitEl.checked; refresh(); });
+  // 크기 슬라이더
+  titleScaleEl.addEventListener("input", () => { opts.style.titleScale = parseFloat(titleScaleEl.value); refresh(); });
+  pointsScaleEl.addEventListener("input", () => { opts.style.pointsScale = parseFloat(pointsScaleEl.value); refresh(); });
+  // 색 picker (선택 시 적용, ↺ 로 기본색 복귀)
+  function bindColor(inputEl, clearId, key) {
+    inputEl.addEventListener("input", () => { opts.style[key] = inputEl.value; inputEl.style.opacity = "1"; refresh(); });
+    back.querySelector(clearId).onclick = () => { delete opts.style[key]; inputEl.style.opacity = "0.5"; refresh(); };
+  }
+  bindColor(titleColorEl, "#ss-title-color-clear", "titleColor");
+  bindColor(pointsColorEl, "#ss-points-color-clear", "pointsColor");
+  bindColor(accentEl, "#ss-accent-clear", "accent");
+
+  function close() { back.remove(); }
+  back.querySelector(".close").onclick = close;
+  back.onclick = e => { if (e.target === back) close(); };
+
+  async function generate() {
+    regenBtn.disabled = true;
+    const origTxt = regenBtn.textContent;
+    regenBtn.textContent = "요약 중…";
+    titleEl.value = "요약 생성 중…"; pointsEl.value = ""; refresh();
+    try {
+      data = await summarizeToStory();
+      fillFields(); refresh();
+      toast("✓ 스토리 요약 생성 완료", "success");
+    } catch (err) {
+      toast("요약 실패: " + err.message, "error");
+      titleEl.value = ""; refresh();
+    } finally {
+      regenBtn.disabled = false; regenBtn.textContent = origTxt;
+    }
+  }
+  regenBtn.onclick = generate;
+
+  dlBtn.onclick = async () => {
+    const d = currentData();
+    if (!d.title.trim() && d.points.length === 0) { toast("내용이 비어 있습니다", "error"); return; }
+    dlBtn.disabled = true;
+    const origTxt = dlBtn.textContent;
+    dlBtn.textContent = "🎨 렌더링 중…";
+    try {
+      await downloadStoryPng(d, opts, dlBtn);
+      toast("✓ 스토리 요약 PNG 다운로드 완료", "success");
+    } catch (err) {
+      toast("다운로드 실패: " + err.message, "error");
+    } finally {
+      dlBtn.disabled = false; dlBtn.textContent = origTxt;
+    }
+  };
+
+  fillFields(); refresh();
+  generate(); // 모달 열리면 자동으로 1차 요약
+}
+
+// ====================================================================
+// 원버튼 모달
+// ====================================================================
+function openOneShotModal() {
+  const back = document.createElement("div");
+  back.className = "modal-backdrop";
+  back.innerHTML = `
+    <div class="modal">
+      <div class="modal-header">
+        <h2>✨ 내용 입력 → 카드뉴스 자동 완성</h2>
+        <button class="close">×</button>
+      </div>
+      <div class="modal-body" id="oneshot-body">
+        <p class="intro">텍스트, 이미지(또는 둘 다)를 넣으세요. Claude가 이미지 안의 텍스트·표·도식·손글씨까지 읽어서 5-7장 카드뉴스로 구성합니다.</p>
+
+        <!-- 이미지 업로드 -->
+        <div class="upload-area" id="upload-area">
+          <input type="file" id="image-input" accept="image/*" multiple style="display:none">
+          <div class="upload-prompt">
+            📎 이미지를 끌어다 놓기 또는 <button class="link-btn" id="upload-btn">파일 선택</button>
+            <div class="hint">스크린샷·노트 사진·문서·도식 모두 가능 (여러 장 OK · 자동 압축)</div>
+          </div>
+          <div class="upload-list" id="upload-list"></div>
+        </div>
+
+        <textarea id="src-text" placeholder="텍스트를 여기에 붙여넣으세요 (이미지만 있어도 OK)
+
+예시:
+인공지능 사관학교 8기 첫 주 회고
+
+1주차에는 Python 기초부터 시작했어요...
+
+특히 좋았던 점:
+- 기초를 다시 잡으니 다음 주 진도가 편함
+- 코드 리뷰 문화가 자연스럽게 정착됨
+
+다음 주에는 데이터 분석으로 들어갑니다!">${esc(STATE.lastSourceText)}</textarea>
+
+        <div class="modal-options">
+          <div class="opt">
+            <label>톤</label>
+            <select id="opt-tone">
+              <option value="친근한 정보 전달">친근한 정보 전달</option>
+              <option value="진지하고 신뢰감 있는 톤">진지하고 신뢰감 있는</option>
+              <option value="MZ세대 톤, 위트있게">MZ 톤, 위트있게</option>
+              <option value="감성적이고 따뜻하게">감성적·따뜻하게</option>
+              <option value="실용적이고 핵심만">핵심만 실용적으로</option>
+            </select>
+          </div>
+          <div class="opt">
+            <label>테마</label>
+            <select id="opt-theme">
+              <option value="auto">AI 추천 (자동)</option>
+              ${Object.entries(THEMES).map(([id,t])=>`<option value="${id}">${t.name}</option>`).join("")}
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <span class="hint">기존 카드는 모두 교체됩니다 · Claude Sonnet 4 (vision)</span>
+        <div class="modal-footer-actions">
+          <button class="btn btn-ghost" data-cancel>취소</button>
+          <button class="btn btn-primary" data-confirm>✨ 생성하기</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(back);
+  back.querySelector(".close").onclick = () => back.remove();
+  back.querySelector("[data-cancel]").onclick = () => back.remove();
+  back.onclick = e => { if (e.target === back) back.remove(); };
+
+  // 이미지 업로드 상태 (모달 내부 스코프)
+  const uploadedImages = [];
+  setupImageUpload(back, uploadedImages);
+
+  back.querySelector("[data-confirm]").onclick = async () => {
+    const text = back.querySelector("#src-text").value.trim();
+    if (!text && uploadedImages.length === 0) {
+      toast("텍스트나 이미지 중 하나는 입력해주세요", "error");
+      return;
+    }
+    if (text && text.length < 20 && uploadedImages.length === 0) {
+      toast("텍스트만 보낼 땐 최소 20자 이상", "error");
+      return;
+    }
+    const tone = back.querySelector("#opt-tone").value;
+    const themeChoice = back.querySelector("#opt-theme").value;
+
+    const body = back.querySelector("#oneshot-body");
+    const loadingMsg = uploadedImages.length > 0
+      ? `Claude가 이미지 ${uploadedImages.length}장을 분석하는 중...`
+      : `Claude가 카드뉴스를 만들고 있어요...`;
+    body.innerHTML = `
+      <div class="modal-loading">
+        <div class="spinner"></div>
+        <div class="label">${esc(loadingMsg)}</div>
+        <div class="sub">이미지 분석 시 시간이 좀 더 걸려요 (20-40초)</div>
+      </div>`;
+    back.querySelector(".modal-footer").style.display = "none";
+
+    try {
+      STATE.lastSourceText = text;
+      const result = await aiGenerateCards(text, { tone, images: uploadedImages });
+      if (!result.cards || result.cards.length === 0) throw new Error("카드 생성 결과가 비어있음");
+
+      STATE.cards = result.cards;
+      STATE.activeId = result.cards[0].id;
+      const finalTheme = themeChoice === "auto" ? (result.theme && THEMES[result.theme] ? result.theme : "navy") : themeChoice;
+      setTheme(finalTheme);
+      renderAll();
+      autoSave();
+      back.remove();
+      toast(`✓ ${result.cards.length}장 생성 완료${themeChoice === "auto" ? ` · 테마: ${THEMES[finalTheme].name}` : ""}`, "success");
+    } catch (err) {
+      body.innerHTML = `
+        <p class="intro" style="color:var(--danger)">⚠️ 생성 실패: ${esc(err.message)}</p>
+        <p class="intro" style="font-size:11px">이미지가 너무 크거나, 응답이 잘렸을 수 있어요. 이미지 수를 줄이거나 더 작은 해상도로 시도해보세요.</p>
+        <button class="btn btn-ghost" onclick="this.closest('.modal-backdrop').remove()">닫기</button>`;
+    }
+  };
+}
+
+// ====================================================================
+// 이미지 업로드 처리
+// ====================================================================
+function setupImageUpload(modalEl, imagesRef) {
+  const area = modalEl.querySelector("#upload-area");
+  const input = modalEl.querySelector("#image-input");
+  const btn = modalEl.querySelector("#upload-btn");
+  const listEl = modalEl.querySelector("#upload-list");
+
+  btn.onclick = () => input.click();
+  input.onchange = e => handleFiles(e.target.files, imagesRef, listEl);
+
+  area.addEventListener("dragover", e => { e.preventDefault(); area.classList.add("dragging"); });
+  area.addEventListener("dragleave", e => { area.classList.remove("dragging"); });
+  area.addEventListener("drop", e => {
+    e.preventDefault();
+    area.classList.remove("dragging");
+    handleFiles(e.dataTransfer.files, imagesRef, listEl);
+  });
+}
+
+async function handleFiles(fileList, imagesRef, listEl) {
+  for (const file of Array.from(fileList)) {
+    if (!file.type.startsWith("image/")) {
+      toast(`${file.name}: 이미지 파일이 아니에요`, "error");
+      continue;
+    }
+    try {
+      const { base64, mediaType } = await processImageFile(file);
+      imagesRef.push({
+        name: file.name,
+        base64,
+        mediaType,
+        preview: `data:${mediaType};base64,${base64}`,
+      });
+      renderImageList(imagesRef, listEl);
+    } catch (err) {
+      toast(`${file.name} 처리 실패: ${err.message}`, "error");
+    }
+  }
+}
+
+function renderImageList(images, listEl) {
+  listEl.innerHTML = "";
+  images.forEach((img, i) => {
+    const thumb = document.createElement("div");
+    thumb.className = "upload-thumb";
+    thumb.innerHTML = `
+      <img src="${img.preview}" alt="${esc(img.name)}">
+      <button class="remove" title="제거">×</button>
+      <div class="name">${esc(img.name)}</div>`;
+    thumb.querySelector(".remove").onclick = () => {
+      images.splice(i, 1);
+      renderImageList(images, listEl);
+    };
+    listEl.appendChild(thumb);
+  });
+}
+
+async function processImageFile(file) {
+  // 4MB 초과면 압축
+  const needsCompress = file.size > 4 * 1024 * 1024;
+  const blob = needsCompress ? await compressImage(file) : file;
+  const mediaType = needsCompress ? "image/jpeg" : (file.type || "image/jpeg");
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const base64 = e.target.result.split(",")[1];
+      resolve({ base64, mediaType });
+    };
+    reader.onerror = () => reject(new Error("파일 읽기 실패"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function compressImage(file, maxDim = 1600) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      const ratio = Math.min(maxDim / img.width, maxDim / img.height, 1);
+      canvas.width = Math.round(img.width * ratio);
+      canvas.height = Math.round(img.height * ratio);
+      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(b => b ? resolve(b) : reject(new Error("압축 실패")), "image/jpeg", 0.85);
+    };
+    img.onerror = () => reject(new Error("이미지 로드 실패"));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+// ====================================================================
+// 브랜드 설정
+// ====================================================================
+function openBrandModal() {
+  const back = document.createElement("div");
+  back.className = "modal-backdrop";
+  back.innerHTML = `
+    <div class="modal" style="max-width:480px">
+      <div class="modal-header">
+        <h2>🎙 브랜드 설정</h2>
+        <button class="close">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="intro">모든 카드의 푸터·계정 표시에 자동 적용됩니다.</p>
+        <div class="field"><div class="field-label-row"><label>브랜드명</label></div><input type="text" id="b-name" value="${esc(STATE.brand.name)}"></div>
+        <div class="field"><div class="field-label-row"><label>인스타 계정</label></div><input type="text" id="b-handle" value="${esc(STATE.brand.handle)}"></div>
+        <div class="field"><div class="field-label-row"><label>푸터 텍스트</label></div><input type="text" id="b-footer" value="${esc(STATE.brand.footer)}"></div>
+      </div>
+      <div class="modal-footer">
+        <span class="hint">변경 즉시 모든 카드에 반영</span>
+        <div class="modal-footer-actions">
+          <button class="btn btn-ghost" data-cancel>취소</button>
+          <button class="btn btn-primary" data-confirm>저장</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(back);
+  back.querySelector(".close").onclick = () => back.remove();
+  back.querySelector("[data-cancel]").onclick = () => back.remove();
+  back.onclick = e => { if (e.target === back) back.remove(); };
+  back.querySelector("[data-confirm]").onclick = () => {
+    STATE.brand.name = back.querySelector("#b-name").value;
+    STATE.brand.handle = back.querySelector("#b-handle").value;
+    STATE.brand.footer = back.querySelector("#b-footer").value;
+    STATE.cards.forEach(c => { if (c.type === "closing") c.data.account = STATE.brand.handle; });
+    renderAll(); autoSave();
+    back.remove();
+    toast("✓ 브랜드 설정 저장", "success");
+  };
+}
+
+// ====================================================================
+// AI 캡션 모달
+// ====================================================================
+function openCaptionModal() {
+  if (STATE.cards.length === 0) { toast("먼저 카드를 만들어주세요", "error"); return; }
+  const back = document.createElement("div");
+  back.className = "modal-backdrop";
+  back.innerHTML = `
+    <div class="modal" style="max-width:580px">
+      <div class="modal-header">
+        <h2>📝 AI 인스타 캡션 생성</h2>
+        <button class="close">×</button>
+      </div>
+      <div class="modal-body" id="cap-body">
+        <div class="modal-loading">
+          <div class="spinner"></div>
+          <div class="label">Claude가 캡션을 작성하는 중...</div>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(back);
+  back.querySelector(".close").onclick = () => back.remove();
+  back.onclick = e => { if (e.target === back) back.remove(); };
+
+  (async () => {
+    try {
+      const caption = await aiGenerateCaption();
+      const body = back.querySelector("#cap-body");
+      body.innerHTML = `
+        <p class="intro">카드 내용을 바탕으로 캡션을 생성했어요. 필요한 부분만 다듬어서 사용하세요. (직접 편집 가능)</p>
+        <div class="caption-result" id="cap-result" contenteditable="true">${esc(caption)}</div>
+        <div class="caption-actions">
+          <button class="btn btn-primary" id="cap-copy">📋 클립보드에 복사</button>
+          <button class="btn btn-ai" id="cap-regen">🔄 다시 생성</button>
+        </div>`;
+      body.querySelector("#cap-copy").onclick = async () => {
+        const text = body.querySelector("#cap-result").innerText;
+        try {
+          await navigator.clipboard.writeText(text);
+          body.querySelector("#cap-copy").textContent = "✓ 복사됨";
+          setTimeout(() => body.querySelector("#cap-copy").textContent = "📋 클립보드에 복사", 1500);
+        } catch { toast("복사 실패: 직접 선택해서 복사하세요", "error"); }
+      };
+      body.querySelector("#cap-regen").onclick = () => { back.remove(); openCaptionModal(); };
+    } catch (err) {
+      back.querySelector("#cap-body").innerHTML = `<p class="intro" style="color:var(--danger)">⚠️ 실패: ${esc(err.message)}</p>`;
+    }
+  })();
+}
+
+// ====================================================================
+// 토스트
+// ====================================================================
+function toast(msg, type = "") {
+  const t = document.createElement("div");
+  t.className = "toast" + (type ? ` ${type}` : "");
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.style.opacity = "0", 2500);
+  setTimeout(() => t.remove(), 3000);
+}
+
+// ====================================================================
+// 저장/불러오기
+// ====================================================================
+function autoSave() {
+  syncStateToProject();
+  try {
+    localStorage.setItem(LS_WS_KEY, JSON.stringify(WORKSPACE));
+  } catch (err) {
+    // 저장공간 초과 등 — 탭 수/카드 수가 많을 때
+    console.warn("autoSave 실패:", err);
+    toast("⚠️ 자동저장 실패(저장공간 초과 가능). 일부 탭을 파일로 저장 후 닫아주세요.", "error");
+  }
+}
+
+function manualSave() {
+  syncStateToProject();
+  autoSave();
+  const p = activeProject();
+  if (!p) return;
+  // 단일 카드뉴스 형식으로 내보내기(서버/봇 호환 유지)
+  const single = {
+    name: p.name, theme: p.theme, brand: p.brand, cards: p.cards,
+    activeId: p.activeId, lastSourceText: p.lastSourceText,
+  };
+  const blob = new Blob([JSON.stringify(single)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const today = new Date().toISOString().slice(0, 10);
+  const slug = (p.name || "cardnews").replace(/[^\w가-힣-]+/g, "_").slice(0, 40);
+  a.href = url; a.download = `${slug}_${today}.json`; a.click();
+  URL.revokeObjectURL(url);
+  toast("✓ 현재 카드뉴스 파일 저장", "success");
+}
+
+function loadSession() {
+  const input = document.createElement("input");
+  input.type = "file"; input.accept = ".json,application/json";
+  input.onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      const p = JSON.parse(await f.text());
+      // 새 탭으로 불러와 기존 작업을 덮어쓰지 않는다
+      syncStateToProject();
+      const baseName = p.name || (f.name ? f.name.replace(/\.json$/i, "") : "불러온 카드뉴스");
+      const proj = blankProjectData(baseName);
+      proj.theme = p.theme || "navy";
+      proj.brand = p.brand || proj.brand;
+      proj.cards = p.cards || [];
+      proj.activeId = p.activeId || (proj.cards[0]?.id ?? null);
+      proj.lastSourceText = p.lastSourceText || "";
+      WORKSPACE.projects.push(proj);
+      WORKSPACE.activeId = proj.id;
+      loadProjectToState(proj);
+      setTheme(STATE.theme);
+      renderTabs(); renderAll(); autoSave();
+      toast("✓ 새 탭으로 불러옴", "success");
+    } catch (err) { toast("불러오기 실패: " + err.message, "error"); }
+  };
+  input.click();
+}
+
+// 옛 기본 브랜드값을 새 기본값으로 한 번 올려줌(사용자가 직접 바꾼 값은 건드리지 않음)
+const _OLD_BRAND_NAME = "AI ACADEMY SUPPORTERS";
+const _OLD_BRAND_HANDLE = "@your_account";
+const _NEW_BRAND_NAME = "인공지능사관학교 서포터즈";
+const _NEW_BRAND_HANDLE = "@dailysync_ai";
+function migrateProjectBrand(p) {
+  if (!p) return;
+  if (p.brand && typeof p.brand === "object") {
+    if (p.brand.name === _OLD_BRAND_NAME) p.brand.name = _NEW_BRAND_NAME;
+    if (p.brand.footer === _OLD_BRAND_NAME) p.brand.footer = _NEW_BRAND_NAME;
+    if (p.brand.handle === _OLD_BRAND_HANDLE) p.brand.handle = _NEW_BRAND_HANDLE;
+  }
+  (p.cards || []).forEach(c => {
+    if (!c || !c.data) return;
+    if (c.data.account === _OLD_BRAND_HANDLE) c.data.account = _NEW_BRAND_HANDLE;
+    if (c.data.eyebrow === _OLD_BRAND_NAME) c.data.eyebrow = _NEW_BRAND_NAME;
+    if (c.data.footer === _OLD_BRAND_NAME) c.data.footer = _NEW_BRAND_NAME;
+  });
+}
+
+function tryRestore() {
+  // 1) 멀티 프로젝트 워크스페이스 복원
+  const rawWs = localStorage.getItem(LS_WS_KEY);
+  if (rawWs) {
+    try {
+      const ws = JSON.parse(rawWs);
+      if (ws && Array.isArray(ws.projects) && ws.projects.length) {
+        WORKSPACE.projects = ws.projects;
+        WORKSPACE.projects.forEach(migrateProjectBrand);
+        WORKSPACE.activeId = (ws.activeId && ws.projects.some(p => p.id === ws.activeId))
+          ? ws.activeId : ws.projects[0].id;
+        loadProjectToState(activeProject());
+        return true;
+      }
+    } catch {}
+  }
+  // 2) (구) 단일 세션 → 프로젝트 1개로 마이그레이션
+  const rawOld = localStorage.getItem(LS_KEY);
+  if (rawOld) {
+    try {
+      const p = JSON.parse(rawOld);
+      const proj = blankProjectData("카드뉴스 1");
+      proj.theme = p.theme || "navy";
+      proj.brand = p.brand || proj.brand;
+      proj.cards = p.cards || [];
+      proj.activeId = p.activeId || (proj.cards[0]?.id ?? null);
+      proj.lastSourceText = p.lastSourceText || "";
+      migrateProjectBrand(proj);
+      WORKSPACE.projects = [proj];
+      WORKSPACE.activeId = proj.id;
+      loadProjectToState(proj);
+      return true;
+    } catch {}
+  }
+  return false;
+}
+
+function resetAll() {
+  if (!confirm("현재 탭의 모든 카드를 초기화합니다. 계속할까요?")) return;
+  STATE.cards = []; STATE.activeId = null; STATE.lastSourceText = "";
+  renderAll(); autoSave();
+}
+
+// ====================================================================
+// INIT
+// ====================================================================
+function init() {
+  renderThemeGrid();
+  document.querySelectorAll("[data-add]").forEach(b => b.onclick = () => addCard(b.dataset.add));
+  document.getElementById("btn-one-shot").onclick = openOneShotModal;
+  document.getElementById("btn-export").onclick = exportAll;
+  document.getElementById("btn-save").onclick = manualSave;
+  document.getElementById("btn-load").onclick = loadSession;
+  document.getElementById("btn-reset").onclick = resetAll;
+  document.getElementById("btn-brand").onclick = openBrandModal;
+  document.getElementById("btn-caption").onclick = openCaptionModal;
+  document.getElementById("btn-story").onclick = openStorySummaryModal;
+  document.getElementById("btn-polish").onclick = openPolishModal;
+
+  tryRestore();
+  ensureAtLeastOneProject();
+  setTheme(STATE.theme);
+  renderTabs();
+  renderAll();
+
+  // 봇 연동 스크립트(server.py 인젝션)가 init 완료 후 세션을 새 탭으로 열 수 있도록 신호
+  window.__studioReady = true;
+}
+
+document.addEventListener("DOMContentLoaded", init);
+</script>
+</body>
+</html>
