@@ -1,0 +1,9 @@
+# 저장소 내부는 LF로 통일 (윈도우↔리눅스 서버 일관성)
+* text=auto eol=lf
+
+# 바이너리(있다면) 정규화 금지
+*.png binary
+*.jpg binary
+*.woff binary
+*.woff2 binary
+*.exe binary
