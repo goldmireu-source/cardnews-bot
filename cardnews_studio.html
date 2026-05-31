@@ -470,13 +470,17 @@ input, textarea, select { font-family: inherit; }
   resize: vertical;
 }
 .field textarea { min-height: 56px; line-height: 1.5; }
+/* 자동 높이 textarea — 내용에 맞춰 1줄~여러 줄로 늘어남(JS autoGrow) */
+.field textarea.ta-auto { min-height: 38px; line-height: 1.5; overflow: hidden; resize: none; }
+.field textarea.ta-compact { min-height: 38px; }
+.field textarea.ta-sub { font-size: 12px; color: var(--text-dim); background: var(--panel); }
 .field input:focus, .field textarea:focus, .field select:focus {
   outline: none; border-color: var(--accent);
 }
 
 .list-items { display: flex; flex-direction: column; gap: 5px; }
-.list-item-row { display: flex; gap: 5px; align-items: center; }
-.list-item-row input { flex: 1; }
+.list-item-row { display: flex; gap: 5px; align-items: flex-start; }
+.list-item-row input, .list-item-row textarea { flex: 1; }
 .icon-btn {
   border: 1px solid var(--line);
   background: var(--panel-2);
@@ -952,6 +956,11 @@ input, textarea, select { font-family: inherit; }
 .lo-list-icon .row { display: flex; align-items: center; gap: 28px; }
 .lo-list-icon .dot { flex: 0 0 28px; height: 28px; border-radius: 50%; background: var(--c-accent); }
 .lo-list-icon .text { flex: 1; font-size: calc(53px * var(--font-scale, 1) * var(--fs-body, 1) * var(--field-scale, 1)); line-height: 1.4; font-weight: 600; }
+/* 각 항목 아래 세부내용 (numbered/check/icon 공용) */
+.lo-list-numbered .item-sub, .lo-list-check .item-sub, .lo-list-icon .item-sub {
+  font-size: calc(34px * var(--font-scale, 1) * var(--fs-body, 1) * var(--field-scale, 1));
+  color: var(--c-sub); font-weight: 400; line-height: 1.4; margin-top: 8px;
+}
 
 /* LIST: TIMELINE (5th) */
 .lo-list-timeline .card-inner { padding-top: 140px; }
@@ -1578,36 +1587,42 @@ function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;",
 function nl(s) { return esc(s).replace(/\n/g, "<br>"); }
 
 const RENDERERS = {
-  "cover/bold": d => `<div class="card-inner"><div class="eyebrow">${esc(d.eyebrow)}</div><div><h1 class="title">${nl(d.title)}</h1><div class="subtitle">${nl(d.subtitle)}</div></div><div class="badge"><span class="dot"></span>${esc(d.badge)}</div></div>`,
-  "cover/number": d => `<div class="card-inner"><div class="big-num">${esc(d.number||"01")}</div><div><div class="eyebrow">${esc(d.eyebrow)}</div><h1 class="title">${nl(d.title)}</h1><div class="subtitle">${nl(d.subtitle)}</div></div></div>`,
+  "cover/bold": d => `<div class="card-inner"><div class="eyebrow">${nl(d.eyebrow)}</div><div><h1 class="title">${nl(d.title)}</h1><div class="subtitle">${nl(d.subtitle)}</div></div><div class="badge"><span class="dot"></span>${nl(d.badge)}</div></div>`,
+  "cover/number": d => `<div class="card-inner"><div class="big-num">${esc(d.number||"01")}</div><div><div class="eyebrow">${nl(d.eyebrow)}</div><h1 class="title">${nl(d.title)}</h1><div class="subtitle">${nl(d.subtitle)}</div></div></div>`,
   "cover/question": d => `<div class="card-inner"><div class="q-mark">?</div><h1 class="title">${nl(d.title)}</h1><div class="subtitle">${nl(d.subtitle)}</div></div>`,
-  "cover/split": d => `<div class="card-inner"><div class="top-half"><div class="eyebrow">${esc(d.eyebrow)}</div><div class="badge">${esc(d.badge)}</div></div><div class="bottom-half"><h1 class="title">${nl(d.title)}</h1><div class="subtitle">${nl(d.subtitle)}</div></div></div>`,
-  "cover/minimal": d => `<div class="card-inner"><div class="top-badge">${esc(d.eyebrow)}</div><h1 class="title">${nl(d.title)}</h1><div class="line"></div><div class="badge">${esc(d.badge)}</div></div>`,
+  "cover/split": d => `<div class="card-inner"><div class="top-half"><div class="eyebrow">${nl(d.eyebrow)}</div><div class="badge">${nl(d.badge)}</div></div><div class="bottom-half"><h1 class="title">${nl(d.title)}</h1><div class="subtitle">${nl(d.subtitle)}</div></div></div>`,
+  "cover/minimal": d => `<div class="card-inner"><div class="top-badge">${nl(d.eyebrow)}</div><h1 class="title">${nl(d.title)}</h1><div class="line"></div><div class="badge">${nl(d.badge)}</div></div>`,
 
-  "topic/centered": d => `<div class="card-inner"><div class="label">${esc(d.label)}</div><h2 class="title">${nl(d.title)}</h2><div class="body">${nl(d.body)}</div></div>`,
-  "topic/index": d => `<div class="card-inner"><div class="idx-row"><span class="idx">${esc(d.number||"01")}</span><span class="label">${esc(d.label)}</span></div><h2 class="title">${nl(d.title)}</h2><div class="body">${nl(d.body)}</div></div>`,
+  "topic/centered": d => `<div class="card-inner"><div class="label">${nl(d.label)}</div><h2 class="title">${nl(d.title)}</h2><div class="body">${nl(d.body)}</div></div>`,
+  "topic/index": d => `<div class="card-inner"><div class="idx-row"><span class="idx">${esc(d.number||"01")}</span><span class="label">${nl(d.label)}</span></div><h2 class="title">${nl(d.title)}</h2><div class="body">${nl(d.body)}</div></div>`,
   "topic/qa": d => `<div class="card-inner"><div class="qa-block"><div class="qa-tag">Q</div><div class="qa-text">${nl(d.question)}</div></div><div class="qa-block"><div class="qa-tag a">A</div><div class="qa-text a">${nl(d.answer)}</div></div></div>`,
-  "topic/definition": d => `<div class="card-inner"><h2 class="term">${esc(d.term)}</h2><div class="pronunciation">${esc(d.pron)}</div><div class="divider"></div><div class="body">${nl(d.body)}</div></div>`,
-  "topic/compare": d => `<div class="card-inner"><h3 class="compare-title">${nl(d.compareTitle)}</h3><div class="compare-row"><div class="compare-col"><div class="compare-label">${esc(d.labelA)}</div><h4 class="compare-h">${nl(d.titleA)}</h4><div class="compare-body">${nl(d.bodyA)}</div></div><div class="compare-col b"><div class="compare-label">${esc(d.labelB)}</div><h4 class="compare-h">${nl(d.titleB)}</h4><div class="compare-body">${nl(d.bodyB)}</div></div></div></div>`,
+  "topic/definition": d => `<div class="card-inner"><h2 class="term">${nl(d.term)}</h2><div class="pronunciation">${nl(d.pron)}</div><div class="divider"></div><div class="body">${nl(d.body)}</div></div>`,
+  "topic/compare": d => `<div class="card-inner"><h3 class="compare-title">${nl(d.compareTitle)}</h3><div class="compare-row"><div class="compare-col"><div class="compare-label">${nl(d.labelA)}</div><h4 class="compare-h">${nl(d.titleA)}</h4><div class="compare-body">${nl(d.bodyA)}</div></div><div class="compare-col b"><div class="compare-label">${nl(d.labelB)}</div><h4 class="compare-h">${nl(d.titleB)}</h4><div class="compare-body">${nl(d.bodyB)}</div></div></div></div>`,
 
-  "list/numbered": d => `<div class="card-inner"><div class="list-header"><h2 class="title">${nl(d.title)}</h2><div class="sub">${esc(d.sub)}</div></div><div class="items">${(d.items||[]).map((t,i)=>`<div class="row"><div class="bullet">${i+1}</div><div class="text">${esc(t)}</div></div>`).join("")}</div></div>`,
-  "list/check": d => `<div class="card-inner"><div class="list-header"><h2 class="title">${nl(d.title)}</h2><div class="sub">${esc(d.sub)}</div></div><div class="items">${(d.items||[]).map(t=>`<div class="row"><div class="box">✓</div><div class="text">${esc(t)}</div></div>`).join("")}</div></div>`,
-  "list/desc": d => `<div class="card-inner"><h2 class="title">${nl(d.title)}</h2><div class="items">${(d.descItems||[]).map((it,i)=>`<div class="row"><div class="idx">${String(i+1).padStart(2,'0')}</div><div class="body"><div class="item-title">${esc(it.title)}</div><div class="item-desc">${esc(it.desc)}</div></div></div>`).join("")}</div></div>`,
-  "list/icon": d => `<div class="card-inner"><div class="list-header"><h2 class="title">${nl(d.title)}</h2><div class="sub">${esc(d.sub)}</div></div><div class="items">${(d.items||[]).map(t=>`<div class="row"><div class="dot"></div><div class="text">${esc(t)}</div></div>`).join("")}</div></div>`,
-  "list/timeline": d => `<div class="card-inner"><h2 class="title">${nl(d.title)}</h2><div class="timeline">${(d.timelineItems||[]).map((it,i)=>`<div class="tl-row"><div class="tl-dot">${i+1}</div><div class="tl-content"><div class="tl-label">${esc(it.label)}</div><div class="tl-body">${esc(it.content)}</div></div></div>`).join("")}</div></div>`,
+  "list/numbered": d => `<div class="card-inner"><div class="list-header"><h2 class="title">${nl(d.title)}</h2><div class="sub">${nl(d.sub)}</div></div><div class="items">${(d.items||[]).map((t,i)=>`<div class="row"><div class="bullet">${i+1}</div><div class="text">${nl(t)}${itemSub(d,i)}</div></div>`).join("")}</div></div>`,
+  "list/check": d => `<div class="card-inner"><div class="list-header"><h2 class="title">${nl(d.title)}</h2><div class="sub">${nl(d.sub)}</div></div><div class="items">${(d.items||[]).map((t,i)=>`<div class="row"><div class="box">✓</div><div class="text">${nl(t)}${itemSub(d,i)}</div></div>`).join("")}</div></div>`,
+  "list/desc": d => `<div class="card-inner"><h2 class="title">${nl(d.title)}</h2><div class="items">${(d.descItems||[]).map((it,i)=>`<div class="row"><div class="idx">${String(i+1).padStart(2,'0')}</div><div class="body"><div class="item-title">${nl(it.title)}</div><div class="item-desc">${nl(it.desc)}</div></div></div>`).join("")}</div></div>`,
+  "list/icon": d => `<div class="card-inner"><div class="list-header"><h2 class="title">${nl(d.title)}</h2><div class="sub">${nl(d.sub)}</div></div><div class="items">${(d.items||[]).map((t,i)=>`<div class="row"><div class="dot"></div><div class="text">${nl(t)}${itemSub(d,i)}</div></div>`).join("")}</div></div>`,
+  "list/timeline": d => `<div class="card-inner"><h2 class="title">${nl(d.title)}</h2><div class="timeline">${(d.timelineItems||[]).map((it,i)=>`<div class="tl-row"><div class="tl-dot">${i+1}</div><div class="tl-content"><div class="tl-label">${nl(it.label)}</div><div class="tl-body">${nl(it.content)}</div></div></div>`).join("")}</div></div>`,
 
-  "highlight/quote": d => `<div class="card-inner"><div class="q-mark">"</div><div class="quote">${nl(d.quote)}</div><div class="attr">— ${esc(d.attribution)}</div></div>`,
-  "highlight/stat": d => `<div class="card-inner"><div class="pre">${esc(d.statPre)}</div><div><span class="stat">${esc(d.stat)}</span><span class="stat-unit">${esc(d.statUnit)}</span></div><div class="label">${nl(d.statLabel)}</div><div class="note">${esc(d.statNote)}</div></div>`,
-  "highlight/emphasis": d => `<div class="card-inner"><div class="pre">${nl(d.emphPre)}</div><div class="emphasis">${esc(d.emphasis)}</div><div class="post">${nl(d.emphPost)}</div></div>`,
-  "highlight/pull": d => `<div class="card-inner"><div class="pull-row"><div class="pull-bar"></div><div class="pull-body"><div class="quote">${nl(d.quote)}</div><div class="attr">— ${esc(d.attribution)}</div></div></div></div>`,
-  "highlight/tip": d => `<div class="card-inner"><div class="tip-box"><div class="tip-icon">💡</div><div class="tip-label">${esc(d.tipLabel)}</div><div class="tip-body">${nl(d.tipBody)}</div></div></div>`,
+  "highlight/quote": d => `<div class="card-inner"><div class="q-mark">"</div><div class="quote">${nl(d.quote)}</div><div class="attr">— ${nl(d.attribution)}</div></div>`,
+  "highlight/stat": d => `<div class="card-inner"><div class="pre">${nl(d.statPre)}</div><div><span class="stat">${esc(d.stat)}</span><span class="stat-unit">${nl(d.statUnit)}</span></div><div class="label">${nl(d.statLabel)}</div><div class="note">${nl(d.statNote)}</div></div>`,
+  "highlight/emphasis": d => `<div class="card-inner"><div class="pre">${nl(d.emphPre)}</div><div class="emphasis">${nl(d.emphasis)}</div><div class="post">${nl(d.emphPost)}</div></div>`,
+  "highlight/pull": d => `<div class="card-inner"><div class="pull-row"><div class="pull-bar"></div><div class="pull-body"><div class="quote">${nl(d.quote)}</div><div class="attr">— ${nl(d.attribution)}</div></div></div></div>`,
+  "highlight/tip": d => `<div class="card-inner"><div class="tip-box"><div class="tip-icon">💡</div><div class="tip-label">${nl(d.tipLabel)}</div><div class="tip-body">${nl(d.tipBody)}</div></div></div>`,
 
-  "closing/next": d => `<div class="card-inner"><div><div class="eyebrow">${esc(d.eyebrow)}</div><h2 class="title">${nl(d.title)}</h2></div><div class="cta"><div class="account">${esc(d.account)}</div><div class="hashtag">${esc(d.hashtag)}</div></div></div>`,
+  "closing/next": d => `<div class="card-inner"><div><div class="eyebrow">${nl(d.eyebrow)}</div><h2 class="title">${nl(d.title)}</h2></div><div class="cta"><div class="account">${esc(d.account)}</div><div class="hashtag">${esc(d.hashtag)}</div></div></div>`,
   "closing/save": d => `<div class="card-inner"><div class="icon">📌</div><h2 class="title">${nl(d.title)}</h2><div class="reason">${nl(d.saveReason)}</div><div class="account">${esc(d.account)}</div></div>`,
-  "closing/ask": d => `<div class="card-inner"><div class="eyebrow">${esc(d.eyebrow)}</div><h2 class="question">${nl(d.askQuestion)}</h2><div class="cta-box">${esc(d.askCta)}</div><div class="account">${esc(d.account)}</div></div>`,
-  "closing/multi": d => `<div class="card-inner"><div><div class="eyebrow">${esc(d.eyebrow)}</div><h2 class="title">${nl(d.title)}</h2></div><div class="actions-row"><div class="act-row"><div class="act-icon">+</div>팔로우하고 매주 받아보기</div><div class="act-row"><div class="act-icon">📌</div>나중에 다시 볼 수 있게 저장</div><div class="act-row"><div class="act-icon">↗</div>도움됐다면 공유 부탁드려요</div></div><div class="account">${esc(d.account)}</div></div>`,
+  "closing/ask": d => `<div class="card-inner"><div class="eyebrow">${nl(d.eyebrow)}</div><h2 class="question">${nl(d.askQuestion)}</h2><div class="cta-box">${nl(d.askCta)}</div><div class="account">${esc(d.account)}</div></div>`,
+  "closing/multi": d => `<div class="card-inner"><div><div class="eyebrow">${nl(d.eyebrow)}</div><h2 class="title">${nl(d.title)}</h2></div><div class="actions-row"><div class="act-row"><div class="act-icon">+</div>팔로우하고 매주 받아보기</div><div class="act-row"><div class="act-icon">📌</div>나중에 다시 볼 수 있게 저장</div><div class="act-row"><div class="act-icon">↗</div>도움됐다면 공유 부탁드려요</div></div><div class="account">${esc(d.account)}</div></div>`,
   "closing/thanks": d => `<div class="card-inner"><div class="icon">🙏</div><h2 class="title">${nl(d.title)}</h2><div class="subtitle">${nl(d.subtitle)}</div><div class="account">${esc(d.account)}</div></div>`,
 };
+
+// 리스트 항목(numbered/check/icon)의 선택적 세부내용 렌더
+function itemSub(d, i) {
+  const v = d.itemDescs && d.itemDescs[i];
+  return (v && String(v).trim()) ? `<div class="item-sub">${nl(v)}</div>` : "";
+}
 
 // 필드 key → 카드 안에서 해당 텍스트를 표시하는 element selector (첫 매치)
 // compare A/B 처럼 같은 클래스가 두 번 나오는 layout 은 nth-of-type 으로 위치 지정.
@@ -2437,9 +2452,9 @@ function fieldStyleCtrl(fieldKey) {
 
 function field({key, label, type="input", placeholder="", limit=null, value=""}) {
   const counter = limit ? `<span class="counter" data-counter="${key}" data-limit="${limit}">0 / ${limit}</span>` : "";
-  const input = type === "textarea"
-    ? `<textarea data-key="${key}" placeholder="${esc(placeholder)}">${esc(value)}</textarea>`
-    : `<input type="text" data-key="${key}" value="${esc(value)}" placeholder="${esc(placeholder)}">`;
+  // 모든 텍스트 박스를 textarea 로 — Enter 로 줄바꿈 입력 지원. 짧은 필드는 compact 클래스로 한 줄 높이.
+  const cls = type === "textarea" ? "" : " ta-compact";
+  const input = `<textarea class="ta-auto${cls}" rows="1" data-key="${key}" placeholder="${esc(placeholder)}">${esc(value)}</textarea>`;
   return `<div class="field"><div class="field-label-row"><label>${label}</label>${counter}</div>${input}${fieldStyleCtrl(key)}</div>`;
 }
 
@@ -2484,9 +2499,9 @@ function renderFields(card) {
       html += `<div class="field"><div class="field-label-row"><label>타임라인 항목 (3-5개)</label></div><div class="list-items" id="tl-items">${(d.timelineItems||[]).map((it,i)=>`
         <div style="border-bottom:1px dashed var(--line);padding-bottom:8px;margin-bottom:8px">
           <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-faint);margin-bottom:4px">항목 ${i+1}<button class="icon-btn" data-del-tl="${i}" style="margin-left:auto">×</button></div>
-          <input type="text" data-tl="${i}.label" value="${esc(it.label)}" placeholder="단계 (예: 1주차)" style="width:100%">
+          <textarea class="ta-auto ta-compact" rows="1" data-tl="${i}.label" placeholder="단계 (예: 1주차)" style="width:100%">${esc(it.label)}</textarea>
           ${fieldStyleCtrl(`timelineItems.${i}.label`)}
-          <input type="text" data-tl="${i}.content" value="${esc(it.content)}" placeholder="내용" style="width:100%;margin-top:6px">
+          <textarea class="ta-auto" rows="1" data-tl="${i}.content" placeholder="내용" style="width:100%;margin-top:6px">${esc(it.content)}</textarea>
           ${fieldStyleCtrl(`timelineItems.${i}.content`)}
         </div>
       `).join("")}</div><button class="add-item-btn" id="add-tl">+ 항목 추가</button></div>`;
@@ -2495,19 +2510,20 @@ function renderFields(card) {
       html += `<div class="field"><div class="field-label-row"><label>항목 (제목+설명)</label></div><div class="list-items" id="desc-items">${(d.descItems||[]).map((it,i)=>`
         <div style="border-bottom:1px dashed var(--line);padding-bottom:8px;margin-bottom:8px">
           <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-faint);margin-bottom:4px">항목 ${i+1}<button class="icon-btn" data-del-desc="${i}" style="margin-left:auto">×</button></div>
-          <input type="text" data-desc="${i}.title" value="${esc(it.title)}" placeholder="제목" style="width:100%">
+          <textarea class="ta-auto ta-compact" rows="1" data-desc="${i}.title" placeholder="제목" style="width:100%">${esc(it.title)}</textarea>
           ${fieldStyleCtrl(`descItems.${i}.title`)}
-          <input type="text" data-desc="${i}.desc" value="${esc(it.desc)}" placeholder="설명" style="width:100%;margin-top:6px">
+          <textarea class="ta-auto" rows="1" data-desc="${i}.desc" placeholder="설명" style="width:100%;margin-top:6px">${esc(it.desc)}</textarea>
           ${fieldStyleCtrl(`descItems.${i}.desc`)}
         </div>
       `).join("")}</div><button class="add-item-btn" id="add-desc">+ 항목 추가</button></div>`;
     } else {
       html += field({key:"title", label:"타이틀", type:"textarea", value:d.title, limit:30});
       html += field({key:"sub", label:"서브타이틀", value:d.sub, limit:30});
-      html += `<div class="field"><div class="field-label-row"><label>항목 (3-5개)</label></div><div class="list-items" id="list-items">${(d.items||[]).map((it,i)=>`
-        <div style="border-bottom:1px dashed var(--line);padding-bottom:6px;margin-bottom:6px">
-          <div class="list-item-row"><input type="text" data-list-idx="${i}" value="${esc(it)}" placeholder="항목 ${i+1}"><button class="icon-btn" data-del-item="${i}">×</button></div>
+      html += `<div class="field"><div class="field-label-row"><label>항목 (3-5개) · 각 항목 아래 세부내용(선택)</label></div><div class="list-items" id="list-items">${(d.items||[]).map((it,i)=>`
+        <div style="border-bottom:1px dashed var(--line);padding-bottom:8px;margin-bottom:8px">
+          <div class="list-item-row"><textarea class="ta-auto ta-compact" rows="1" data-list-idx="${i}" placeholder="항목 ${i+1}">${esc(it)}</textarea><button class="icon-btn" data-del-item="${i}">×</button></div>
           ${fieldStyleCtrl(`items.${i}`)}
+          <textarea class="ta-auto ta-sub" rows="1" data-list-sub="${i}" placeholder="↳ 세부내용 (선택)" style="width:100%;margin-top:4px">${esc((d.itemDescs && d.itemDescs[i]) || "")}</textarea>
         </div>`).join("")}</div><button class="add-item-btn" id="add-list-item">+ 항목 추가</button></div>`;
     }
   }
@@ -2759,9 +2775,20 @@ function bindEditorEvents(card) {
       renderPreview(); autoSave();
     });
   });
+  // 각 항목의 세부내용(선택)
+  body.querySelectorAll("[data-list-sub]").forEach(el => {
+    el.addEventListener("input", e => {
+      const i = +e.target.dataset.listSub;
+      if (!card.data.itemDescs) card.data.itemDescs = [];
+      card.data.itemDescs[i] = e.target.value;
+      renderPreview(); autoSave();
+    });
+  });
   body.querySelectorAll("[data-del-item]").forEach(el => {
     el.addEventListener("click", e => {
-      card.data.items.splice(+e.currentTarget.dataset.delItem, 1);
+      const idx = +e.currentTarget.dataset.delItem;
+      card.data.items.splice(idx, 1);
+      if (Array.isArray(card.data.itemDescs)) card.data.itemDescs.splice(idx, 1); // 세부내용도 같이 정렬
       renderEditor(); renderPreview(); autoSave();
     });
   });
@@ -2815,6 +2842,13 @@ function bindEditorEvents(card) {
     if (card.data.timelineItems.length >= 5) { toast("최대 5개 권장", "error"); return; }
     card.data.timelineItems.push({label:"", content:""}); renderEditor(); renderPreview(); autoSave();
   };
+
+  // 모든 자동높이 textarea: 내용에 맞춰 높이 조절(1줄~여러 줄)
+  body.querySelectorAll("textarea.ta-auto").forEach(t => {
+    const fit = () => { t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 260) + "px"; };
+    t.addEventListener("input", fit);
+    fit();
+  });
 }
 
 function updateAllCounters() {
