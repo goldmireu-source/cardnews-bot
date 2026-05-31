@@ -3570,9 +3570,12 @@ function openStorySummaryModal() {
 
   // 자동 채움 토글
   autofitEl.addEventListener("change", () => { opts.style.autofit = autofitEl.checked; refresh(); });
-  // 크기 슬라이더
-  titleScaleEl.addEventListener("input", () => { opts.style.titleScale = parseFloat(titleScaleEl.value); refresh(); });
-  pointsScaleEl.addEventListener("input", () => { opts.style.pointsScale = parseFloat(pointsScaleEl.value); refresh(); });
+  // 크기 슬라이더 — 수동 조절 시 자동 채움을 끔(제목·내용 크기를 서로 독립적으로 유지)
+  function manualMode() {
+    if (opts.style.autofit) { opts.style.autofit = false; if (autofitEl) autofitEl.checked = false; }
+  }
+  titleScaleEl.addEventListener("input", () => { manualMode(); opts.style.titleScale = parseFloat(titleScaleEl.value); refresh(); });
+  pointsScaleEl.addEventListener("input", () => { manualMode(); opts.style.pointsScale = parseFloat(pointsScaleEl.value); refresh(); });
   // 색 picker (선택 시 적용, ↺ 로 기본색 복귀)
   function bindColor(inputEl, clearId, key) {
     inputEl.addEventListener("input", () => { opts.style[key] = inputEl.value; inputEl.style.opacity = "1"; refresh(); });
