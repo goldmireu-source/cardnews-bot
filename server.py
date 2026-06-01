@@ -1348,6 +1348,7 @@ def api_tooltip_suggest():
             system=system,
             messages=[{"role": "user", "content": user}],
             tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 5}],
+            timeout=60,
         )
     except anthropic.APIStatusError as e:
         return jsonify({"error": f"Anthropic API 오류: {e.message}"}), e.status_code
@@ -1853,4 +1854,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"   ⚠️  스케줄러 시작 실패: {e}")
 
-    app.run(host=host, port=port, debug=False)
+    app.run(host=host, port=port, debug=False, threaded=True)
