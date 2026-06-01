@@ -8,13 +8,37 @@
 
 스레드 안전(threading.Lock). 잡은 인메모리 dict — 서버 재시작 시 휘발. TTL=1h.
 """
+import json
 import logging
 import threading
 import time
 import uuid
+from pathlib import Path
 from typing import Callable
 
 logger = logging.getLogger(__name__)
+
+# 발행 '실패'만 영구 기록 (성공 이력은 저장 안 함) — 나중에 오류코드 보고 고치기 위함.
+_ERROR_LOG = Path(__file__).resolve().parent.parent / "data" / "publish_errors.jsonl"
+
+
+def _log_publish_error(session_id: str, platform: str, caption: str,
+                       image_urls: list[str], error: str) -> None:
+    """발행 실패 1건을 data/publish_errors.jsonl 에 1줄로 append."""
+    try:
+        _ERROR_LOG.parent.mkdir(parents=True, exist_ok=True)
+        rec = {
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime()),
+            "session_id": session_id,
+            "platform": platform,
+            "error": error,
+            "caption": (caption or "")[:200],
+            "image_urls": image_urls,
+        }
+        with _ERROR_LOG.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    except Exception:
+        logger.exception("publish error 기록 실패")
 
 # 단계 → overall_percent 매핑 (한 플랫폼 내)
 _PHASE_BASE = {
@@ -108,6 +132,7 @@ def _run(job_id: str, image_urls: list[str], caption: str) -> None:
         if not job:
             return
         platforms = list(job["platforms"].keys())
+        session_id = job.get("session_id", "")
 
     for platform in platforms:
         is_cfg, publish_fn = svc[platform]
@@ -123,7 +148,10 @@ def _run(job_id: str, image_urls: list[str], caption: str) -> None:
             })
         except Exception as e:
             logger.exception(f"publish {platform} failed")
-            cb("error", {"error": str(e)[:500]})
+            err = str(e)[:500]
+            cb("error", {"error": err})
+            # 실패만 영구 기록 — 나중에 오류코드 확인용
+            _log_publish_error(session_id, platform, caption, image_urls, err)
 
     with _lock:
         j = _jobs.get(job_id)

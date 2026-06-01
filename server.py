@@ -26,6 +26,7 @@ Cardnews Studio Web Server
 """
 
 import os
+import base64
 import json
 import re
 import sqlite3
@@ -107,44 +108,59 @@ BOT_INTEGRATION_SCRIPT = r"""
 
   // [편집] 세션을 "새 스튜디오 탭"으로 연다 (기존 탭/작업 보존)
   //   sid 인자가 없으면 URL 의 sessionId 사용. 다른 탭(오토 페이지)에서 채널로 호출될 때는 sid 전달.
+  // 세션을 새 스튜디오 탭으로 로드. 성공/실패를 Promise<boolean> 로 반환한다.
+  // (예전엔 void 라서, 준비 안 됨/fetch 실패여도 호출부가 성공 ack 를 보내버려
+  //  '열렸다는 토스트는 뜨는데 실제론 아무것도 안 열림' 버그가 났음.)
   function loadSessionAsTab(sid) {
-    sid = sid || sessionId;
-    if (!sid) return;
-    if (!studioReady()) { setTimeout(() => loadSessionAsTab(sid), 80); return; }
-    // 같은 세션 탭이 이미 열려 있으면 새로 만들지 않고 그 탭으로 전환
-    const existing = WORKSPACE.projects.find(p => p.meta && p.meta.sessionId === sid);
-    if (existing) {
-      if (WORKSPACE.activeId !== existing.id && typeof activateProject === 'function') {
-        activateProject(existing.id);
-      } else if (typeof renderTabs === 'function') {
-        renderTabs();
-      }
-      if (typeof toast === 'function') toast(`이미 열린 탭으로 전환: ${sid}`, "success");
-      return;
-    }
-    fetch(`/api/sessions/${sid}`)
-      .then(r => { if (!r.ok) throw new Error("세션 없음"); return r.json(); })
-      .then(p => {
-        if (typeof syncStateToProject === 'function') syncStateToProject(); // 현재 탭 보존
-        const proj = blankProjectData((p.meta && p.meta.title) || p.name || ("세션 " + sid));
-        proj.theme = p.theme || "navy";
-        proj.brand = p.brand || proj.brand;
-        proj.cards = p.cards || [];
-        proj.activeId = p.activeId || (proj.cards[0] && proj.cards[0].id) || null;
-        proj.lastSourceText = p.lastSourceText || "";
-        proj.meta = p.meta || {};
-        proj.meta.sessionId = sid; // 서버 세션과 바인딩(자동저장 동기화용)
-        WORKSPACE.projects.push(proj);
-        WORKSPACE.activeId = proj.id;
-        loadProjectToState(proj);
-        if (typeof setTheme === 'function') setTheme(STATE.theme);
-        if (typeof renderTabs === 'function') renderTabs();
-        if (typeof renderAll === 'function') renderAll();
-        if (typeof toast === 'function') toast(`✓ 새 탭으로 세션 로드: ${sid}`, "success");
-      })
-      .catch(err => {
-        if (typeof toast === 'function') toast("세션 로드 실패: " + err.message, "error");
-      });
+    return new Promise((resolve) => {
+      sid = sid || sessionId;
+      if (!sid) { resolve(false); return; }
+      // 스튜디오 init 완료까지 최대 8초 대기 (무한 재시도 금지)
+      let waited = 0;
+      (function attempt() {
+        if (!studioReady()) {
+          if (waited >= 8000) { resolve(false); return; }
+          waited += 80; setTimeout(attempt, 80); return;
+        }
+        // 같은 세션 탭이 이미 열려 있으면 새로 만들지 않고 그 탭으로 전환
+        const existing = WORKSPACE.projects.find(p => p.meta && p.meta.sessionId === sid);
+        if (existing) {
+          if (WORKSPACE.activeId !== existing.id && typeof activateProject === 'function') {
+            activateProject(existing.id);
+          } else if (typeof renderTabs === 'function') {
+            renderTabs();
+          }
+          if (typeof toast === 'function') toast(`이미 열린 탭으로 전환: ${sid}`, "success");
+          resolve(true);
+          return;
+        }
+        fetch(`/api/sessions/${sid}`)
+          .then(r => { if (!r.ok) throw new Error("세션 없음 (HTTP " + r.status + ")"); return r.json(); })
+          .then(p => {
+            if (typeof syncStateToProject === 'function') syncStateToProject(); // 현재 탭 보존
+            const proj = blankProjectData((p.meta && p.meta.title) || p.name || ("세션 " + sid));
+            proj.theme = p.theme || "navy";
+            proj.brand = p.brand || proj.brand;
+            proj.cards = p.cards || [];
+            proj.activeId = p.activeId || (proj.cards[0] && proj.cards[0].id) || null;
+            proj.lastSourceText = p.lastSourceText || "";
+            proj.meta = p.meta || {};
+            proj.meta.sessionId = sid; // 서버 세션과 바인딩(자동저장 동기화용)
+            WORKSPACE.projects.push(proj);
+            WORKSPACE.activeId = proj.id;
+            loadProjectToState(proj);
+            if (typeof setTheme === 'function') setTheme(STATE.theme);
+            if (typeof renderTabs === 'function') renderTabs();
+            if (typeof renderAll === 'function') renderAll();
+            if (typeof toast === 'function') toast(`✓ 새 탭으로 세션 로드: ${sid}`, "success");
+            resolve(true);
+          })
+          .catch(err => {
+            if (typeof toast === 'function') toast("세션 로드 실패: " + err.message, "error");
+            resolve(false);
+          });
+      })();
+    });
   }
 
   // 다른 탭(오토 페이지)에서 "이 세션을 여기 새 탭으로 열어줘" 요청을 수신
@@ -156,9 +172,15 @@ BOT_INTEGRATION_SCRIPT = r"""
     ch.onmessage = (e) => {
       const m = e.data || {};
       if (m.type === 'open-session' && m.sessionId) {
-        loadSessionAsTab(m.sessionId);
-        // 살아있다는 응답(ack) — 오토 페이지가 새 브라우저 탭을 열지 않도록
-        try { ch.postMessage({ type: 'session-opened', sessionId: m.sessionId }); } catch (e2) {}
+        // 1) '처리 중(살아있음)' 신호 — 오토 페이지가 성급히 새 탭을 열지 않고 결과를 기다림
+        try { ch.postMessage({ type: 'session-pending', sessionId: m.sessionId }); } catch (e0) {}
+        // 2) 실제로 탭이 추가(또는 기존 탭으로 전환)된 뒤에만 성공 ack 를 보낸다.
+        //    실패하면 session-error 로 알려 오토 페이지가 새 브라우저 탭으로 폴백하게 한다.
+        loadSessionAsTab(m.sessionId).then((ok) => {
+          try {
+            ch.postMessage({ type: ok ? 'session-opened' : 'session-error', sessionId: m.sessionId });
+          } catch (e2) {}
+        });
         try { window.focus(); } catch (e3) {} // 최선 노력(브라우저가 막을 수 있음)
       } else if (m.type === 'ping') {
         try { ch.postMessage({ type: 'pong' }); } catch (e2) {}
@@ -850,7 +872,11 @@ def index():
         '<script src="/static/publish_progress.js"></script>\n'
         + BOT_INTEGRATION_SCRIPT + "\n</body>"
     )
-    return Response(html, mimetype="text/html")
+    resp = Response(html, mimetype="text/html")
+    # HTML 은 매 요청마다 새로 읽으므로 캐시 금지 (브라우저/터널 CDN 캐시로 변경 안 보이는 문제 방지)
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    return resp
 
 
 @app.route("/auto")
@@ -1295,6 +1321,90 @@ def api_auto_generate():
     })
 
 
+# ============================================================
+# 라우트 — 소재(이미지/PDF/텍스트) 분석 → 카드뉴스 → 발행 큐
+# ============================================================
+_MATERIAL_MAX_BYTES = 12 * 1024 * 1024  # 12MB
+_IMAGE_MIME = {
+    "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+    "webp": "image/webp", "gif": "image/gif",
+}
+
+_MATERIAL_SYS = (
+    "당신은 한국어 카드뉴스 기획자입니다. 주어진 자료(공모전 포스터·홍보물·문서·메모 등)에서 "
+    "카드뉴스로 만들 핵심 정보를 빠짐없이 추출해 정리합니다. 자료에 적힌 사실만 사용하고 절대 "
+    "지어내지 마세요. 공모전·모집 자료라면 다음을 꼭 포함하세요: 명칭, 주최/주관, 참가 대상, "
+    "주제·분야, 접수 기간·마감일, 진행 일정, 시상/혜택, 참가 방법·제출물, 문의처. "
+    "일반 자료라면 제목, 핵심 메시지, 근거·수치, 결론/행동유도를 정리하세요. "
+    "날짜·금액·자격 등 구체 정보는 정확히 보존하고, 자료에 없는 항목은 '명시 안 됨'으로 표기하세요."
+)
+_MATERIAL_USER = (
+    "이 자료의 내용을 카드뉴스 제작용으로 한국어로 정리해줘. 항목별로 명확한 문장/리스트로 "
+    "정리하고, 핵심 수치·날짜·자격은 빠뜨리지 마."
+)
+
+
+def _analyze_material(file_storage, extra_text: str) -> str:
+    """이미지/PDF/텍스트를 카드뉴스용 요약 텍스트로 변환.
+
+    Claude 가 PDF·이미지를 네이티브로 읽으므로 별도 OCR/PDF 라이브러리 불필요.
+    """
+    blocks: list[dict] = []
+    if file_storage and file_storage.filename:
+        raw = file_storage.read()
+        if len(raw) > _MATERIAL_MAX_BYTES:
+            raise ValueError(f"파일이 너무 큼 (최대 {_MATERIAL_MAX_BYTES // (1024 * 1024)}MB)")
+        ext = (file_storage.filename.rsplit(".", 1)[-1] if "." in file_storage.filename else "").lower()
+        b64 = base64.b64encode(raw).decode()
+        if ext == "pdf":
+            blocks.append({"type": "document", "source": {
+                "type": "base64", "media_type": "application/pdf", "data": b64}})
+        elif ext in _IMAGE_MIME:
+            blocks.append({"type": "image", "source": {
+                "type": "base64", "media_type": _IMAGE_MIME[ext], "data": b64}})
+        else:
+            raise ValueError(f"지원하지 않는 파일 형식: .{ext} (이미지 png/jpg/webp/gif 또는 PDF만)")
+
+    extra_text = (extra_text or "").strip()
+    if extra_text:
+        blocks.append({"type": "text", "text": f"[참고 텍스트]\n{extra_text}"})
+    if not blocks:
+        raise ValueError("분석할 자료가 없습니다 (파일 또는 텍스트 필요)")
+    blocks.append({"type": "text", "text": _MATERIAL_USER})
+
+    resp = claude.messages.create(
+        model=MODEL,
+        max_tokens=2000,
+        system=_MATERIAL_SYS,
+        messages=[{"role": "user", "content": blocks}],
+    )
+    return "".join(getattr(b, "text", "") for b in resp.content if b.type == "text").strip()
+
+
+@app.route("/api/auto/material/analyze", methods=["POST"])
+def api_auto_material_analyze():
+    """자료(이미지/PDF/텍스트)를 분석·요약만 해서 반환 (카드 생성·큐 적재는 안 함).
+
+    검수 단계용: 사용자가 요약을 확인·수정한 뒤 /api/auto/generate(freeform)로 생성.
+    multipart/form-data: file(선택), text(선택). 응답: { ok, summary }
+    """
+    if not claude:
+        return jsonify({"error": "ANTHROPIC_API_KEY 미설정 (.env 확인)"}), 500
+    file_storage = request.files.get("file")
+    text = request.form.get("text", "")
+    try:
+        summary = _analyze_material(file_storage, text)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except anthropic.APIStatusError as e:
+        return jsonify({"error": f"Anthropic API 오류: {e.message}"}), e.status_code
+    except Exception as e:
+        return jsonify({"error": f"자료 분석 실패: {e}"}), 500
+    if len(summary) < 10:
+        return jsonify({"error": "자료에서 내용을 추출하지 못했어요. 더 선명한 이미지나 텍스트로 다시 시도해 주세요."}), 422
+    return jsonify({"ok": True, "summary": summary})
+
+
 def _extract_json_array(text: str):
     """텍스트에서 JSON 배열만 추출 (코드블럭·인용주석 제거)."""
     cleaned = re.sub(r"```(?:json)?", "", text).strip()
@@ -1329,9 +1439,23 @@ def api_tooltip_suggest():
         "반영하고, 새로 나온 툴이나 신규 기능도 포함하세요. 너무 일반적인 주제(예: 'ChatGPT 사용법')는 피하고 "
         "구체적이고 따라 하기 쉬운 활용 팁으로 좁히세요."
     )
-    focus_line = f"\n특히 이 분야에 집중: {focus}" if focus else ""
+    if focus:
+        # 키워드가 주어지면 그 분야로 '엄격하게' 좁힌다 — 검색 쿼리·결과 모두 키워드 안에서만.
+        system += (
+            f"\n\n[중요] 사용자가 '{focus}' 분야로 좁혀달라고 요청했습니다. 웹 검색 쿼리에 반드시 "
+            f"'{focus}' 키워드를 포함해서 검색하고, 추천하는 모든 항목은 '{focus}'와 직접 관련된 "
+            "AI 툴/활용 팁이어야 합니다. 이 분야와 무관한 항목은 절대 포함하지 마세요. "
+            f"만약 '{focus}'와 직접 관련된 최신 꿀팁이 요청 개수만큼 충분하지 않으면, 무관한 항목으로 "
+            "채우지 말고 관련된 것만 적은 개수로 반환하세요."
+        )
+        focus_user_line = (
+            f"\n\n반드시 '{focus}' 분야에 직접 관련된 것만 추천해줘. "
+            f"'{focus}'와 무관한 툴/주제는 하나도 넣지 마. 관련된 게 부족하면 개수를 줄여서라도 관련된 것만."
+        )
+    else:
+        focus_user_line = ""
     user = (
-        f"지금 화제인 AI 툴 활용 꿀팁 {count}개를 추천해줘.{focus_line}\n\n"
+        f"지금 화제인 AI 툴 활용 꿀팁 {count}개를 추천해줘.{focus_user_line}\n\n"
         "각 항목 필드:\n"
         "- tool: 툴 이름 (예: ChatGPT, Claude, Midjourney, Gemini, Notion AI, Veo, Suno 등)\n"
         "- topic: 카드뉴스로 만들 구체적 주제 (12~22자, 따라 하기 쉬운 활용법)\n"
@@ -1396,6 +1520,29 @@ def api_article_images():
     images = get_cluster_images(cluster_id, keyword=keyword)
     # 외부 URL → 우리 프록시 경유 URL 로 변환 (CORS + html2canvas 호환)
     from urllib.parse import quote
+    for img in images:
+        img["proxy_url"] = f"/img-proxy?url={quote(img['url'], safe='')}"
+    return jsonify({"images": images, "count": len(images)})
+
+
+@app.route("/api/image-search")
+def api_image_search():
+    """키워드 이미지 검색 (클러스터 무관, 모든 세션에서 사용 가능).
+
+    쿼리: q (필수), n (옵션, 기본 12). 소스: Unsplash(키 있으면)+Openverse+Wikipedia.
+    응답: { "images": [{url, proxy_url, source, alt, credit, ...}], "count": N }
+    """
+    q = request.args.get("q", "").strip()
+    if not q:
+        return jsonify({"error": "검색어(q)가 필요합니다"}), 400
+    try:
+        n = int(request.args.get("n") or 12)
+    except (TypeError, ValueError):
+        n = 12
+    n = max(4, min(n, 24))
+    from article_images import search_images
+    from urllib.parse import quote
+    images = search_images(q, n)
     for img in images:
         img["proxy_url"] = f"/img-proxy?url={quote(img['url'], safe='')}"
     return jsonify({"images": images, "count": len(images)})

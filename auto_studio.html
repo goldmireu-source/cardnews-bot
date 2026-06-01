@@ -465,6 +465,7 @@ nav.tabs button.active {
     <button class="active" data-tab="news">📰 데일리 뉴스</button>
     <button data-tab="tooltip">🛠 AI 툴 팁</button>
     <button data-tab="academy">🎓 사관학교 홍보</button>
+    <button data-tab="material">📎 소재 분석</button>
     <button data-tab="queue">📲 발행 큐</button>
   </nav>
 
@@ -508,8 +509,8 @@ nav.tabs button.active {
 
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:rgba(110,231,255,0.04)">
       <button class="btn ai" id="btn-tip-suggest">🔮 최신 트렌드 자동 추천</button>
-      <input type="text" id="tip-suggest-focus" placeholder="분야 좁히기 (선택): 예) 영상 생성, 코딩, 마케팅" style="flex:1;min-width:180px">
-      <span style="font-size:11px;color:var(--text-faint)">인스타·스레드·유튜브·구글의 최신 정보를 웹에서 수집해 제안</span>
+      <input type="text" id="tip-suggest-focus" placeholder="키워드로 좁히기 (선택): 예) 영상 생성, 코딩, 마케팅" style="flex:1;min-width:180px">
+      <span style="font-size:11px;color:var(--text-faint)">키워드를 넣으면 그 분야만 웹에서 검색·수집 · 비우면 전체 트렌드</span>
     </div>
     <div class="tpl-grid" id="tooltip-suggestions" style="display:none"></div>
 
@@ -606,6 +607,44 @@ nav.tabs button.active {
       </div>
       <div class="form-actions">
         <button class="btn ai" id="btn-ac-generate" disabled>✨ 템플릿 먼저 선택</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tab: 소재 분석 -->
+  <section class="panel" id="panel-material">
+    <div class="section-h">
+      <div>
+        <h2>자료로 카드뉴스 만들기 (공모전·문서·메모)</h2>
+        <p>공모전 포스터 이미지, PDF, 또는 텍스트를 넣으면 Claude가 내용을 분석·요약해 카드뉴스로 만들어 발행 큐로 보냅니다.</p>
+      </div>
+    </div>
+
+    <div id="material-drop" style="border:2px dashed var(--line);border-radius:12px;padding:26px 18px;text-align:center;cursor:pointer;background:rgba(110,231,255,0.03);transition:border-color .15s">
+      <input type="file" id="material-file" accept="image/png,image/jpeg,image/webp,image/gif,application/pdf" hidden>
+      <div style="font-size:30px;line-height:1">📎</div>
+      <p style="margin:8px 0 2px"><b>이미지·PDF를 끌어다 놓거나 클릭</b>해서 업로드</p>
+      <p style="margin:0;font-size:12px;color:var(--text-faint)">이미지는 아래 칸에 붙여넣기(Ctrl+V)도 가능 · png·jpg·webp·gif·pdf, 최대 12MB</p>
+      <p id="material-file-name" style="margin:8px 0 0;font-size:12px;color:var(--accent)"></p>
+    </div>
+
+    <textarea id="material-text" rows="6" placeholder="또는 여기에 텍스트를 붙여넣으세요 (공모전 안내문, 기사 본문 등). 파일과 함께 넣으면 보조 설명으로 사용됩니다." style="width:100%;margin-top:12px;resize:vertical"></textarea>
+
+    <div style="display:flex;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap">
+      <button class="btn ai" id="btn-material-analyze">🔍 내용 분석하기</button>
+      <span style="font-size:11px;color:var(--text-faint)">먼저 분석·요약 → 확인·수정 후 카드 생성 → 발행 큐</span>
+    </div>
+
+    <!-- 분석 결과 검수/수정 (분석 후 표시) -->
+    <div id="material-result" style="display:none;margin-top:18px;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--panel-2)">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+        <b style="font-size:14px">📝 분석 요약 — 확인하고 필요하면 수정하세요</b>
+        <span style="font-size:11px;color:var(--text-faint)">이 내용으로 카드뉴스를 만듭니다</span>
+      </div>
+      <textarea id="material-summary" rows="14" style="width:100%;resize:vertical;font-size:13px;line-height:1.6"></textarea>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap">
+        <button class="btn ai" id="btn-material-tocards">✨ 이 내용으로 카드뉴스 만들기</button>
+        <button class="btn ghost" id="btn-material-reset">↺ 새 자료로 다시</button>
       </div>
     </div>
   </section>
@@ -945,6 +984,96 @@ document.getElementById("btn-ac-generate").addEventListener("click", async (e) =
 });
 
 // ==================================================================
+// 소재 분석 (공모전 이미지 / PDF / 텍스트 → 분석·요약 → 발행 큐)
+// ==================================================================
+(function () {
+  const drop = document.getElementById("material-drop");
+  const fileInput = document.getElementById("material-file");
+  const nameEl = document.getElementById("material-file-name");
+  const textEl = document.getElementById("material-text");
+  if (!drop) return;
+  let pickedFile = null;
+
+  function setFile(f) {
+    pickedFile = f || null;
+    nameEl.textContent = f ? `첨부됨: ${f.name} (${Math.round(f.size / 1024)}KB)` : "";
+  }
+  drop.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", () => setFile(fileInput.files[0] || null));
+  drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.style.borderColor = "var(--accent)"; });
+  drop.addEventListener("dragleave", () => { drop.style.borderColor = ""; });
+  drop.addEventListener("drop", (e) => {
+    e.preventDefault(); drop.style.borderColor = "";
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+  });
+  // 텍스트칸에 이미지 붙여넣기 → 첨부로
+  textEl.addEventListener("paste", (e) => {
+    const items = (e.clipboardData && e.clipboardData.items) || [];
+    const img = [...items].find((i) => i.type && i.type.startsWith("image/"));
+    if (img) {
+      const f = img.getAsFile();
+      if (f) { setFile(f); toast("붙여넣은 이미지를 첨부했어요", "success"); }
+    }
+  });
+
+  const resultBox = document.getElementById("material-result");
+  const summaryEl = document.getElementById("material-summary");
+
+  // 1단계: 분석 → 요약을 검수 영역에 표시
+  document.getElementById("btn-material-analyze").addEventListener("click", async (e) => {
+    const text = textEl.value.trim();
+    if (!pickedFile && text.length < 20) {
+      toast("파일을 올리거나 20자 이상 텍스트를 넣어주세요", "warning");
+      return;
+    }
+    const fd = new FormData();
+    if (pickedFile) fd.append("file", pickedFile);
+    if (text) fd.append("text", text);
+
+    const btn = e.currentTarget;
+    const orig = btn.textContent;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> 분석 중… (최대 30초)';
+    const pt = persistentToast("⏳ 자료를 분석·요약하는 중… (보통 10~30초)", "info");
+    try {
+      const r = await fetch("/api/auto/material/analyze", { method: "POST", body: fd });
+      const j = await r.json();
+      if (!r.ok || j.error) throw new Error(j.error || `서버 오류 ${r.status}`);
+      pt.remove();
+      summaryEl.value = j.summary || "";
+      resultBox.style.display = "block";
+      summaryEl.scrollIntoView({ behavior: "smooth", block: "center" });
+      toast("✓ 분석 완료 — 내용을 확인·수정한 뒤 카드뉴스를 만드세요", "success", 6000);
+    } catch (err) {
+      pt.remove();
+      toast("분석 실패: " + err.message, "error", 6000);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = orig;
+    }
+  });
+
+  // 2단계: (수정된) 요약으로 카드뉴스 생성 → 발행 큐. freeform 경로 재사용.
+  document.getElementById("btn-material-tocards").addEventListener("click", async (e) => {
+    const summary = summaryEl.value.trim();
+    if (summary.length < 20) { toast("요약 내용이 너무 짧습니다", "warning"); return; }
+    await callGenerate(
+      { source_type: "freeform", text: summary, kind: "material" },
+      e.currentTarget, "소재 분석"
+    );
+  });
+
+  // 새 자료로 다시 — 입력·결과 초기화
+  document.getElementById("btn-material-reset").addEventListener("click", () => {
+    setFile(null);
+    fileInput.value = "";
+    textEl.value = "";
+    summaryEl.value = "";
+    resultBox.style.display = "none";
+  });
+})();
+
+// ==================================================================
 // 공용 generate — 성공 시 발행 큐 탭으로 자동 전환 + 새 카드 강조
 // ==================================================================
 async function callGenerate(payload, btnEl, label) {
@@ -1041,6 +1170,7 @@ function renderQueueCard(it) {
     tool_tip: "🛠 툴팁",
     academy: "🎓 사관학교",
     freeform: "✍️ 자유입력",
+    material: "📎 소재",
     텔레그램: "💬 텔레그램",
   }[kind] || kind;
 
@@ -1092,33 +1222,39 @@ function renderQueueCard(it) {
 }
 
 function editSession(sessionId) {
-  // 이미 열려 있는 카드뉴스 스튜디오 탭이 있으면 그쪽에 "새 탭으로 추가" 요청을 보낸다.
-  // 응답(ack)이 오면 새 브라우저 탭을 열지 않고, 없으면(열린 스튜디오 없음) 새 탭으로 폴백.
-  if (typeof BroadcastChannel === "undefined") {
-    window.open(`/?session=${sessionId}`, "_blank");
-    return;
-  }
-  let acked = false;
-  let bc;
+  // 이미 열려 있는 스튜디오 탭이 있으면 그쪽에 "새 탭으로 추가" 요청을 보낸다.
+  //  - session-pending : 열린 스튜디오가 처리 중 → 새 탭 폴백 보류, 결과 대기
+  //  - session-opened  : 실제로 탭 추가 완료 → 안내 토스트
+  //  - session-error   : 스튜디오가 못 열었음 → 새 브라우저 탭으로 확실히 폴백
+  //  - (무응답)         : 열린 스튜디오 없음 → 새 브라우저 탭으로 폴백
+  const openNewTab = () => window.open(`/?session=${sessionId}`, "_blank");
+  if (typeof BroadcastChannel === "undefined") { openNewTab(); return; }
+
+  let bc, settled = false, pending = false;
   try { bc = new BroadcastChannel("cardnews-studio"); }
-  catch (e) { window.open(`/?session=${sessionId}`, "_blank"); return; }
+  catch (e) { openNewTab(); return; }
+
+  const close = () => { settled = true; try { bc.close(); } catch (e2) {} };
+  const fallbackNewTab = () => { if (settled) return; close(); openNewTab(); };
 
   bc.onmessage = (e) => {
     const m = e.data || {};
-    if (m.type === "session-opened" && m.sessionId === sessionId) {
-      acked = true;
-      try { bc.close(); } catch (e2) {}
-      toast("열려 있는 스튜디오에 새 탭으로 추가했어요. 스튜디오 탭으로 이동하세요.", "success");
+    if (settled || m.sessionId !== sessionId) return;
+    if (m.type === "session-pending") {
+      pending = true; // 열린 스튜디오가 처리 중 — 결과를 기다린다
+    } else if (m.type === "session-opened") {
+      close();
+      toast("열려 있는 스튜디오 탭에 추가했어요. 그 탭으로 이동하세요.", "success");
+    } else if (m.type === "session-error") {
+      fallbackNewTab(); // 스튜디오가 못 열었으니 새 탭으로
     }
   };
   bc.postMessage({ type: "open-session", sessionId });
 
-  // ack 대기 — 응답 없으면 열린 스튜디오가 없다고 보고 새 탭으로 연다
-  setTimeout(() => {
-    if (acked) return;
-    try { bc.close(); } catch (e2) {}
-    window.open(`/?session=${sessionId}`, "_blank");
-  }, 600);
+  // pending 신호가 없으면(=열린 스튜디오 없음) 새 탭으로. 있으면 최종 결과를 더 기다린다.
+  setTimeout(() => { if (!pending) fallbackNewTab(); }, 700);
+  // 최종 안전망 — pending 인데도 결과가 끝내 안 오면 새 탭으로
+  setTimeout(fallbackNewTab, 10000);
 }
 
 function prepareForInstagram(sessionId) {

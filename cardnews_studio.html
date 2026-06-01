@@ -133,6 +133,8 @@ input, textarea, select { font-family: inherit; }
   flex-direction: column;
   overflow: hidden;
 }
+/* 세로 폭이 부족하면 사이드바 전체가 스크롤되도록 (카드 목록이 0으로 찌그러지는 것 방지) */
+.sidebar { overflow-y: auto; }
 .preview-pane {
   background: #08090d;
   display: flex;
@@ -264,6 +266,7 @@ input, textarea, select { font-family: inherit; }
 /* 카드 목록 */
 .card-list-wrap {
   flex: 1;
+  min-height: 96px;        /* 세로 폭이 좁아도 최소 카드 2~3장은 보이도록 */
   overflow-y: auto;
   padding: 6px 8px;
 }
@@ -530,8 +533,8 @@ input, textarea, select { font-family: inherit; }
   position: relative;
 }
 .preview-scaler {
-  width: 432px;
-  height: 540px;
+  width: calc(1080px * var(--preview-scale, 0.4));
+  height: calc(1350px * var(--preview-scale, 0.4));
   position: relative;
 }
 .preview-scaler::before {
@@ -575,7 +578,7 @@ input, textarea, select { font-family: inherit; }
   position: absolute;
   top: 0;
   left: 0;
-  transform: scale(0.4);
+  transform: scale(var(--preview-scale, 0.4));
   transform-origin: top left;
   background: var(--c-bg);
   color: var(--c-text);
@@ -641,7 +644,7 @@ input, textarea, select { font-family: inherit; }
 .card.has-bg-image .bg-image-layer {
   position: absolute;
   inset: 0;
-  z-index: 0;
+  z-index: -1000; /* 배경 — 항상 최하단 (요소 레이어 순서와 분리) */
   background-size: cover;
   background-position: var(--bg-pos-x, 50%) var(--bg-pos-y, 50%);
   background-repeat: no-repeat;
@@ -651,7 +654,7 @@ input, textarea, select { font-family: inherit; }
 .card.has-bg-image .bg-image-overlay {
   position: absolute;
   inset: 0;
-  z-index: 1;
+  z-index: -999;
   /* darken 값(0~85%)을 두 stop으로 분배 — 상단은 약, 하단은 강 (가독성↑) */
   background: linear-gradient(
     180deg,
@@ -662,7 +665,7 @@ input, textarea, select { font-family: inherit; }
 }
 .card.has-bg-image .card-inner {
   position: relative;
-  z-index: 2;
+  z-index: auto; /* 스태킹 컨텍스트 만들지 않음 — 필드/오버레이가 카드 컨텍스트에서 자유롭게 정렬 */
 }
 /* 텍스트 색상 강제 — 어떤 테마든 흰 계열로 */
 .card.has-bg-image,
@@ -709,6 +712,30 @@ input, textarea, select { font-family: inherit; }
 .card.has-bg-image .note {
   color: rgba(255,255,255,0.8) !important;
 }
+
+/* ===== 부분 배경(밴드) 모드 — 카드 일부만 이미지, 나머지는 테마 색/텍스트 =====
+   카드 크기(1080×1350)가 고정이라 calc 로 정확히 분할. 콘텐츠는 테마 색 영역에
+   남으므로 흰색 강제(has-bg-image)를 적용하지 않는다. */
+.card.bg-band { overflow: hidden; }
+.card.bg-band .bg-image-layer {
+  position: absolute; z-index: -1000;
+  background-size: cover;
+  background-position: var(--bg-pos-x, 50%) var(--bg-pos-y, 50%);
+  background-repeat: no-repeat;
+  transform: scale(var(--bg-zoom, 1));
+  transform-origin: var(--bg-pos-x, 50%) var(--bg-pos-y, 50%);
+}
+.card.bg-band .bg-image-overlay { position: absolute; z-index: -999; background: rgba(0,0,0, var(--bg-darken, 0)); }
+.card.bg-band .card-inner { position: relative; z-index: auto; }
+.card.bg-band-top .bg-image-layer, .card.bg-band-top .bg-image-overlay { inset: 0 0 auto 0; height: calc(1350px * var(--band-ratio, 0.42)); }
+.card.bg-band-bottom .bg-image-layer, .card.bg-band-bottom .bg-image-overlay { inset: auto 0 0 0; height: calc(1350px * var(--band-ratio, 0.42)); }
+.card.bg-band-left .bg-image-layer, .card.bg-band-left .bg-image-overlay { inset: 0 auto 0 0; width: calc(1080px * var(--band-ratio, 0.42)); }
+.card.bg-band-right .bg-image-layer, .card.bg-band-right .bg-image-overlay { inset: 0 0 0 auto; width: calc(1080px * var(--band-ratio, 0.42)); }
+/* 콘텐츠가 밴드를 피하도록 안쪽 여백 (기본 패딩 + 밴드 크기) */
+.card.bg-band-top .card-inner { padding-top: calc(1350px * var(--band-ratio, 0.42) + 80px); }
+.card.bg-band-bottom .card-inner { padding-bottom: calc(1350px * var(--band-ratio, 0.42) + 80px); }
+.card.bg-band-left .card-inner { padding-left: calc(1080px * var(--band-ratio, 0.42) + 80px); }
+.card.bg-band-right .card-inner { padding-right: calc(1080px * var(--band-ratio, 0.42) + 80px); }
 /* === 글자 효과 — 크기별로 다른 그림자 강도 ===
    paint-order: stroke fill 로 외곽선이 글자 아래 깔리게 (가독성 +) */
 .card.has-bg-image * {
@@ -893,10 +920,13 @@ input, textarea, select { font-family: inherit; }
 
 /* TOPIC: QA */
 .lo-topic-qa .card-inner { padding-top: 160px; gap: 50px; }
-.lo-topic-qa .qa-block { display: flex; gap: 28px; }
+/* baseline 정렬 — 뱃지의 Q/A 글자가 텍스트 첫 줄 baseline 에 붙으므로,
+   질문/답변 글자 크기를 키워도 아이콘과 수평 정렬이 그대로 유지됨
+   (numbered/check/desc/timeline 리스트와 동일한 패턴). */
+.lo-topic-qa .qa-block { display: flex; gap: 28px; align-items: baseline; }
 .lo-topic-qa .qa-tag { flex: 0 0 80px; white-space: nowrap; height: 80px; background: var(--c-accent); color: var(--c-bg); border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: calc(50px * var(--font-scale, 1) * var(--fs-num, 1) * var(--field-scale, 1)); font-weight: 800; }
 .lo-topic-qa .qa-tag.a { background: transparent; color: var(--c-accent); border: 4px solid var(--c-accent); }
-.lo-topic-qa .qa-text { flex: 1; font-size: calc(62px * var(--font-scale, 1) * var(--fs-body, 1) * var(--field-scale, 1)); line-height: 1.4; font-weight: 700; padding-top: 6px; }
+.lo-topic-qa .qa-text { flex: 1; font-size: calc(62px * var(--font-scale, 1) * var(--fs-body, 1) * var(--field-scale, 1)); line-height: 1.4; font-weight: 700; }
 .lo-topic-qa .qa-text.a { font-size: calc(50px * var(--font-scale, 1) * var(--fs-body, 1) * var(--field-scale, 1)); font-weight: 500; color: var(--c-sub); }
 
 /* TOPIC: DEFINITION */
@@ -1046,6 +1076,80 @@ input, textarea, select { font-family: inherit; }
 .lo-closing-thanks .title { font-size: calc(130px * var(--font-scale, 1) * var(--fs-top, 1) * var(--field-scale, 1)); line-height: 1.1; font-weight: 800; letter-spacing: -0.03em; margin: 0; }
 .lo-closing-thanks .subtitle { font-size: calc(43px * var(--font-scale, 1) * var(--fs-top, 1) * var(--field-scale, 1)); line-height: 1.6; color: var(--c-sub); font-weight: 500; }
 .lo-closing-thanks .account { font-size: calc(47px * var(--font-scale, 1) * var(--fs-note, 1) * var(--field-scale, 1)); font-weight: 700; color: var(--c-accent); margin-top: 30px; }
+
+/* ===== P3 추가 레이아웃 ===== */
+/* COVER: MAGAZINE — 잡지 표지 */
+.lo-cover-magazine .card-inner { justify-content: space-between; padding: 120px 96px; }
+.lo-cover-magazine .mag-rule { width: 130px; height: 10px; background: var(--c-accent); border-radius: 4px; margin-bottom: 30px; }
+.lo-cover-magazine .eyebrow { font-size: calc(42px * var(--font-scale,1) * var(--fs-label,1) * var(--field-scale,1)); color: var(--c-accent); font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+.lo-cover-magazine .title { font-size: calc(150px * var(--font-scale,1) * var(--fs-top,1) * var(--field-scale,1)); line-height: 1.02; font-weight: 800; letter-spacing: -0.045em; margin: 0; }
+.lo-cover-magazine .subtitle { font-size: calc(46px * var(--font-scale,1) * var(--fs-top,1) * var(--field-scale,1)); line-height: 1.5; color: var(--c-sub); font-weight: 500; margin-top: 28px; }
+.lo-cover-magazine .badge { font-size: calc(34px * var(--font-scale,1) * var(--fs-label,1) * var(--field-scale,1)); color: var(--c-sub); font-weight: 700; letter-spacing: 0.05em; }
+
+/* TOPIC: BANNER — 상단 풀폭 배너 */
+.lo-topic-banner .card-inner { padding-top: 0; }
+.lo-topic-banner .banner-bar { background: var(--c-accent); margin: 0 -96px 56px; padding: 96px 96px 56px; }
+.lo-topic-banner .banner-bar .label { font-size: calc(46px * var(--font-scale,1) * var(--fs-label,1) * var(--field-scale,1)); color: var(--c-bg); font-weight: 800; letter-spacing: 0.04em; }
+.lo-topic-banner .title { font-size: calc(98px * var(--font-scale,1) * var(--fs-top,1) * var(--field-scale,1)); line-height: 1.12; font-weight: 800; letter-spacing: -0.03em; margin: 0 0 34px; }
+.lo-topic-banner .body { font-size: calc(46px * var(--font-scale,1) * var(--fs-body,1) * var(--field-scale,1)); line-height: 1.6; color: var(--c-sub); font-weight: 400; }
+
+/* TOPIC: SIDEBAR — 좌측 컬러 바 */
+.lo-topic-sidebar .card-inner { justify-content: center; }
+.lo-topic-sidebar .sb-row { display: flex; gap: 48px; align-items: stretch; }
+.lo-topic-sidebar .sb-bar { flex: 0 0 16px; background: var(--c-accent); border-radius: 8px; }
+.lo-topic-sidebar .sb-main { flex: 1; }
+.lo-topic-sidebar .label { font-size: calc(38px * var(--font-scale,1) * var(--fs-label,1) * var(--field-scale,1)); color: var(--c-accent); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 24px; }
+.lo-topic-sidebar .title { font-size: calc(104px * var(--font-scale,1) * var(--fs-top,1) * var(--field-scale,1)); line-height: 1.12; font-weight: 800; letter-spacing: -0.03em; margin: 0 0 32px; }
+.lo-topic-sidebar .body { font-size: calc(46px * var(--font-scale,1) * var(--fs-body,1) * var(--field-scale,1)); line-height: 1.65; color: var(--c-sub); font-weight: 400; }
+
+/* LIST: GRID — 2열 카드 그리드 */
+.lo-list-grid .card-inner { padding-top: 150px; }
+.lo-list-grid .list-header { margin-bottom: 50px; }
+.lo-list-grid .title { font-size: calc(82px * var(--font-scale,1) * var(--fs-top,1) * var(--field-scale,1)); line-height: 1.2; font-weight: 800; letter-spacing: -0.03em; margin: 0 0 14px; }
+.lo-list-grid .sub { font-size: calc(38px * var(--font-scale,1) * var(--fs-body,1) * var(--field-scale,1)); color: var(--c-sub); font-weight: 500; }
+.lo-list-grid .grid-items { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+.lo-list-grid .grid-cell { background: var(--c-line); border-radius: 22px; padding: 40px 34px; display: flex; flex-direction: column; gap: 18px; }
+.lo-list-grid .grid-cell .bullet { width: 64px; height: 64px; border-radius: 50%; background: var(--c-accent); color: var(--c-bg); display: flex; align-items: center; justify-content: center; font-size: calc(32px * var(--font-scale,1) * var(--fs-num,1) * var(--field-scale,1)); font-weight: 800; }
+.lo-list-grid .grid-cell .text { font-size: calc(40px * var(--font-scale,1) * var(--fs-body,1) * var(--field-scale,1)); line-height: 1.4; font-weight: 600; }
+.card.has-bg-image.lo-list-grid .grid-cell { background: rgba(255,255,255,0.14); }
+
+/* HIGHLIGHT: CARD — 인용 카드 박스 */
+.lo-highlight-card .card-inner { justify-content: center; padding: 130px 84px; }
+.lo-highlight-card .quote-card { background: var(--c-accent); color: var(--c-bg); border-radius: 40px; padding: 78px 70px 84px; }
+.lo-highlight-card .quote-card .q-mark { font-size: calc(150px * var(--font-scale,1) * var(--fs-num,1) * var(--field-scale,1)); font-family: Georgia, serif; line-height: 0.5; opacity: 0.55; }
+.lo-highlight-card .quote-card .quote { font-size: calc(78px * var(--font-scale,1) * var(--fs-top,1) * var(--field-scale,1)); line-height: 1.3; font-weight: 700; letter-spacing: -0.02em; margin: 16px 0 36px; }
+.lo-highlight-card .quote-card .attr { font-size: calc(34px * var(--font-scale,1) * var(--fs-note,1) * var(--field-scale,1)); font-weight: 600; opacity: 0.85; }
+
+/* CLOSING: CTA — 강한 행동유도 버튼 */
+.lo-closing-cta .card-inner { justify-content: center; align-items: center; text-align: center; padding: 180px 90px; gap: 30px; }
+.lo-closing-cta .eyebrow { font-size: calc(42px * var(--font-scale,1) * var(--fs-label,1) * var(--field-scale,1)); color: var(--c-accent); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.lo-closing-cta .title { font-size: calc(112px * var(--font-scale,1) * var(--fs-top,1) * var(--field-scale,1)); line-height: 1.12; font-weight: 800; letter-spacing: -0.03em; margin: 0; }
+.lo-closing-cta .cta-btn { background: var(--c-accent); color: var(--c-bg); padding: 32px 60px; border-radius: 100px; font-size: calc(48px * var(--font-scale,1) * var(--fs-top,1) * var(--field-scale,1)); font-weight: 800; margin-top: 12px; }
+.lo-closing-cta .account { font-size: calc(44px * var(--font-scale,1) * var(--fs-note,1) * var(--field-scale,1)); font-weight: 700; color: var(--c-accent); margin-top: 16px; }
+
+/* ===== P5 오버레이 요소 (자유 배치 텍스트/배지/이미지) ===== */
+/* z-index 없음 — 오버레이가 필드와 같은 컨텍스트에서 정렬되도록.
+   pointer-events:none 으로 빈 레이어가 아래 템플릿 필드 클릭을 막지 않게 함(실제 요소만 클릭 받음) */
+.ov-layer { position: absolute; inset: 0; pointer-events: none; }
+.ov-el { position: absolute; box-sizing: border-box; pointer-events: auto; }
+.ov-text { line-height: 1.3; letter-spacing: -0.01em; color: var(--c-text); white-space: pre-wrap; word-break: keep-all; overflow-wrap: anywhere; }
+.ov-badge { display: inline-block; background: var(--c-accent); color: var(--c-bg); padding: 0.2em 0.66em; border-radius: 100px; font-weight: 800; white-space: nowrap; line-height: 1.25; }
+.ov-image img { width: 100%; height: auto; display: block; }
+/* 프리뷰에서만 드래그 가능 표시 (내보내기 render-area 에는 점선 없음) */
+.preview-scaler .ov-el { cursor: move; outline: 1.5px dashed rgba(127,127,127,0.55); outline-offset: 2px; transition: outline-color .12s; }
+.preview-scaler .ov-el:hover { outline-color: var(--accent, #6ee7ff); }
+/* 기존 템플릿 영역도 프리뷰에서 선택/이동 가능 — 평소엔 표시 없음, 호버 시 점선 */
+.preview-scaler .fld-target { cursor: move; }
+.preview-scaler .fld-target:hover { outline: 1.5px dashed var(--accent, #6ee7ff); outline-offset: 3px; }
+.preview-scaler .ov-el.sel-active,
+.preview-scaler .fld-target.sel-active { outline: 3px solid var(--accent, #6ee7ff) !important; outline-offset: 2px; }
+.preview-scaler .fld-target.sel-active { position: relative; }
+/* 모서리 리사이즈 핸들 (카드 좌표 기준 — 0.4 줌에서 약 15px) */
+.ov-handle { position: absolute; width: 38px; height: 38px; background: #fff; border: 3px solid var(--accent, #6ee7ff); border-radius: 5px; z-index: 10; box-shadow: 0 1px 5px rgba(0,0,0,0.45); }
+.ov-handle[data-corner="nw"] { left: -19px; top: -19px; cursor: nwse-resize; }
+.ov-handle[data-corner="ne"] { right: -19px; top: -19px; cursor: nesw-resize; }
+.ov-handle[data-corner="sw"] { left: -19px; bottom: -19px; cursor: nesw-resize; }
+.ov-handle[data-corner="se"] { right: -19px; bottom: -19px; cursor: nwse-resize; }
 
 /* 필드별 사용자 색상은 RENDERER 결과 element 의 인라인 style 로 적용됨
    (style="color: #XXX !important"). 글자 크기는 카드 root --field-scale 변수 곱셈. */
@@ -1388,6 +1492,26 @@ input, textarea, select { font-family: inherit; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+/* ── 세로 폭이 좁은 모니터 대응 ──
+   사이드바 섹션들이 위아래로 눌려 '카드 / 드래그 정렬' 목록이 사라지는 문제 방지.
+   여백을 줄이고, 그래도 모자라면 사이드바 자체가 스크롤되게 한다. */
+@media (max-height: 860px) {
+  .sidebar { overflow-y: auto; }
+  .ai-hero { padding: 10px 12px; }
+  .ai-hero-btn { padding: 11px; font-size: 13px; }
+  .ai-hero-desc { margin-top: 6px; font-size: 10px; }
+  .section { padding: 9px 14px; }
+  .section h3 { margin-bottom: 6px; }
+  .actions { padding: 8px 14px; gap: 4px; }
+}
+@media (max-height: 680px) {
+  .ai-hero-desc { display: none; }       /* 부가 설명 숨김 */
+  .ai-hero-btn { padding: 10px; }
+  .theme-chip { height: 28px; }
+  .add-btn { padding: 6px 7px; }
+  .add-btn span { display: none; }        /* '5종 레이아웃' 보조문구 숨김 */
+}
 </style>
 </head>
 <body>
@@ -1413,7 +1537,7 @@ input, textarea, select { font-family: inherit; }
       <div class="theme-grid" id="theme-grid"></div>
     </div>
 
-    <div class="section" style="flex:1; overflow:hidden; display:flex; flex-direction:column; padding-bottom:6px;">
+    <div class="section" style="flex:1; min-height:150px; overflow:hidden; display:flex; flex-direction:column; padding-bottom:6px;">
       <h3>카드 (<span id="card-count">0</span>) <span class="help">드래그 정렬</span></h3>
       <div class="card-list-wrap" id="card-list"></div>
     </div>
@@ -1471,8 +1595,19 @@ input, textarea, select { font-family: inherit; }
     <div class="preview-header">
       <h2 id="preview-title">Preview</h2>
       <div class="meta">1080 × 1350 · 4:5 · Pretendard</div>
+      <div class="preview-zoom" style="display:flex;align-items:center;gap:6px;margin-left:auto;font-size:11px;color:var(--text-faint)">
+        <span>🔍 줌</span>
+        <input type="range" id="preview-zoom" min="0.2" max="1" step="0.05" value="0.4" oninput="setPreviewZoom(this.value)" style="width:96px;accent-color:var(--accent);cursor:pointer">
+        <span id="preview-zoom-val" style="min-width:34px;text-align:right;font-variant-numeric:tabular-nums">40%</span>
+      </div>
     </div>
     <div class="preview-stage" id="preview-stage">
+      <div id="layer-toolbar" style="display:none;position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:30;gap:3px;background:var(--panel-2,#1c1f2c);border:1px solid var(--line);border-radius:9px;padding:5px;box-shadow:0 6px 20px rgba(0,0,0,0.45)">
+        <button type="button" onclick="zOp('back')" title="가장 뒤로 (배경 위)" style="font-size:14px;padding:5px 9px;border:1px solid var(--line);border-radius:6px;background:var(--panel-3,#232737);color:var(--text);cursor:pointer">⤓</button>
+        <button type="button" onclick="zOp('backward')" title="한 단계 뒤로" style="font-size:14px;padding:5px 9px;border:1px solid var(--line);border-radius:6px;background:var(--panel-3,#232737);color:var(--text);cursor:pointer">▽</button>
+        <button type="button" onclick="zOp('forward')" title="한 단계 앞으로" style="font-size:14px;padding:5px 9px;border:1px solid var(--line);border-radius:6px;background:var(--panel-3,#232737);color:var(--text);cursor:pointer">△</button>
+        <button type="button" onclick="zOp('front')" title="가장 앞으로" style="font-size:14px;padding:5px 9px;border:1px solid var(--line);border-radius:6px;background:var(--panel-3,#232737);color:var(--text);cursor:pointer">⤒</button>
+      </div>
       <div class="preview-scaler theme-navy" id="preview-scaler"></div>
     </div>
   </section>
@@ -1507,6 +1642,7 @@ const LAYOUTS = {
     { id: "question", name: "Question", desc: "질문 후크" },
     { id: "split", name: "Split", desc: "컬러 분할" },
     { id: "minimal", name: "Minimal", desc: "미니멀" },
+    { id: "magazine", name: "Magazine", desc: "잡지 표지" },
   ],
   topic: [
     { id: "centered", name: "Center", desc: "중앙 정렬" },
@@ -1514,6 +1650,8 @@ const LAYOUTS = {
     { id: "qa", name: "Q&A", desc: "질문/답변" },
     { id: "definition", name: "Define", desc: "정의/용어" },
     { id: "compare", name: "Compare", desc: "좌우 비교" },
+    { id: "banner", name: "Banner", desc: "상단 배너" },
+    { id: "sidebar", name: "Sidebar", desc: "좌측 바" },
   ],
   list: [
     { id: "numbered", name: "Numbered", desc: "원형 번호" },
@@ -1521,6 +1659,7 @@ const LAYOUTS = {
     { id: "desc", name: "Detail", desc: "번호+설명" },
     { id: "icon", name: "Dot", desc: "점 불릿" },
     { id: "timeline", name: "Timeline", desc: "타임라인" },
+    { id: "grid", name: "Grid", desc: "2열 그리드" },
   ],
   highlight: [
     { id: "quote", name: "Quote", desc: "인용문" },
@@ -1528,6 +1667,7 @@ const LAYOUTS = {
     { id: "emphasis", name: "Word", desc: "한 단어 강조" },
     { id: "pull", name: "Pull", desc: "사이드바 인용" },
     { id: "tip", name: "Tip", desc: "팁 박스" },
+    { id: "card", name: "Card", desc: "인용 카드" },
   ],
   closing: [
     { id: "next", name: "Next", desc: "다음 예고" },
@@ -1535,6 +1675,7 @@ const LAYOUTS = {
     { id: "ask", name: "Ask", desc: "댓글 유도" },
     { id: "multi", name: "Multi-CTA", desc: "팔로우+저장+공유" },
     { id: "thanks", name: "Thanks", desc: "감사 인사" },
+    { id: "cta", name: "CTA", desc: "강한 행동유도" },
   ],
 };
 
@@ -1547,26 +1688,32 @@ const LAYOUT_FIELDS = {
   "cover/question": ["title","subtitle"],
   "cover/split": ["eyebrow","badge","title","subtitle"],
   "cover/minimal": ["eyebrow","title","badge"],
+  "cover/magazine": ["eyebrow","title","subtitle","badge"],
   "topic/centered": ["label","title","body"],
   "topic/index": ["number","label","title","body"],
   "topic/qa": ["question","answer"],
   "topic/definition": ["term","pron","body"],
   "topic/compare": ["compareTitle","labelA","titleA","bodyA","labelB","titleB","bodyB"],
+  "topic/banner": ["label","title","body"],
+  "topic/sidebar": ["label","title","body"],
   "list/numbered": ["title","sub","items"],
   "list/check": ["title","sub","items"],
   "list/desc": ["title","descItems"],
   "list/icon": ["title","sub","items"],
   "list/timeline": ["title","timelineItems"],
+  "list/grid": ["title","sub","items"],
   "highlight/quote": ["quote","attribution"],
   "highlight/stat": ["statPre","stat","statUnit","statLabel","statNote"],
   "highlight/emphasis": ["emphPre","emphasis","emphPost"],
   "highlight/pull": ["quote","attribution"],
   "highlight/tip": ["tipLabel","tipBody"],
+  "highlight/card": ["quote","attribution"],
   "closing/next": ["eyebrow","title","account","hashtag"],
   "closing/save": ["title","saveReason","account"],
   "closing/ask": ["eyebrow","askQuestion","askCta","account"],
   "closing/multi": ["eyebrow","title","account"],
   "closing/thanks": ["title","subtitle","account"],
+  "closing/cta": ["eyebrow","title","account"],
 };
 
 // ====================================================================
@@ -1616,6 +1763,14 @@ const RENDERERS = {
   "closing/ask": d => `<div class="card-inner"><div class="eyebrow">${nl(d.eyebrow)}</div><h2 class="question">${nl(d.askQuestion)}</h2><div class="cta-box">${nl(d.askCta)}</div><div class="account">${esc(d.account)}</div></div>`,
   "closing/multi": d => `<div class="card-inner"><div><div class="eyebrow">${nl(d.eyebrow)}</div><h2 class="title">${nl(d.title)}</h2></div><div class="actions-row"><div class="act-row"><div class="act-icon">+</div>팔로우하고 매주 받아보기</div><div class="act-row"><div class="act-icon">📌</div>나중에 다시 볼 수 있게 저장</div><div class="act-row"><div class="act-icon">↗</div>도움됐다면 공유 부탁드려요</div></div><div class="account">${esc(d.account)}</div></div>`,
   "closing/thanks": d => `<div class="card-inner"><div class="icon">🙏</div><h2 class="title">${nl(d.title)}</h2><div class="subtitle">${nl(d.subtitle)}</div><div class="account">${esc(d.account)}</div></div>`,
+
+  // ===== P3 추가 레이아웃 (기존 필드 재사용) =====
+  "cover/magazine": d => `<div class="card-inner"><div class="mag-top"><div class="mag-rule"></div><div class="eyebrow">${nl(d.eyebrow)}</div></div><div class="mag-main"><h1 class="title">${nl(d.title)}</h1><div class="subtitle">${nl(d.subtitle)}</div></div><div class="badge">${nl(d.badge)}</div></div>`,
+  "topic/banner": d => `<div class="card-inner"><div class="banner-bar"><span class="label">${nl(d.label)}</span></div><h2 class="title">${nl(d.title)}</h2><div class="body">${nl(d.body)}</div></div>`,
+  "topic/sidebar": d => `<div class="card-inner"><div class="sb-row"><div class="sb-bar"></div><div class="sb-main"><div class="label">${nl(d.label)}</div><h2 class="title">${nl(d.title)}</h2><div class="body">${nl(d.body)}</div></div></div></div>`,
+  "list/grid": d => `<div class="card-inner"><div class="list-header"><h2 class="title">${nl(d.title)}</h2><div class="sub">${nl(d.sub)}</div></div><div class="grid-items">${(d.items||[]).map((t,i)=>`<div class="grid-cell"><div class="bullet">${i+1}</div><div class="text">${nl(t)}${itemSub(d,i)}</div></div>`).join("")}</div></div>`,
+  "highlight/card": d => `<div class="card-inner"><div class="quote-card"><div class="q-mark">"</div><div class="quote">${nl(d.quote)}</div><div class="attr">— ${nl(d.attribution)}</div></div></div>`,
+  "closing/cta": d => `<div class="card-inner"><div class="eyebrow">${nl(d.eyebrow)}</div><h2 class="title">${nl(d.title)}</h2><div class="cta-btn">팔로우하고 더 보기 →</div><div class="account">${esc(d.account)}</div></div>`,
 };
 
 // 리스트 항목(numbered/check/icon)의 선택적 세부내용 렌더
@@ -1627,18 +1782,20 @@ function itemSub(d, i) {
 // 필드 key → 카드 안에서 해당 텍스트를 표시하는 element selector (첫 매치)
 // compare A/B 처럼 같은 클래스가 두 번 나오는 layout 은 nth-of-type 으로 위치 지정.
 const FIELD_TO_SELECTOR = {
-  // 공용 (단일 element)
-  eyebrow: ".eyebrow", title: ".title", subtitle: ".subtitle", badge: ".badge",
+  // 공용 (단일 element) — minimal 레이아웃은 eyebrow 를 .top-badge 로 렌더하므로 포함
+  eyebrow: ".eyebrow, .top-badge", title: ".title", subtitle: ".subtitle", badge: ".badge",
   body: ".body", sub: ".sub", label: ".label", account: ".account",
   hashtag: ".hashtag", attribution: ".attr", quote: ".quote",
   term: ".term", pron: ".pronunciation",
   // number layout 별 대응 — selector list 로 첫 매치
   number: ".big-num, .idx",
-  // QA: 같은 .qa-text 두 개 → :nth-of-type 으로
-  question: ".question, .qa-text:nth-of-type(1)",
-  answer: ".qa-text:nth-of-type(2)",
-  // compare: A/B 컬럼 .col-a / .col-b 또는 인덱스 fallback
-  compareTitle: ".compare-h", // cover 위치의 메인 제목 (단일)
+  // QA: 두 .qa-text 가 서로 다른 .qa-block 안에 있어 :nth-of-type 이 안 먹힘.
+  //     답변은 .a 클래스가 있으므로 클래스로 구분한다.
+  question: ".question, .qa-text:not(.a)",
+  answer: ".qa-text.a",
+  // compare: A/B 컬럼은 인덱스 기반. compareTitle 은 상단 메인 제목 = .compare-title
+  // (이전엔 .compare-h 로 잘못 매핑돼 titleA 에 적용되고 정작 메인 제목은 조절 불가였음)
+  compareTitle: ".compare-title",
   // compare 좌/우 분리는 후처리에서 위치 인덱스 기반
   labelA: { sel: ".compare-label", index: 0 },
   titleA: { sel: ".compare-h", index: 0 },
@@ -1676,11 +1833,17 @@ function applyFieldStyles(card, rootEl) {
     const m = field.match(/^(\w+)\.(\d+)(?:\.(\w+))?$/);
     if (m) {
       const arrayName = m[1], idx = +m[2], subKey = m[3];
-      const lookup = subKey ? `${arrayName}.${subKey}` : arrayName;
-      const sel = ARRAY_FIELD_TO_SELECTOR[lookup];
-      if (sel) {
-        const all = rootEl.querySelectorAll(sel);
-        el = all[idx] || null;
+      if (arrayName === "itemDescs") {
+        // 세부내용은 i번째 .text 의 자식 — 빈 항목으로 인한 인덱스 어긋남 방지
+        const txt = rootEl.querySelectorAll(".text")[idx];
+        el = txt ? txt.querySelector(".item-sub") : null;
+      } else {
+        const lookup = subKey ? `${arrayName}.${subKey}` : arrayName;
+        const sel = ARRAY_FIELD_TO_SELECTOR[lookup];
+        if (sel) {
+          const all = rootEl.querySelectorAll(sel);
+          el = all[idx] || null;
+        }
       }
     } else {
       const map = FIELD_TO_SELECTOR[field];
@@ -1698,8 +1861,337 @@ function applyFieldStyles(card, rootEl) {
     if (typeof sty.color === "string" && /^#[0-9a-f]{3,8}$/i.test(sty.color)) {
       el.style.setProperty("color", sty.color, "important");
     }
+    // P2 — 영역별 세부 스타일
+    if (["left", "center", "right"].includes(sty.align)) {
+      el.style.setProperty("text-align", sty.align, "important");
+    }
+    if (typeof sty.bg === "string" && /^#[0-9a-f]{3,8}$/i.test(sty.bg)) {
+      el.style.setProperty("background-color", sty.bg, "important");
+      el.style.setProperty("border-radius", "0.16em");
+      el.style.setProperty("padding", "0.08em 0.3em");
+      el.style.setProperty("-webkit-box-decoration-break", "clone");
+      el.style.setProperty("box-decoration-break", "clone");
+    }
+    if (typeof sty.weight === "number" && sty.weight >= 100) {
+      el.style.setProperty("font-weight", sty.weight, "important");
+    }
+    if (typeof sty.lh === "number" && sty.lh > 0) {
+      el.style.setProperty("line-height", sty.lh, "important");
+    }
+    if (typeof sty.ls === "number") {
+      el.style.setProperty("letter-spacing", sty.ls + "em", "important");
+    }
+    if (typeof sty.opacity === "number" && sty.opacity >= 0 && sty.opacity < 1) {
+      el.style.setProperty("opacity", sty.opacity);
+    }
+    // 이동 — 흐름을 깨지 않는 상대 위치 오프셋 (카드 % 기준). 프리뷰 드래그·내보내기 공통.
+    if ((typeof sty.dx === "number" && sty.dx) || (typeof sty.dy === "number" && sty.dy)) {
+      el.style.setProperty("position", "relative");
+      el.style.setProperty("left", (sty.dx || 0) + "%");
+      el.style.setProperty("top", (sty.dy || 0) + "%");
+    }
+    // 레이어 순서 — z-index (positioned 여야 적용되므로 relative 보장)
+    if (typeof sty.z === "number") {
+      el.style.setProperty("position", "relative");
+      el.style.setProperty("z-index", sty.z);
+    }
   }
 }
+
+// 프리뷰 줌 — #preview-scaler 의 --preview-scale 변수만 조절 (실제 카드/내보내기엔 영향 없음)
+function setPreviewZoom(scale) {
+  const s = Math.max(0.2, Math.min(1, parseFloat(scale) || 0.4));
+  const sc = document.getElementById("preview-scaler");
+  if (sc) sc.style.setProperty("--preview-scale", s);
+  const val = document.getElementById("preview-zoom-val");
+  if (val) val.textContent = Math.round(s * 100) + "%";
+}
+
+// ====================================================================
+// 오버레이 요소 (P5) — 카드 위에 자유 배치되는 텍스트/배지/이미지
+// card.overlays = [{id,type,text,url,x,y,w,size,color,bg,align,weight}]
+// 좌표 x,y,w 는 카드(1080×1350) 대비 % → 프리뷰 줌·내보내기 모두 동일하게 적용
+// ====================================================================
+function renderOverlayEl(o) {
+  const pos = `left:${o.x ?? 30}%;top:${o.y ?? 30}%;${typeof o.z === "number" ? `z-index:${o.z};` : ""}`;
+  if (o.type === "image") {
+    return `<div class="ov-el ov-image" data-ov="${o.id}" style="${pos}width:${o.w ?? 30}%">`
+      + `<img src="${esc(o.url || "")}" style="width:100%;height:auto;display:block;border-radius:8px" onerror="this.style.opacity=0.2"></div>`;
+  }
+  if (o.type === "badge") {
+    return `<div class="ov-el ov-badge" data-ov="${o.id}" style="${pos}font-size:${o.size ?? 40}px;`
+      + `${o.bg ? `background:${o.bg};` : ""}${o.color ? `color:${o.color};` : ""}">${nl(o.text || "")}</div>`;
+  }
+  return `<div class="ov-el ov-text" data-ov="${o.id}" style="${pos}width:${o.w ?? 40}%;font-size:${o.size ?? 56}px;`
+    + `text-align:${o.align || "left"};font-weight:${o.weight || 700};${o.color ? `color:${o.color};` : ""}${o.bg ? `background:${o.bg};padding:0.08em 0.3em;border-radius:0.12em;` : ""}">${nl(o.text || "")}</div>`;
+}
+
+function renderOverlays(card) {
+  const ovs = card.overlays || [];
+  if (!ovs.length) return "";
+  return `<div class="ov-layer">${ovs.map(renderOverlayEl).join("")}</div>`;
+}
+
+// ---- 선택 / 이동 / 모서리 리사이즈 / 키보드 — 오버레이 + 기존 템플릿 영역 공통 ----
+let SEL = null;            // { kind:'ov'|'fld', key } | null
+let _ovClipboard = null;   // 붙여넣기 클립보드(오버레이 스펙). 필드 복사도 오버레이 스펙으로 저장.
+
+function _ovPosLabelUpdate(ov) {
+  const posEl = document.querySelector(`.ov-pos[data-ov="${ov.id}"]`);
+  if (posEl) posEl.textContent = `${Math.round(ov.x)}%, ${Math.round(ov.y)}%`;
+}
+function ensureFieldStyle(card, key) {
+  card.fieldStyles = card.fieldStyles || {};
+  card.fieldStyles[key] = card.fieldStyles[key] || {};
+  return card.fieldStyles[key];
+}
+
+// 현재 카드의 편집 가능한 필드 element 순회 (단일 + 배열 항목)
+function forEachFieldEl(card, root, cb) {
+  const fields = LAYOUT_FIELDS[`${card.type}/${card.layout}`] || [];
+  fields.forEach(f => {
+    if (f === "items") {
+      const els = root.querySelectorAll(".text");
+      (card.data.items || []).forEach((_, i) => {
+        if (!els[i]) return;
+        cb(`items.${i}`, els[i]);
+        const sub = els[i].querySelector(".item-sub"); // 항목별 세부내용(있을 때만)
+        if (sub) cb(`itemDescs.${i}`, sub);
+      });
+    } else if (f === "descItems") {
+      const t = root.querySelectorAll(".item-title"), dd = root.querySelectorAll(".item-desc");
+      (card.data.descItems || []).forEach((_, i) => { if (t[i]) cb(`descItems.${i}.title`, t[i]); if (dd[i]) cb(`descItems.${i}.desc`, dd[i]); });
+    } else if (f === "timelineItems") {
+      const l = root.querySelectorAll(".tl-label"), b = root.querySelectorAll(".tl-body");
+      (card.data.timelineItems || []).forEach((_, i) => { if (l[i]) cb(`timelineItems.${i}.label`, l[i]); if (b[i]) cb(`timelineItems.${i}.content`, b[i]); });
+    } else {
+      const map = FIELD_TO_SELECTOR[f];
+      let el = null;
+      if (typeof map === "string") el = root.querySelector(map);
+      else if (map && map.sel) { const all = root.querySelectorAll(map.sel); el = all[map.index] || null; }
+      if (el) cb(f, el);
+    }
+  });
+}
+function tagFieldTargets(scaler, card) {
+  forEachFieldEl(card, scaler, (key, el) => { el.setAttribute("data-fld", key); el.classList.add("fld-target"); });
+}
+function _fieldText(card, key) {
+  const m = key.match(/^(\w+)\.(\d+)(?:\.(\w+))?$/);
+  if (m) { const it = (card.data[m[1]] || [])[+m[2]]; if (it == null) return ""; return m[3] ? (it[m[3]] || "") : (typeof it === "string" ? it : ""); }
+  return card.data[key] || "";
+}
+function _fieldClear(card, key) {
+  const m = key.match(/^(\w+)\.(\d+)(?:\.(\w+))?$/);
+  if (m) { const arr = card.data[m[1]]; if (!arr || arr[+m[2]] == null) return; if (m[3]) arr[+m[2]][m[3]] = ""; else arr[+m[2]] = ""; return; }
+  if (key in card.data) card.data[key] = "";
+}
+function _selEl(scaler) {
+  if (!SEL) return null;
+  return scaler.querySelector(SEL.kind === "ov" ? `.ov-el[data-ov="${SEL.key}"]` : `[data-fld="${SEL.key}"]`);
+}
+
+// 선택 표시(아웃라인 + 4모서리 핸들). 프리뷰에만 — 내보내기엔 없음.
+function applySelection(scaler, card) {
+  scaler.querySelectorAll(".ov-el, .fld-target").forEach(el => {
+    el.classList.remove("sel-active");
+    el.querySelectorAll(".ov-handle").forEach(h => h.remove());
+  });
+  const el = _selEl(scaler);
+  const tb = document.getElementById("layer-toolbar");
+  if (tb) tb.style.display = el ? "flex" : "none"; // 선택 시 레이어 툴바 표시
+  if (!el) return;
+  el.classList.add("sel-active");
+  ["nw", "ne", "sw", "se"].forEach(corner => {
+    const h = document.createElement("div");
+    h.className = "ov-handle"; h.dataset.corner = corner;
+    el.appendChild(h);
+    h.addEventListener("pointerdown", e => startResize(e, el, corner, scaler, card));
+  });
+}
+
+// 모서리 핸들 드래그 → 크기 조정. 오버레이=글자/너비(반대편 모서리 고정), 필드=scale(자연 위치 기준).
+function startResize(e, el, corner, scaler, card) {
+  e.preventDefault(); e.stopPropagation();
+  const cardEl = scaler.querySelector(".card"); if (!cardEl) return;
+  const cardRect = cardEl.getBoundingClientRect();
+  const r0 = el.getBoundingClientRect();
+  const fixed = { nw:{x:r0.right,y:r0.bottom}, ne:{x:r0.left,y:r0.bottom}, sw:{x:r0.right,y:r0.top}, se:{x:r0.left,y:r0.top} }[corner];
+  const origW = Math.max(20, r0.width);
+  const isOv = el.classList.contains("ov-el");
+  let ov = null, st = null, origSize = 0, origWpct = 0, origScale = 1;
+  if (isOv) { ov = (card.overlays || []).find(o => o.id === el.dataset.ov); if (ov) { origSize = ov.size || (ov.type === "badge" ? 40 : 56); origWpct = ov.w || 40; } }
+  else { st = ensureFieldStyle(card, el.dataset.fld); origScale = (typeof st.scale === "number" && st.scale > 0) ? st.scale : 1; }
+  const leftMoves = (corner === "nw" || corner === "sw"), topMoves = (corner === "nw" || corner === "ne");
+  try { el.setPointerCapture(e.pointerId); } catch (e2) {}
+  const move = ev => {
+    const ratio = Math.max(0.2, Math.min(6, Math.abs(ev.clientX - fixed.x) / origW));
+    if (isOv) {
+      if (!ov) return;
+      if (ov.type === "image") { ov.w = Math.max(5, Math.min(100, origWpct * ratio)); el.style.width = ov.w + "%"; }
+      else { ov.size = Math.max(12, Math.min(400, Math.round(origSize * ratio))); el.style.fontSize = ov.size + "px"; }
+      const nr = el.getBoundingClientRect();
+      const newLeft = leftMoves ? (fixed.x - nr.width) : fixed.x;
+      const newTop = topMoves ? (fixed.y - nr.height) : fixed.y;
+      ov.x = Math.max(0, Math.min(100, (newLeft - cardRect.left) / cardRect.width * 100));
+      ov.y = Math.max(0, Math.min(100, (newTop - cardRect.top) / cardRect.height * 100));
+      el.style.left = ov.x + "%"; el.style.top = ov.y + "%";
+    } else {
+      st.scale = Math.max(0.3, Math.min(4, +(origScale * ratio).toFixed(3)));
+      el.style.setProperty("--field-scale", st.scale);
+    }
+  };
+  const up = () => {
+    el.removeEventListener("pointermove", move);
+    el.removeEventListener("pointerup", up);
+    if (isOv && ov) _ovPosLabelUpdate(ov);
+    renderEditor(); autoSave();
+  };
+  el.addEventListener("pointermove", move);
+  el.addEventListener("pointerup", up);
+}
+
+// 본체 드래그 → 이동. 오버레이=x/y, 필드=fieldStyles.dx/dy(상대 오프셋).
+function startMove(e, el, scaler, card) {
+  const cardEl = scaler.querySelector(".card"); if (!cardEl) return;
+  const rect = cardEl.getBoundingClientRect();
+  const sx = e.clientX, sy = e.clientY;
+  const isOv = el.classList.contains("ov-el");
+  let ov = null, st = null, ox, oy;
+  if (isOv) { ov = (card.overlays || []).find(o => o.id === el.dataset.ov); if (!ov) return; ox = ov.x ?? 30; oy = ov.y ?? 30; }
+  else { st = ensureFieldStyle(card, el.dataset.fld); ox = st.dx || 0; oy = st.dy || 0; }
+  let moved = false;
+  try { el.setPointerCapture(e.pointerId); } catch (e2) {}
+  const move = ev => {
+    moved = true;
+    const nx = ox + (ev.clientX - sx) / rect.width * 100;
+    const ny = oy + (ev.clientY - sy) / rect.height * 100;
+    if (isOv) { ov.x = Math.max(0, Math.min(100, nx)); ov.y = Math.max(0, Math.min(100, ny)); el.style.left = ov.x + "%"; el.style.top = ov.y + "%"; }
+    else { st.dx = +nx.toFixed(2); st.dy = +ny.toFixed(2); el.style.position = "relative"; el.style.left = st.dx + "%"; el.style.top = st.dy + "%"; }
+  };
+  const up = () => {
+    el.removeEventListener("pointermove", move);
+    el.removeEventListener("pointerup", up);
+    if (moved) { if (isOv && ov) _ovPosLabelUpdate(ov); autoSave(); }
+  };
+  el.addEventListener("pointermove", move);
+  el.addEventListener("pointerup", up);
+}
+
+// 프리뷰 상호작용 바인딩 (오버레이 + 필드 공통) — renderPreview 가 호출
+function bindOverlayDrag(scaler, card) {
+  tagFieldTargets(scaler, card);
+  if (SEL) {
+    const exists = SEL.kind === "ov"
+      ? (card.overlays || []).some(o => o.id === SEL.key)
+      : !!scaler.querySelector(`[data-fld="${SEL.key}"]`);
+    if (!exists) SEL = null;
+  }
+  scaler.onpointerdown = e => {
+    if (!e.target.closest(".ov-el, .fld-target")) { SEL = null; applySelection(scaler, card); }
+  };
+  scaler.querySelectorAll(".ov-el, .fld-target").forEach(el => {
+    el.addEventListener("pointerdown", e => {
+      if (e.target.classList.contains("ov-handle")) return; // 핸들은 리사이즈 전용
+      e.preventDefault(); e.stopPropagation();
+      const isOv = el.classList.contains("ov-el");
+      SEL = { kind: isOv ? "ov" : "fld", key: isOv ? el.dataset.ov : el.dataset.fld };
+      applySelection(scaler, card);
+      startMove(e, el, scaler, card);
+    });
+  });
+  applySelection(scaler, card);
+}
+
+// ---- 레이어 순서 (z-index) — 선택된 오버레이/필드를 앞/뒤로 ----
+function _collectZ(card) {
+  const zs = [];
+  (card.overlays || []).forEach(o => { if (typeof o.z === "number") zs.push(o.z); });
+  Object.values(card.fieldStyles || {}).forEach(st => { if (st && typeof st.z === "number") zs.push(st.z); });
+  return zs.length ? zs : [0];
+}
+function _getSelZ(card) {
+  if (!SEL) return 0;
+  if (SEL.kind === "ov") { const o = (card.overlays || []).find(x => x.id === SEL.key); return (o && typeof o.z === "number") ? o.z : 0; }
+  const st = card.fieldStyles && card.fieldStyles[SEL.key];
+  return (st && typeof st.z === "number") ? st.z : 0;
+}
+function _setSelZ(card, val) {
+  if (!SEL) return;
+  if (SEL.kind === "ov") { const o = (card.overlays || []).find(x => x.id === SEL.key); if (o) o.z = val; }
+  else ensureFieldStyle(card, SEL.key).z = val;
+}
+function zOp(op) {
+  const card = STATE.cards.find(c => c.id === STATE.activeId);
+  if (!card || !SEL) return;
+  const zs = _collectZ(card), mx = Math.max(...zs, 0), mn = Math.min(...zs, 0), cur = _getSelZ(card);
+  let nz = cur;
+  if (op === "front") nz = mx + 1;
+  else if (op === "back") nz = mn - 1;
+  else if (op === "forward") nz = cur + 1;
+  else if (op === "backward") nz = cur - 1;
+  _setSelZ(card, nz);
+  renderPreview(); autoSave();
+}
+
+function _pasteOverlay(card, e) {
+  e.preventDefault();
+  const clone = JSON.parse(JSON.stringify(_ovClipboard));
+  clone.id = "ov" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  clone.x = Math.min(95, (clone.x ?? 30) + 4);
+  clone.y = Math.min(95, (clone.y ?? 30) + 4);
+  card.overlays = card.overlays || [];
+  card.overlays.push(clone);
+  SEL = { kind: "ov", key: clone.id };
+  renderEditor(); renderPreview(); autoSave();
+}
+
+// 스튜디오 키보드 — 삭제(Del)·복사(Ctrl+C)·붙여넣기(Ctrl+V)·해제(Esc), 오버레이/필드 공통
+function onStudioOverlayKey(e) {
+  const ae = document.activeElement;
+  if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable)) return;
+  const card = STATE.cards.find(c => c.id === STATE.activeId);
+  if (!card) return;
+  const k = (e.key || "").toLowerCase();
+  // 실행취소 (선택 없이도 허용). 입력란 포커스 땐 위에서 이미 return → 텍스트 편집의 기본 Ctrl+Z 유지
+  if ((e.ctrlKey || e.metaKey) && k === "z" && !e.shiftKey) { e.preventDefault(); undoLastAction(); return; }
+  // 붙여넣기는 선택 없이도 허용
+  if ((e.ctrlKey || e.metaKey) && k === "v") { if (_ovClipboard) _pasteOverlay(card, e); return; }
+  if (!SEL) return;
+  // 레이어 순서 — Ctrl+] 앞으로 / Ctrl+[ 뒤로 (Shift 동반 시 맨앞/맨뒤)
+  if ((e.ctrlKey || e.metaKey) && e.key === "]") { e.preventDefault(); zOp(e.shiftKey ? "front" : "forward"); return; }
+  if ((e.ctrlKey || e.metaKey) && e.key === "[") { e.preventDefault(); zOp(e.shiftKey ? "back" : "backward"); return; }
+  if ((e.ctrlKey || e.metaKey) && k === "c") {
+    if (SEL.kind === "ov") {
+      const o = (card.overlays || []).find(x => x.id === SEL.key);
+      if (o) { _ovClipboard = JSON.parse(JSON.stringify(o)); delete _ovClipboard.id; toast("요소 복사됨 — Ctrl+V로 붙여넣기", "success"); }
+    } else {
+      const sc = document.getElementById("preview-scaler");
+      const el = sc && sc.querySelector(`[data-fld="${SEL.key}"]`);
+      const cardEl = sc && sc.querySelector(".card");
+      let size = 56, x = 28, y = 36;
+      if (el && cardEl) {
+        const r = el.getBoundingClientRect(), cr = cardEl.getBoundingClientRect();
+        size = Math.round(parseFloat(getComputedStyle(el).fontSize) || 56);
+        x = Math.max(0, Math.min(90, (r.left - cr.left) / cr.width * 100));
+        y = Math.max(0, Math.min(90, (r.top - cr.top) / cr.height * 100));
+      }
+      _ovClipboard = { type: "text", text: _fieldText(card, SEL.key), x, y, w: 44, size, weight: 700 };
+      toast("영역 복사됨 — Ctrl+V로 요소로 붙여넣기", "success");
+    }
+    return;
+  }
+  if (e.key === "Delete" || e.key === "Backspace") {
+    e.preventDefault();
+    if (SEL.kind === "ov") card.overlays = (card.overlays || []).filter(o => o.id !== SEL.key);
+    else _fieldClear(card, SEL.key);
+    SEL = null;
+    renderEditor(); renderPreview(); autoSave();
+    return;
+  }
+  if (e.key === "Escape") { SEL = null; renderPreview(); }
+}
+document.addEventListener("keydown", onStudioOverlayKey);
 
 function renderCard(card, pageNum, total) {
   const key = `${card.type}/${card.layout}`;
@@ -1709,11 +2201,14 @@ function renderCard(card, pageNum, total) {
   const showSwipe = isCover && total > 1;
   const brand = STATE.brand;
 
-  // 배경 이미지 (per-card)
+  // 배경 이미지 (per-card) — 전체(full) 또는 부분(band) 모드
   const bg = card.data && card.data.bgImage;
   const hasBg = bg && bg.url;
-  const darkenPct = hasBg ? (typeof bg.darken === "number" ? bg.darken : 55) : 0;
-  // 배경 이미지 zoom/position (디폴트: cover 가득 채움)
+  const bandMode = hasBg && bg.mode === "band";
+  const bandSide = ["top", "bottom", "left", "right"].includes(bg?.side) ? bg.side : "top";
+  const bandRatio = (typeof bg?.ratio === "number" && bg.ratio >= 0.15 && bg.ratio <= 0.9) ? bg.ratio : 0.42;
+  // 전체 모드는 가독성 위해 기본 어둡기 55%, 밴드 모드는 이미지를 살리려 기본 0%
+  const darkenPct = hasBg ? (typeof bg.darken === "number" ? bg.darken : (bandMode ? 0 : 55)) : 0;
   const bgScale = (hasBg && typeof bg.scale === "number" && bg.scale > 0) ? bg.scale : 1;
   const bgOffX = hasBg && typeof bg.offsetX === "number" ? bg.offsetX : 50;
   const bgOffY = hasBg && typeof bg.offsetY === "number" ? bg.offsetY : 50;
@@ -1724,16 +2219,19 @@ function renderCard(card, pageNum, total) {
     styleVars.push(`--bg-zoom: ${bgScale}`);
     styleVars.push(`--bg-pos-x: ${bgOffX}%`);
     styleVars.push(`--bg-pos-y: ${bgOffY}%`);
+    if (bandMode) styleVars.push(`--band-ratio: ${bandRatio}`);
   }
   const bgStyle = styleVars.length ? `style="${styleVars.join('; ')}"` : "";
+  const bgClass = !hasBg ? "" : (bandMode ? ` bg-band bg-band-${bandSide}` : " has-bg-image");
   const bgLayer = hasBg ? `
       <div class="bg-image-layer" style="background-image:url('${esc(bg.url)}')"></div>
       <div class="bg-image-overlay"></div>` : "";
 
   const html = `
-    <div class="card lo-${card.type}-${card.layout}${hasBg ? " has-bg-image" : ""}" ${bgStyle}>
+    <div class="card lo-${card.type}-${card.layout}${bgClass}" ${bgStyle}>
       ${bgLayer}
       ${inner}
+      ${renderOverlays(card)}
       ${!isCover && !isLast ? `<div class="footer-mark">${esc(brand.footer || "")}</div>` : ""}
       ${!isCover && !isLast ? `<div class="page-num">${String(pageNum).padStart(2,'0')} / ${String(total).padStart(2,'0')}</div>` : ""}
       ${showSwipe ? `<div class="swipe-hint">SWIPE <span class="arrow">→</span></div>` : ""}
@@ -2428,11 +2926,17 @@ function renderEditor() {
 // 카드의 현재 활성 필드 스타일 헬퍼
 function _currentFieldStyle(key) {
   const card = STATE.cards.find(c => c.id === STATE.activeId);
-  if (!card || !card.fieldStyles) return { scale: 1, color: "" };
-  const s = card.fieldStyles[key] || {};
+  const s = (card && card.fieldStyles && card.fieldStyles[key]) || {};
+  const hex = v => (typeof v === "string" && /^#[0-9a-f]{3,8}$/i.test(v)) ? v : "";
   return {
     scale: (typeof s.scale === "number" && s.scale > 0) ? s.scale : 1,
-    color: (typeof s.color === "string" && /^#[0-9a-f]{3,8}$/i.test(s.color)) ? s.color : "",
+    color: hex(s.color),
+    bg: hex(s.bg),
+    align: ["left", "center", "right"].includes(s.align) ? s.align : "",
+    weight: (typeof s.weight === "number") ? s.weight : 0,
+    lh: (typeof s.lh === "number") ? s.lh : 0,
+    ls: (typeof s.ls === "number") ? s.ls : null,
+    opacity: (typeof s.opacity === "number") ? s.opacity : 1,
   };
 }
 
@@ -2440,13 +2944,35 @@ function _currentFieldStyle(key) {
 function fieldStyleCtrl(fieldKey) {
   const fs = _currentFieldStyle(fieldKey);
   const hasCol = !!fs.color;
+  const hasBg = !!fs.bg;
+  const advActive = !!(fs.bg || fs.align || fs.weight || fs.lh || fs.ls !== null || fs.opacity < 1);
+  const alignBtn = (a, sym) => `<button type="button" class="ff-align" data-field="${fieldKey}" data-align="${a}" title="정렬 ${a}" style="flex:1;font-size:11px;line-height:1;padding:3px 0;border:1px solid var(--line);border-radius:3px;cursor:pointer;background:${fs.align === a ? 'var(--accent)' : 'none'};color:${fs.align === a ? '#fff' : 'var(--text-faint)'}">${sym}</button>`;
+  const advSlider = (cls, label, min, max, step, val) => `
+      <label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-faint);margin-top:4px">
+        <span style="flex:0 0 30px">${label}</span>
+        <input type="range" class="${cls}" data-field="${fieldKey}" min="${min}" max="${max}" step="${step}" value="${val}" style="flex:1;accent-color:var(--accent);height:12px">
+        <span class="${cls}-val" data-field="${fieldKey}" style="flex:0 0 30px;text-align:right;font-variant-numeric:tabular-nums">${val}</span>
+      </label>`;
   return `
     <div class="field-style-row" data-field="${fieldKey}" style="display:flex;align-items:center;gap:4px;margin-top:4px">
       <span style="flex:0 0 12px;font-size:10px;color:var(--text-faint)">📏</span>
       <input type="range" class="ff-scale" data-field="${fieldKey}" min="0.5" max="2.0" step="0.05" value="${fs.scale}" style="flex:1;cursor:pointer;accent-color:var(--accent);height:14px">
       <span class="ff-scale-val" data-field="${fieldKey}" style="flex:0 0 34px;font-size:10px;color:var(--text-dim);text-align:right;font-variant-numeric:tabular-nums">${Math.round(fs.scale*100)}%</span>
       <input type="color" class="ff-color" data-field="${fieldKey}" value="${fs.color || '#ffffff'}" title="${hasCol ? '글자색 적용 중 — 더블클릭으로 해제' : '글자색 미적용 — 클릭해서 선택'}" style="flex:0 0 22px;width:22px;height:18px;padding:0;border:1px solid var(--line);border-radius:3px;cursor:pointer;opacity:${hasCol ? 1 : 0.45}">
-      <button type="button" class="ff-reset" data-field="${fieldKey}" title="이 필드 크기·색 원래대로" style="flex:0 0 20px;background:none;border:1px solid var(--line);color:var(--text-faint);cursor:pointer;font-size:10px;padding:0 4px;border-radius:3px">↺</button>
+      <button type="button" class="ff-adv" data-field="${fieldKey}" title="세부 조절 (정렬·배경·굵기·행간·자간·투명도)" style="flex:0 0 20px;background:${advActive ? 'var(--accent)' : 'none'};border:1px solid var(--line);color:${advActive ? '#fff' : 'var(--text-faint)'};cursor:pointer;font-size:10px;padding:0 4px;border-radius:3px">⚙</button>
+      <button type="button" class="ff-reset" data-field="${fieldKey}" title="이 필드 스타일 원래대로" style="flex:0 0 20px;background:none;border:1px solid var(--line);color:var(--text-faint);cursor:pointer;font-size:10px;padding:0 4px;border-radius:3px">↺</button>
+    </div>
+    <div class="field-adv-row" data-field="${fieldKey}" style="display:${advActive ? 'block' : 'none'};margin-top:4px;padding:6px 8px;background:var(--bg-soft,rgba(0,0,0,0.03));border-radius:6px">
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:10px;color:var(--text-faint);flex:0 0 30px">정렬</span>
+        <div style="display:flex;gap:3px;flex:1">${alignBtn("left","⟸")}${alignBtn("center","≡")}${alignBtn("right","⟹")}</div>
+        <span style="font-size:10px;color:var(--text-faint)">🖍</span>
+        <input type="color" class="ff-bg" data-field="${fieldKey}" value="${fs.bg || '#ffe066'}" title="${hasBg ? '영역 배경색 적용 중 — 더블클릭 해제' : '영역 배경색 — 클릭해서 선택'}" style="flex:0 0 22px;width:22px;height:18px;padding:0;border:1px solid var(--line);border-radius:3px;cursor:pointer;opacity:${hasBg ? 1 : 0.45}">
+      </div>
+      ${advSlider("ff-weight", "굵기", 100, 900, 100, fs.weight || 700)}
+      ${advSlider("ff-lh", "행간", 0.9, 2.2, 0.05, fs.lh || 1.3)}
+      ${advSlider("ff-ls", "자간", -0.08, 0.3, 0.01, fs.ls === null ? 0 : fs.ls)}
+      ${advSlider("ff-opacity", "투명", 0.2, 1, 0.05, fs.opacity)}
     </div>`;
 }
 
@@ -2564,12 +3090,48 @@ function renderFields(card) {
     if (L === "next") html += field({key:"hashtag", label:"해시태그", type:"textarea", value:d.hashtag, limit:200});
   }
 
+  // ===== 요소(오버레이) 추가 섹션 (P5) — 자유 배치 텍스트/배지/이미지 =====
+  const OVT = { text: "텍스트", badge: "배지", image: "이미지" };
+  const ovItems = (card.overlays || []).map((o) => {
+    const head = `<div style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text-faint);margin-bottom:5px">${OVT[o.type] || o.type} <span class="ov-pos" data-ov="${o.id}">${Math.round(o.x ?? 30)}%, ${Math.round(o.y ?? 30)}%</span><button class="icon-btn ov-del" data-ov="${o.id}" title="삭제" style="margin-left:auto">×</button></div>`;
+    let bodyHtml;
+    if (o.type === "image") {
+      bodyHtml = `<button class="btn btn-ghost ov-img-pick" data-ov="${o.id}" style="width:100%;font-size:11px">${o.url ? "🖼 이미지 변경/검색" : "🖼 이미지 선택/검색"}</button>
+        <label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-faint);margin-top:5px">너비<input type="range" class="ov-width" data-ov="${o.id}" min="10" max="90" step="1" value="${o.w ?? 30}" style="flex:1;accent-color:var(--accent)"></label>`;
+    } else {
+      bodyHtml = `<textarea class="ta-auto ta-compact ov-text-in" data-ov="${o.id}" rows="1" placeholder="${OVT[o.type]} 내용" style="width:100%">${esc(o.text || "")}</textarea>
+        <label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-faint);margin-top:5px">크기<input type="range" class="ov-size" data-ov="${o.id}" min="20" max="180" step="2" value="${o.size ?? (o.type === 'badge' ? 40 : 56)}" style="flex:1;accent-color:var(--accent)"></label>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:5px">
+          <span style="font-size:10px;color:var(--text-faint)">🎨</span>
+          <input type="color" class="ov-color" data-ov="${o.id}" value="${o.color || '#ffffff'}" title="글자색 (더블클릭 해제)" style="width:24px;height:18px;padding:0;border:1px solid var(--line);border-radius:3px;cursor:pointer;opacity:${o.color ? 1 : 0.45}">
+          <span style="font-size:10px;color:var(--text-faint)">🖍</span>
+          <input type="color" class="ov-bg" data-ov="${o.id}" value="${o.bg || '#1e3fa8'}" title="배경색 (더블클릭 해제)" style="width:24px;height:18px;padding:0;border:1px solid var(--line);border-radius:3px;cursor:pointer;opacity:${o.bg ? 1 : 0.45}">
+          ${o.type === 'text' ? `<input type="range" class="ov-width" data-ov="${o.id}" min="10" max="95" step="1" value="${o.w ?? 40}" title="너비" style="flex:1;accent-color:var(--accent)">` : ""}
+        </div>`;
+    }
+    return `<div class="ov-item" data-ov="${o.id}" style="border:1px solid var(--c-line,#e3e7ef);border-radius:8px;padding:8px;margin-bottom:6px">${head}${bodyHtml}</div>`;
+  }).join("");
+
+  html += `<div class="field" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--c-line,#e3e7ef)">
+    <div class="field-label-row"><label>➕ 요소 추가</label><span class="counter" style="background:none">${(card.overlays || []).length}개 · 프리뷰에서 드래그</span></div>
+    <div style="display:flex;gap:6px;margin-top:4px">
+      <button class="btn ov-add" data-ovtype="text" style="flex:1;font-size:11px">＋ 텍스트</button>
+      <button class="btn ov-add" data-ovtype="badge" style="flex:1;font-size:11px">＋ 배지</button>
+      <button class="btn ov-add" data-ovtype="image" style="flex:1;font-size:11px">＋ 이미지</button>
+    </div>
+    <div id="ov-list" style="margin-top:8px">${ovItems}</div>
+  </div>`;
+
   // ===== 배경 이미지 섹션 (모든 카드 공통, 맨 아래) =====
   const bg = d.bgImage;
   const hasBg = bg && bg.url;
   const bgScale = (typeof bg?.scale === "number" && bg.scale > 0) ? bg.scale : 1;
   const bgOffX = typeof bg?.offsetX === "number" ? bg.offsetX : 50;
   const bgOffY = typeof bg?.offsetY === "number" ? bg.offsetY : 50;
+  const bandMode = hasBg && bg.mode === "band";
+  const bandSide = ["top", "bottom", "left", "right"].includes(bg?.side) ? bg.side : "top";
+  const bandPct = Math.round(((typeof bg?.ratio === "number" && bg.ratio >= 0.15 && bg.ratio <= 0.9) ? bg.ratio : 0.42) * 100);
+  const SIDE_LABEL = { top: "상", bottom: "하", left: "좌", right: "우" };
   const sliderRow = (id, label, min, max, step, val, suffix = "%") => `
     <label style="font-size:10px;color:var(--text-faint);display:flex;align-items:center;gap:4px;margin-top:6px">
       ${label}
@@ -2596,7 +3158,18 @@ function renderFields(card) {
           </div>
         </div>
         <div style="margin-top:8px;padding:8px;background:var(--bg-soft,rgba(0,0,0,0.03));border-radius:6px">
-          ${sliderRow("bg-darken", "어둡기", 0, 85, 5, bg.darken ?? 55)}
+          <div style="font-size:10px;color:var(--text-faint);margin-bottom:4px">배경 적용 범위</div>
+          <div style="display:flex;gap:4px;margin-bottom:4px">
+            <button type="button" class="bg-mode-btn" data-mode="full" style="flex:1;font-size:10px;padding:5px;border-radius:4px;cursor:pointer;border:1px solid var(--c-line,#e3e7ef);background:${bandMode ? 'none' : 'var(--accent,#1e3fa8)'};color:${bandMode ? 'var(--text-faint)' : '#fff'}">전체</button>
+            <button type="button" class="bg-mode-btn" data-mode="band" style="flex:1;font-size:10px;padding:5px;border-radius:4px;cursor:pointer;border:1px solid var(--c-line,#e3e7ef);background:${bandMode ? 'var(--accent,#1e3fa8)' : 'none'};color:${bandMode ? '#fff' : 'var(--text-faint)'}">밴드(부분)</button>
+          </div>
+          <div id="bg-band-opts" style="display:${bandMode ? 'block' : 'none'};margin-bottom:6px">
+            <div style="display:flex;gap:4px">
+              ${["top","bottom","left","right"].map(s => `<button type="button" class="bg-side-btn" data-side="${s}" style="flex:1;font-size:10px;padding:5px;border-radius:4px;cursor:pointer;border:1px solid var(--c-line,#e3e7ef);background:${bandSide === s ? 'var(--accent,#1e3fa8)' : 'none'};color:${bandSide === s ? '#fff' : 'var(--text-faint)'}">${SIDE_LABEL[s]}</button>`).join("")}
+            </div>
+            ${sliderRow("bg-ratio", "비율  ", 15, 90, 5, bandPct)}
+          </div>
+          ${sliderRow("bg-darken", "어둡기", 0, 85, 5, bg.darken ?? (bandMode ? 0 : 55))}
           ${sliderRow("bg-scale", "확대  ", 50, 300, 5, Math.round(bgScale * 100))}
           ${sliderRow("bg-offx",  "← →  ", 0, 100, 1, bgOffX)}
           ${sliderRow("bg-offy",  "↑ ↓  ", 0, 100, 1, bgOffY)}
@@ -2706,6 +3279,34 @@ function bindEditorEvents(card) {
     renderEditor(); renderPreview(); autoSave();
   };
 
+  // 배경 적용 범위 — 전체 / 밴드(부분)
+  body.querySelectorAll(".bg-mode-btn").forEach(b => b.onclick = () => {
+    if (!card.data.bgImage) return;
+    if (b.dataset.mode === "band") {
+      card.data.bgImage.mode = "band";
+      if (!card.data.bgImage.side) card.data.bgImage.side = "top";
+      if (typeof card.data.bgImage.ratio !== "number") card.data.bgImage.ratio = 0.42;
+    } else {
+      delete card.data.bgImage.mode;
+    }
+    renderEditor(); renderPreview(); autoSave();
+  });
+  // 밴드 방향 (상/하/좌/우)
+  body.querySelectorAll(".bg-side-btn").forEach(b => b.onclick = () => {
+    if (!card.data.bgImage) return;
+    card.data.bgImage.side = b.dataset.side;
+    renderEditor(); renderPreview(); autoSave();
+  });
+  // 밴드 비율
+  const bgRatio = body.querySelector("#bg-ratio");
+  if (bgRatio) bgRatio.oninput = (e) => {
+    if (!card.data.bgImage) return;
+    card.data.bgImage.ratio = (+e.target.value) / 100;
+    const v = body.querySelector("#bg-ratio-val");
+    if (v) v.textContent = e.target.value + "%";
+    renderPreview(); autoSave();
+  };
+
   // 필드별 크기 슬라이더 (각 텍스트박스 옆)
   body.querySelectorAll(".ff-scale").forEach(el => {
     el.addEventListener("input", e => {
@@ -2744,23 +3345,110 @@ function bindEditorEvents(card) {
     });
   });
 
-  // 필드 리셋 ↺
+  // 필드 리셋 ↺ — 해당 필드의 모든 스타일 제거 후 컨트롤 새로 그림
   body.querySelectorAll(".ff-reset").forEach(el => {
     el.addEventListener("click", e => {
       const fieldKey = e.currentTarget.dataset.field;
       if (card.fieldStyles) delete card.fieldStyles[fieldKey];
-      const slider = body.querySelector(`.ff-scale[data-field="${fieldKey}"]`);
-      const valEl = body.querySelector(`.ff-scale-val[data-field="${fieldKey}"]`);
-      const picker = body.querySelector(`.ff-color[data-field="${fieldKey}"]`);
-      if (slider) slider.value = 1;
-      if (valEl) valEl.textContent = "100%";
-      if (picker) {
-        picker.style.opacity = "0.45";
-        picker.title = "글자색 미적용 — 클릭해서 선택";
-      }
-      renderPreview(); autoSave();
+      renderEditor(); renderPreview(); autoSave();
     });
   });
+
+  // 세부 조절 토글 ⚙
+  body.querySelectorAll(".ff-adv").forEach(el => {
+    el.addEventListener("click", e => {
+      const fieldKey = e.currentTarget.dataset.field;
+      const row = body.querySelector(`.field-adv-row[data-field="${fieldKey}"]`);
+      if (row) row.style.display = (row.style.display === "none" || !row.style.display) ? "block" : "none";
+    });
+  });
+
+  // 필드 스타일 저장 헬퍼 — value 가 falsy(기본값)면 키 삭제
+  const setFieldStyle = (fieldKey, prop, value) => {
+    card.fieldStyles = card.fieldStyles || {};
+    card.fieldStyles[fieldKey] = card.fieldStyles[fieldKey] || {};
+    if (value === null || value === undefined) delete card.fieldStyles[fieldKey][prop];
+    else card.fieldStyles[fieldKey][prop] = value;
+    renderPreview(); autoSave();
+  };
+
+  // 정렬 (왼/가운데/오른) — 같은 정렬 다시 누르면 해제
+  body.querySelectorAll(".ff-align").forEach(el => {
+    el.addEventListener("click", e => {
+      const fieldKey = e.currentTarget.dataset.field;
+      const a = e.currentTarget.dataset.align;
+      const cur = (card.fieldStyles && card.fieldStyles[fieldKey] && card.fieldStyles[fieldKey].align) || "";
+      setFieldStyle(fieldKey, "align", cur === a ? null : a);
+      renderEditor();
+    });
+  });
+
+  // 영역 배경색 (하이라이트)
+  body.querySelectorAll(".ff-bg").forEach(el => {
+    el.addEventListener("input", e => {
+      setFieldStyle(e.target.dataset.field, "bg", e.target.value);
+      e.target.style.opacity = "1";
+    });
+    el.addEventListener("dblclick", e => {
+      setFieldStyle(e.target.dataset.field, "bg", null);
+      e.target.style.opacity = "0.45";
+    });
+  });
+
+  // 굵기 / 행간 / 자간 / 투명도 미니 슬라이더
+  const advBind = (cls, prop, parse, isDefault, fmt) => {
+    body.querySelectorAll("." + cls).forEach(el => {
+      el.addEventListener("input", e => {
+        const v = parse(e.target.value);
+        setFieldStyle(e.target.dataset.field, prop, isDefault(v) ? null : v);
+        const valEl = body.querySelector(`.${cls}-val[data-field="${e.target.dataset.field}"]`);
+        if (valEl) valEl.textContent = fmt(e.target.value);
+      });
+    });
+  };
+  advBind("ff-weight", "weight", v => parseInt(v, 10), () => false, v => v);
+  advBind("ff-lh", "lh", v => parseFloat(v), () => false, v => v);
+  advBind("ff-ls", "ls", v => parseFloat(v), () => false, v => v);
+  advBind("ff-opacity", "opacity", v => parseFloat(v), v => v >= 1, v => v);
+
+  // ===== 오버레이 요소 (P5) =====
+  const ovFind = id => (card.overlays || []).find(o => o.id === id);
+  body.querySelectorAll(".ov-add").forEach(b => b.onclick = () => {
+    card.overlays = card.overlays || [];
+    const t = b.dataset.ovtype;
+    const o = { id: "ov" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), type: t, x: 28, y: 36 };
+    if (t === "text") Object.assign(o, { text: "텍스트", w: 44, size: 56, weight: 700 });
+    else if (t === "badge") Object.assign(o, { text: "NEW", size: 40, y: 30 });
+    else Object.assign(o, { url: "", w: 32, y: 30 });
+    card.overlays.push(o);
+    renderEditor(); renderPreview(); autoSave();
+    if (t === "image") openBgImagePicker(card, o.id); // 추가 직후 바로 이미지 선택
+  });
+  body.querySelectorAll(".ov-del").forEach(b => b.onclick = () => {
+    card.overlays = (card.overlays || []).filter(o => o.id !== b.dataset.ov);
+    renderEditor(); renderPreview(); autoSave();
+  });
+  body.querySelectorAll(".ov-text-in").forEach(el => el.addEventListener("input", e => {
+    const o = ovFind(e.target.dataset.ov); if (!o) return;
+    o.text = e.target.value; renderPreview(); autoSave();
+  }));
+  body.querySelectorAll(".ov-size").forEach(el => el.addEventListener("input", e => {
+    const o = ovFind(e.target.dataset.ov); if (!o) return;
+    o.size = +e.target.value; renderPreview(); autoSave();
+  }));
+  body.querySelectorAll(".ov-width").forEach(el => el.addEventListener("input", e => {
+    const o = ovFind(e.target.dataset.ov); if (!o) return;
+    o.w = +e.target.value; renderPreview(); autoSave();
+  }));
+  body.querySelectorAll(".ov-color").forEach(el => {
+    el.addEventListener("input", e => { const o = ovFind(e.target.dataset.ov); if (!o) return; o.color = e.target.value; e.target.style.opacity = "1"; renderPreview(); autoSave(); });
+    el.addEventListener("dblclick", e => { const o = ovFind(e.target.dataset.ov); if (!o) return; delete o.color; e.target.style.opacity = "0.45"; renderPreview(); autoSave(); });
+  });
+  body.querySelectorAll(".ov-bg").forEach(el => {
+    el.addEventListener("input", e => { const o = ovFind(e.target.dataset.ov); if (!o) return; o.bg = e.target.value; e.target.style.opacity = "1"; renderPreview(); autoSave(); });
+    el.addEventListener("dblclick", e => { const o = ovFind(e.target.dataset.ov); if (!o) return; delete o.bg; e.target.style.opacity = "0.45"; renderPreview(); autoSave(); });
+  });
+  body.querySelectorAll(".ov-img-pick").forEach(b => b.onclick = () => openBgImagePicker(card, b.dataset.ov));
 
   body.querySelectorAll("[data-key]").forEach(el => {
     el.addEventListener("input", e => {
@@ -2877,6 +3565,7 @@ function renderPreview() {
   }
   const idx = STATE.cards.findIndex(c => c.id === card.id);
   scaler.innerHTML = renderCard(card, idx + 1, STATE.cards.length);
+  bindOverlayDrag(scaler, card); // 오버레이 요소 드래그 이동
   // 큰 숫자(.stat) 가 컨테이너 폭 넘으면 자동 축소 (한글 포함 stat 줄바꿈 방지)
   autofitStat(scaler);
   // 배경 이미지 휘도 분석 → 밝으면 오버레이 자동 강화
@@ -2950,9 +3639,8 @@ window.applyBgLuminance = applyBgLuminance;
 // ====================================================================
 // 배경 이미지 피커 — 클러스터 기반 후보 이미지 그리드 모달
 // ====================================================================
-async function openBgImagePicker(card) {
+async function openBgImagePicker(card, overlayId) {
   const clusterId = STATE.meta && STATE.meta.cluster_id;
-  // 모달 셸 미리 띄움 (로딩 상태)
   const back = document.createElement("div");
   back.className = "modal-backdrop";
   back.innerHTML = `
@@ -2962,12 +3650,16 @@ async function openBgImagePicker(card) {
         <button class="close">×</button>
       </div>
       <div class="modal-body">
-        <p class="intro">이 클러스터를 보도한 매체 페이지에서 자동으로 모은 이미지입니다. 카드 가독성을 위해 인물·풍경 사진을 권장합니다.</p>
-        <div id="bg-img-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:14px;min-height:180px">
-          <div style="grid-column:1/-1;text-align:center;color:var(--text-faint);padding:20px">
-            <span class="spinner"></span> 이미지 불러오는 중…
-          </div>
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          <input type="text" id="bg-img-q" placeholder="키워드로 이미지 검색 (예: 인공지능, 도시, 코딩)" style="flex:1;padding:9px 10px;border:1px solid var(--c-line,#e3e7ef);border-radius:6px">
+          <button class="btn primary" id="bg-img-search">🔎 검색</button>
         </div>
+        <div style="display:flex;gap:6px;margin-bottom:6px">
+          <input type="text" id="bg-img-url" placeholder="또는 이미지 URL 직접 붙여넣기" style="flex:1;padding:9px 10px;border:1px solid var(--c-line,#e3e7ef);border-radius:6px">
+          <button class="btn" id="bg-img-url-apply">URL 적용</button>
+        </div>
+        <p class="intro" style="font-size:11px;color:var(--text-faint);margin:4px 0">${clusterId ? "이 클러스터 기사에서 모은 이미지입니다. 또는 키워드로 검색하세요." : "키워드로 이미지를 검색하거나 URL을 붙여넣으세요. (Openverse·Wikipedia 무료, 키 있으면 Unsplash 포함)"}</p>
+        <div id="bg-img-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:8px;min-height:180px"></div>
       </div>
     </div>`;
   document.body.appendChild(back);
@@ -2976,64 +3668,83 @@ async function openBgImagePicker(card) {
   back.addEventListener("click", e => { if (e.target === back) close(); });
 
   const grid = back.querySelector("#bg-img-grid");
-  if (!clusterId) {
-    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--text-faint);padding:20px">
-      이 세션엔 데일리싱크 클러스터 정보가 없어 자동 추출이 안 됩니다.<br>
-      (수동 입력 세션의 경우 직접 URL을 붙여넣어 주세요.)<br><br>
-      <input type="text" id="bg-img-manual" placeholder="이미지 URL 직접 입력" style="width:80%;padding:8px;border:1px solid var(--c-line,#e3e7ef);border-radius:6px"/>
-      <button class="btn primary" id="bg-img-manual-apply" style="margin-top:8px">적용</button>
-    </div>`;
-    grid.querySelector("#bg-img-manual-apply").onclick = () => {
-      const url = grid.querySelector("#bg-img-manual").value.trim();
-      if (!url) return;
-      card.data.bgImage = { url, darken: 55 };
-      close(); renderEditor(); renderPreview(); autoSave();
-    };
-    return;
-  }
 
-  try {
-    const r = await fetch(`/api/article-images?cluster_id=${clusterId}`);
-    const j = await r.json();
-    const items = j.images || [];
-    if (!items.length) {
-      grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--text-faint);padding:20px">
-        이 클러스터의 기사에서 이미지를 찾지 못했습니다.<br>(매체가 이미지를 제공하지 않거나 페이지 접근이 막혔을 수 있음)
-      </div>`;
+  // 외부 URL 은 프록시 경유로 저장 (html2canvas CORS 안전). 기존 밴드/위치 설정은 보존.
+  const applyUrl = (rawUrl, extra) => {
+    if (!rawUrl) return;
+    let url = rawUrl;
+    if (/^https?:\/\//i.test(rawUrl) && !rawUrl.includes("/img-proxy") && !rawUrl.includes("/uploads/")) {
+      url = `/img-proxy?url=${encodeURIComponent(rawUrl)}`;
+    }
+    if (overlayId) {
+      // 오버레이 이미지 요소에 적용
+      const o = (card.overlays || []).find(x => x.id === overlayId);
+      if (o) { o.url = url; o.original = rawUrl; }
+    } else {
+      // 카드 배경에 적용 (기존 밴드/위치 설정 보존)
+      const prev = card.data.bgImage || {};
+      card.data.bgImage = Object.assign({}, prev, {
+        url,
+        original: rawUrl,
+        darken: (typeof prev.darken === "number" ? prev.darken : 55),
+      }, extra || {});
+    }
+    close(); renderEditor(); renderPreview(); autoSave();
+    toast("✓ 이미지 적용", "success");
+  };
+
+  const loading = (msg) => { grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--text-faint);padding:20px"><span class="spinner"></span> ${esc(msg)}</div>`; };
+
+  const showItems = (items) => {
+    if (!items || !items.length) {
+      grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--text-faint);padding:20px">결과가 없습니다. 다른 키워드로 검색해 보세요.</div>`;
       return;
     }
     grid.innerHTML = "";
-    items.forEach((img, i) => {
+    items.forEach(img => {
       const el = document.createElement("button");
       el.style.cssText = "padding:0;border:2px solid transparent;border-radius:6px;background:#000;cursor:pointer;aspect-ratio:1080/1350;overflow:hidden;position:relative";
       el.innerHTML = `
-        <img src="${esc(img.proxy_url || img.url)}"
-             style="width:100%;height:100%;object-fit:cover;display:block"
-             loading="lazy"
-             onerror="this.style.opacity=0.2;this.parentElement.style.background='#333'">
-        <div style="position:absolute;bottom:0;left:0;right:0;padding:4px 6px;background:linear-gradient(to top, rgba(0,0,0,0.85), transparent);color:#fff;font-size:10px;text-align:left">
-          ${esc((img.source || "").replace("og_image","og:image"))}
-        </div>`;
+        <img src="${esc(img.proxy_url || img.url)}" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy" onerror="this.style.opacity=0.2;this.parentElement.style.background='#333'">
+        <div style="position:absolute;bottom:0;left:0;right:0;padding:4px 6px;background:linear-gradient(to top,rgba(0,0,0,0.85),transparent);color:#fff;font-size:10px;text-align:left">${esc((img.source || "").replace("og_image","og:image"))}${img.credit ? " · " + esc(img.credit) : ""}</div>`;
       el.onmouseenter = () => el.style.borderColor = "var(--accent,#6ee7ff)";
       el.onmouseleave = () => el.style.borderColor = "transparent";
-      el.onclick = () => {
-        // proxy_url 을 우선 저장 (html2canvas 가 CORS 없이 fetch 가능)
-        card.data.bgImage = {
-          url: img.proxy_url || img.url,
-          original: img.url,
-          source: img.source,
-          darken: 55,
-        };
-        close();
-        renderEditor();
-        renderPreview();
-        autoSave();
-        toast(`✓ 배경 이미지 적용`, "success");
-      };
+      el.onclick = () => applyUrl(img.proxy_url || img.url, { original: img.url, source: img.source });
       grid.appendChild(el);
     });
-  } catch (e) {
-    grid.innerHTML = `<div style="grid-column:1/-1;color:var(--danger,#e11);padding:20px">로드 실패: ${esc(e.message)}</div>`;
+  };
+
+  const doSearch = async (q) => {
+    q = (q || "").trim();
+    if (!q) return;
+    loading("이미지 검색 중…");
+    try {
+      const r = await fetch(`/api/image-search?q=${encodeURIComponent(q)}&n=18`);
+      const j = await r.json();
+      if (!r.ok || j.error) throw new Error(j.error || `HTTP ${r.status}`);
+      showItems(j.images || []);
+    } catch (e) {
+      grid.innerHTML = `<div style="grid-column:1/-1;color:var(--danger,#e11);padding:20px">검색 실패: ${esc(e.message)}</div>`;
+    }
+  };
+
+  back.querySelector("#bg-img-search").onclick = () => doSearch(back.querySelector("#bg-img-q").value);
+  back.querySelector("#bg-img-q").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); doSearch(e.target.value); } });
+  back.querySelector("#bg-img-url-apply").onclick = () => applyUrl(back.querySelector("#bg-img-url").value.trim());
+  back.querySelector("#bg-img-url").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); applyUrl(e.target.value.trim()); } });
+
+  // 초기 로드: 클러스터 기사 이미지가 있으면 자동 표시, 없으면 검색 안내
+  if (clusterId) {
+    loading("기사 이미지 불러오는 중…");
+    try {
+      const r = await fetch(`/api/article-images?cluster_id=${clusterId}`);
+      const j = await r.json();
+      showItems(j.images || []);
+    } catch (e) {
+      grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--text-faint);padding:20px">기사 이미지 로드 실패. 위에서 키워드로 검색하세요.</div>`;
+    }
+  } else {
+    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--text-faint);padding:30px">위 검색창에 키워드를 입력하거나 이미지 URL을 붙여넣으세요.</div>`;
   }
 }
 
@@ -3946,6 +4657,17 @@ function toast(msg, type = "") {
 // ====================================================================
 // 저장/불러오기
 // ====================================================================
+// ---- 실행취소(Ctrl+Z) — '탭(프로젝트)별' 스택. 탭마다 자기 히스토리만 되돌림 ----
+// (전역 단일 스택이면 탭 전환 시 다른 프로젝트 상태로 덮어쓰는 치명 버그 발생 → 프로젝트 id 로 버킷 분리)
+const _undoStacks = {};      // pid -> [스냅샷...]
+const _undoLast = {};        // pid -> 마지막 커밋 스냅샷
+let _undoRestoring = false;  // 복원 중에는 스냅샷 누적 안 함
+const _UNDO_MAX = 60;
+function _undoPid() { return (typeof WORKSPACE !== "undefined" && WORKSPACE.activeId) ? WORKSPACE.activeId : "_"; }
+function _undoSnap() {
+  return JSON.stringify({ theme: STATE.theme, brand: STATE.brand, cards: STATE.cards, activeId: STATE.activeId, meta: STATE.meta });
+}
+
 function autoSave() {
   syncStateToProject();
   try {
@@ -3955,6 +4677,39 @@ function autoSave() {
     console.warn("autoSave 실패:", err);
     toast("⚠️ 자동저장 실패(저장공간 초과 가능). 일부 탭을 파일로 저장 후 닫아주세요.", "error");
   }
+  // 변경 직전 상태를 '현재 탭' 버킷에만 누적
+  if (!_undoRestoring) {
+    const pid = _undoPid();
+    const cur = _undoSnap();
+    if (_undoLast[pid] !== undefined && _undoLast[pid] !== cur) {
+      (_undoStacks[pid] || (_undoStacks[pid] = [])).push(_undoLast[pid]);
+      if (_undoStacks[pid].length > _UNDO_MAX) _undoStacks[pid].shift();
+    }
+    _undoLast[pid] = cur;
+  }
+}
+
+// Ctrl+Z — 직전 액션 1단계 되돌리기 (현재 탭의 히스토리에서만)
+function undoLastAction() {
+  const pid = _undoPid();
+  const stack = _undoStacks[pid];
+  if (!stack || !stack.length) { if (typeof toast === "function") toast("더 되돌릴 작업이 없어요", "info"); return; }
+  const prev = stack.pop();
+  _undoRestoring = true;
+  try {
+    const s = JSON.parse(prev);
+    STATE.theme = s.theme; STATE.brand = s.brand; STATE.cards = s.cards;
+    STATE.activeId = s.activeId; STATE.meta = s.meta;
+    _undoLast[pid] = prev;       // 복원된 상태가 곧 현재 커밋 상태
+    SEL = null;                  // 선택은 무효화될 수 있으므로 해제
+    syncStateToProject();
+    try { localStorage.setItem(LS_WS_KEY, JSON.stringify(WORKSPACE)); } catch (e) {}
+    if (typeof setTheme === "function") setTheme(STATE.theme);
+    renderCardList(); renderEditor(); renderPreview();
+  } finally {
+    _undoRestoring = false;
+  }
+  if (typeof toast === "function") toast("↩ 실행취소", "success");
 }
 
 function manualSave() {

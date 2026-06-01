@@ -262,6 +262,65 @@ def _fetch_unsplash(keyword: str, count: int = 4) -> list[dict]:
         return []
 
 
+def _fetch_openverse(keyword: str, count: int = 12) -> list[dict]:
+    """Openverse (CC 라이선스 이미지, API 키 불필요) 키워드 검색.
+
+    키가 없어도 동작하는 기본 이미지 검색 소스. Unsplash 키가 없을 때 폴백.
+    """
+    if not keyword:
+        return []
+    try:
+        r = requests.get(
+            "https://api.openverse.org/v1/images/",
+            params={"q": keyword, "page_size": count, "mature": "false"},
+            headers={"User-Agent": USER_AGENT},
+            timeout=TIMEOUT,
+        )
+        if r.status_code != 200:
+            return []
+        out = []
+        for it in r.json().get("results", []):
+            u = it.get("url")
+            if not u:
+                continue
+            out.append({
+                "url": u,
+                "source": "openverse",
+                "alt": it.get("title") or keyword,
+                "from": it.get("foreign_landing_url") or "",
+                "credit": it.get("creator") or "",
+            })
+        return out
+    except Exception:
+        return []
+
+
+def search_images(keyword: str, count: int = 12) -> list[dict]:
+    """키워드로 이미지 검색 — Unsplash(키 있으면) + Openverse + Wikipedia 통합.
+
+    API 키가 전혀 없어도 Openverse/Wikipedia 로 동작한다. URL 기준 중복 제거.
+    """
+    keyword = (keyword or "").strip()
+    if not keyword:
+        return []
+    out: list[dict] = []
+    for fetch in (lambda: _fetch_unsplash(keyword, count),
+                  lambda: _fetch_openverse(keyword, count),
+                  lambda: _fetch_wikipedia_images(keyword)):
+        try:
+            out += fetch() or []
+        except Exception:
+            pass
+    seen, uniq = set(), []
+    for im in out:
+        u = im.get("url")
+        if not u or u in seen:
+            continue
+        seen.add(u)
+        uniq.append(im)
+    return uniq[:count]
+
+
 def _get_cluster_meta(cluster_id: int) -> dict:
     """클러스터의 topic + agreed_facts + categories 를 한 번에 가져옴 (키워드 풀)."""
     if not Path(DAILYSYNC_DB).exists():
