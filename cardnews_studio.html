@@ -1920,18 +1920,27 @@ function setPreviewZoom(scale) {
 function renderOverlayEl(o) {
   const pos = `left:${o.x ?? 30}%;top:${o.y ?? 30}%;${typeof o.z === "number" ? `z-index:${o.z};` : ""}`;
   if (o.type === "image") {
-    // 모델: w(가로 %), h(세로 %, 0/미설정=자동), cx/cy(잘림 위치 %, 기본 50=가운데).
-    // - h 가 명시되어 있으면 컨테이너 종횡비가 고정되고 이미지는 object-fit:cover 로 채워져
-    //   비율이 다른 부분이 잘려서 영역에서 사라진다(가로/세로 잘라내기).
-    // - h 가 자동이면 이미지 원본 비율로 표시(잘림 없음).
-    // 프리뷰의 코너/엣지 핸들 드래그가 w, h 를 직접 조절 — 엣지를 잡고 끌어당기면 그 방향이 잘림.
+    // 모델 (컨테이너 / 이미지 분리)
+    //  - 컨테이너(보이는 영역): x, y, w, h (카드 대비 %, h=0/미설정=자동)
+    //  - 이미지 자체:           imgL, imgT, imgW (컨테이너 대비 %, 기본 0 / 0 / 100)
+    //    · height 는 auto (자연 비율 유지) — 이미지 픽셀 자체는 늘어나지 않는다.
+    //
+    // 모서리 핸들: 컨테이너 w/h 비례 조정 — 이미지는 컨테이너 대비 imgL/imgT/imgW 가 그대로라 함께 비례.
+    // 변(엣지) 핸들: 컨테이너의 그 변만 안/밖으로 이동 — 이미지는 카드 대비 위치/크기를 유지하도록
+    //   imgL/imgT/imgW 가 자동 보정되어, 컨테이너 밖으로 나간 부분이 overflow:hidden 으로 가려진다.
     const hasH = typeof o.h === "number" && o.h > 0;
-    const cx = (typeof o.cx === "number") ? o.cx : 50;
-    const cy = (typeof o.cy === "number") ? o.cy : 50;
     const wVal = o.w ?? 30;
+    const imgL = (typeof o.imgL === "number") ? o.imgL : 0;
+    const imgT = (typeof o.imgT === "number") ? o.imgT : 0;
+    const imgW = (typeof o.imgW === "number" && o.imgW > 0) ? o.imgW : 100;
+    const hasCrop = (imgL !== 0) || (imgT !== 0) || (imgW !== 100);
+    // h 명시 또는 자름이 있을 때만 이미지를 absolute 로 띄운다.
+    // 둘 다 없으면(처음 추가 직후 등) 이미지를 static 으로 두어 컨테이너 height 가 자연스럽게 결정되게 한다.
+    //   (absolute 자식만 있는 컨테이너에 height:auto 를 주면 0 이 되어 이미지가 안 보이는 문제 방지)
+    const useAbs = hasH || hasCrop;
     const boxStyle = `${pos}width:${wVal}%;${hasH ? `height:${o.h}%;` : ""}overflow:hidden;border-radius:8px;`;
-    const imgStyle = hasH
-      ? `width:100%;height:100%;object-fit:cover;object-position:${cx}% ${cy}%;display:block;`
+    const imgStyle = useAbs
+      ? `position:absolute;left:${imgL}%;top:${imgT}%;width:${imgW}%;height:auto;display:block;`
       : `width:100%;height:auto;display:block;`;
     return `<div class="ov-el ov-image" data-ov="${o.id}" style="${boxStyle}">`
       + `<img src="${esc(o.url || "")}" style="${imgStyle}" onerror="this.style.opacity=0.2"></div>`;
@@ -2021,8 +2030,10 @@ function applySelection(scaler, card) {
   if (!el) return;
   el.classList.add("sel-active");
   // 이미지 오버레이는 모서리 4개 + 변(엣지) 4개 = 총 8개 핸들.
-  //   - 모서리: 종횡비 유지하며 크기 조정 (잘림 없음)
-  //   - 변(n/e/s/w): 한 방향만 조정 → 컨테이너 비율이 달라져 그 방향이 잘림
+  //   - 모서리: 종횡비 유지하며 컨테이너(w/h) 크기 조정 (이미지도 함께 비례)
+  //   - 변(n/e/s/w): 컨테이너의 그 변만 안/밖으로 이동 — 컨테이너 보이는 영역만 변하고
+  //                   이미지 자체 크기는 그대로 → 컨테이너 밖으로 나간 영역이 가려짐(잘림).
+  // 핸들 위치는 CSS 기본(컨테이너 가장자리). 컨테이너가 변 드래그로 줄어들면 핸들도 자연스럽게 따라옴.
   // 그 외(텍스트/배지/필드)는 기존 4모서리만.
   const isImage = el.classList.contains("ov-image");
   const corners = isImage ? ["nw", "ne", "sw", "se", "n", "e", "s", "w"] : ["nw", "ne", "sw", "se"];
@@ -2034,24 +2045,23 @@ function applySelection(scaler, card) {
   });
 }
 
-// 모서리 / 변(엣지) 핸들 드래그 → 크기 조정.
+// 모서리 / 변(엣지) 핸들 드래그.
 //   - 텍스트/배지: 기존 동작 유지 (가로 비율로 글자 크기 변경, 모서리만 사용)
-//   - 이미지 + 모서리(nw/ne/sw/se): 종횡비 유지하며 가로/세로 동시 조정 (잘림 없음)
-//   - 이미지 + 변(n/s/e/w): 한 방향만 조정 → 컨테이너 비율이 바뀌어 그 방향이 잘림
+//   - 이미지 + 모서리: 컨테이너 w/h 비례 조정 — 이미지는 컨테이너 대비 좌표(imgL/imgT/imgW)가 그대로라
+//                       자동으로 함께 비례 (잘림 없음).
+//   - 이미지 + 변(n/s/e/w): 컨테이너의 그 변만 안/밖으로 이동 — 컨테이너만 변하고 이미지 자체 픽셀 크기는
+//                            그대로 유지하도록 imgL/imgT/imgW 를 보정 → 컨테이너 밖으로 나간 부분이 가려짐.
 //   - 필드: 기존 scale 동작 유지
 function startResize(e, el, corner, scaler, card) {
   e.preventDefault(); e.stopPropagation();
   const cardEl = scaler.querySelector(".card"); if (!cardEl) return;
   const cardRect = cardEl.getBoundingClientRect();
   const r0 = el.getBoundingClientRect();
-  // 핸들 반대편이 드래그 중 고정됨. 변(엣지) 핸들의 경우엔 같은 축의 반대편 변이 기준.
   const FIXED = {
     nw:{x:r0.right,y:r0.bottom}, ne:{x:r0.left,y:r0.bottom},
     sw:{x:r0.right,y:r0.top},    se:{x:r0.left,y:r0.top},
-    e: {x:r0.left, y:r0.top},    w: {x:r0.right,y:r0.top},
-    n: {x:r0.left, y:r0.bottom}, s: {x:r0.left, y:r0.top},
   };
-  const fixed = FIXED[corner] || FIXED.se;
+  const fixed = FIXED[corner];
   const origW = Math.max(20, r0.width);
   const origPxH = Math.max(20, r0.height);
   const isHorzEdge = (corner === "e" || corner === "w");
@@ -2059,69 +2069,115 @@ function startResize(e, el, corner, scaler, card) {
   const isCorner = !isHorzEdge && !isVertEdge;
   const isOv = el.classList.contains("ov-el");
   let ov = null, st = null, origSize = 0, origWpct = 0, origScale = 1, origHpct = 0;
+  // 변 드래그 시 보정에 쓸 컨테이너 + 이미지의 시작값
+  let startWpct = 0, startHpct = 0, startXpct = 0, startYpct = 0;
+  let startImgL = 0, startImgT = 0, startImgW = 100;
   if (isOv) {
     ov = (card.overlays || []).find(o => o.id === el.dataset.ov);
     if (ov) {
       origSize = ov.size || (ov.type === "badge" ? 40 : 56);
       origWpct = ov.w || 40;
-      // h 가 자동(미설정)인 이미지는 지금 보이는 픽셀 높이를 카드 대비 % 로 변환해 기준값으로 사용.
-      // 이렇게 해야 가로/세로 변(엣지) 드래그 시 자연스럽게 잘림이 일어난다.
+      origHpct = (typeof ov.h === "number" && ov.h > 0) ? ov.h : (ov.type === "image" ? (origPxH / cardRect.height * 100) : 0);
       if (ov.type === "image") {
-        origHpct = (typeof ov.h === "number" && ov.h > 0) ? ov.h : (origPxH / cardRect.height * 100);
-      } else {
-        origHpct = (typeof ov.h === "number" && ov.h > 0) ? ov.h : 0;
+        startWpct = ov.w;
+        startHpct = (typeof ov.h === "number" && ov.h > 0) ? ov.h : (origPxH / cardRect.height * 100);
+        startXpct = ov.x ?? 0;
+        startYpct = ov.y ?? 0;
+        startImgL = (typeof ov.imgL === "number") ? ov.imgL : 0;
+        startImgT = (typeof ov.imgT === "number") ? ov.imgT : 0;
+        startImgW = (typeof ov.imgW === "number" && ov.imgW > 0) ? ov.imgW : 100;
       }
     }
   } else {
     st = ensureFieldStyle(card, el.dataset.fld);
     origScale = (typeof st.scale === "number" && st.scale > 0) ? st.scale : 1;
   }
-  // 어느 변이 움직이는가 (위치 보정용). 세로 엣지(n/s) → x 위치는 그대로, 가로 엣지(e/w) → y 위치는 그대로.
-  const leftMoves = (corner === "nw" || corner === "sw" || corner === "w");
-  const topMoves  = (corner === "nw" || corner === "ne" || corner === "n");
-  const fixesX = isVertEdge; // x 위치 변경 안 함
-  const fixesY = isHorzEdge; // y 위치 변경 안 함
+  const leftMoves = (corner === "nw" || corner === "sw");
+  const topMoves  = (corner === "nw" || corner === "ne");
+  const startMX = e.clientX, startMY = e.clientY;
+  // 변 드래그를 시작하는 순간 컨테이너 h 가 자동이면 명시값으로 변환 (변 동작이 의미 있도록).
+  const willActivateH = (ov && ov.type === "image" && (isVertEdge || isHorzEdge) && !(ov.h > 0));
+  if (willActivateH) {
+    ov.h = origHpct;
+    el.style.height = ov.h + "%";
+  }
   try { el.setPointerCapture(e.pointerId); } catch (e2) {}
   const move = ev => {
-    const xRatio = Math.max(0.2, Math.min(6, Math.abs(ev.clientX - fixed.x) / origW));
-    const yRatio = Math.max(0.2, Math.min(6, Math.abs(ev.clientY - fixed.y) / origPxH));
-    if (isOv) {
-      if (!ov) return;
-      if (ov.type === "image") {
-        if (isCorner) {
-          // 종횡비 유지 — 가로 비율에 맞춰 세로도 동일 비율로 조정
-          ov.w = Math.max(5, Math.min(100, origWpct * xRatio));
-          ov.h = Math.max(5, Math.min(100, origHpct * xRatio));
-        } else if (isHorzEdge) {
-          // 가로만 변경 — h 를 현재 비율로 명시(자동→명시)해서 cover 잘림 발생
-          ov.w = Math.max(5, Math.min(100, origWpct * xRatio));
-          ov.h = origHpct;
-        } else if (isVertEdge) {
-          // 세로만 변경
-          ov.h = Math.max(5, Math.min(100, origHpct * yRatio));
-        }
-        el.style.width = ov.w + "%";
-        el.style.height = ov.h + "%";
-      } else {
-        // 텍스트/배지 — 가로 비율로 글자 크기
-        ov.size = Math.max(12, Math.min(400, Math.round(origSize * xRatio)));
-        el.style.fontSize = ov.size + "px";
-      }
-      // 위치 보정 — 드래그하지 않는 변이 그대로 머무르게
-      const nr = el.getBoundingClientRect();
-      if (!fixesX) {
-        const newLeft = leftMoves ? (fixed.x - nr.width) : fixed.x;
-        ov.x = Math.max(0, Math.min(100, (newLeft - cardRect.left) / cardRect.width * 100));
-        el.style.left = ov.x + "%";
-      }
-      if (!fixesY) {
-        const newTop = topMoves ? (fixed.y - nr.height) : fixed.y;
-        ov.y = Math.max(0, Math.min(100, (newTop - cardRect.top) / cardRect.height * 100));
-        el.style.top = ov.y + "%";
-      }
-    } else {
+    if (!isOv) {
+      // 필드: scale (코너만)
+      const xRatio = Math.max(0.2, Math.min(6, Math.abs(ev.clientX - fixed.x) / origW));
       st.scale = Math.max(0.3, Math.min(4, +(origScale * xRatio).toFixed(3)));
       el.style.setProperty("--field-scale", st.scale);
+      return;
+    }
+    if (!ov) return;
+    if (ov.type === "image") {
+      if (isCorner) {
+        // 종횡비 유지 — 컨테이너 w/h 비례 조정. 이미지는 컨테이너 대비 좌표(imgL/imgT/imgW) 그대로.
+        const xRatio = Math.max(0.2, Math.min(6, Math.abs(ev.clientX - fixed.x) / origW));
+        ov.w = Math.max(5, Math.min(100, origWpct * xRatio));
+        ov.h = Math.max(5, Math.min(100, origHpct * xRatio));
+        el.style.width = ov.w + "%";
+        el.style.height = ov.h + "%";
+        const nr = el.getBoundingClientRect();
+        const newLeft = leftMoves ? (fixed.x - nr.width) : fixed.x;
+        const newTop  = topMoves  ? (fixed.y - nr.height) : fixed.y;
+        ov.x = Math.max(0, Math.min(100, (newLeft - cardRect.left) / cardRect.width * 100));
+        ov.y = Math.max(0, Math.min(100, (newTop  - cardRect.top)  / cardRect.height * 100));
+        el.style.left = ov.x + "%"; el.style.top = ov.y + "%";
+      } else if (isHorzEdge) {
+        // 변 e/w — 컨테이너의 가로만 변경. 이미지 카드 대비 가로/위치를 유지하도록 imgL/imgW 보정.
+        const dxPct = (ev.clientX - startMX) / cardRect.width * 100;
+        if (corner === "e") {
+          // 안쪽(왼쪽)으로 끌면 컨테이너 width 감소
+          const newW = Math.max(5, Math.min(100, startWpct + dxPct));
+          ov.w = newW;
+          // 이미지 카드 대비 (왼쪽 x 그대로): imgL_card = imgL/100*w + x → 카드 대비 left/width 그대로면
+          //   newImgL = startImgL * startWpct / newW
+          //   newImgW = startImgW * startWpct / newW
+          ov.imgL = startImgL * startWpct / newW;
+          ov.imgW = startImgW * startWpct / newW;
+        } else { // w
+          // 안쪽(오른쪽)으로 끌면 컨테이너 left 증가 + width 감소 (반대 변 e 고정)
+          const newX = Math.max(0, Math.min(95, startXpct + dxPct));
+          const newW = Math.max(5, Math.min(100, startWpct - (newX - startXpct)));
+          ov.x = newX;
+          ov.w = newW;
+          // 이미지 카드 대비 left 유지:
+          //   startXpct + startImgL/100 * startWpct  =  newX + newImgL/100 * newW
+          //   newImgL = (startImgL*startWpct + 100*(startXpct - newX)) / newW
+          //           = (startImgL*startWpct - 100*(newX - startXpct)) / newW
+          ov.imgL = (startImgL * startWpct - 100 * (newX - startXpct)) / newW;
+          ov.imgW = startImgW * startWpct / newW;
+        }
+        _applyImgContainerDom(el, ov);
+      } else if (isVertEdge) {
+        // 변 n/s — 컨테이너의 세로만 변경. 이미지 카드 대비 세로 위치 유지하도록 imgT 보정.
+        const dyPct = (ev.clientY - startMY) / cardRect.height * 100;
+        if (corner === "s") {
+          const newH = Math.max(5, Math.min(100, startHpct + dyPct));
+          ov.h = newH;
+          ov.imgT = startImgT * startHpct / newH;
+        } else { // n
+          const newY = Math.max(0, Math.min(95, startYpct + dyPct));
+          const newH = Math.max(5, Math.min(100, startHpct - (newY - startYpct)));
+          ov.y = newY;
+          ov.h = newH;
+          ov.imgT = (startImgT * startHpct - 100 * (newY - startYpct)) / newH;
+        }
+        _applyImgContainerDom(el, ov);
+      }
+    } else {
+      // 텍스트/배지 — 가로 비율로 글자 크기 (코너만)
+      const xRatio = Math.max(0.2, Math.min(6, Math.abs(ev.clientX - fixed.x) / origW));
+      ov.size = Math.max(12, Math.min(400, Math.round(origSize * xRatio)));
+      el.style.fontSize = ov.size + "px";
+      const nr = el.getBoundingClientRect();
+      const newLeft = leftMoves ? (fixed.x - nr.width) : fixed.x;
+      const newTop  = topMoves  ? (fixed.y - nr.height) : fixed.y;
+      ov.x = Math.max(0, Math.min(100, (newLeft - cardRect.left) / cardRect.width * 100));
+      ov.y = Math.max(0, Math.min(100, (newTop  - cardRect.top)  / cardRect.height * 100));
+      el.style.left = ov.x + "%"; el.style.top = ov.y + "%";
     }
   };
   const up = () => {
@@ -2132,6 +2188,25 @@ function startResize(e, el, corner, scaler, card) {
   };
   el.addEventListener("pointermove", move);
   el.addEventListener("pointerup", up);
+}
+
+// 변 드래그 중 컨테이너(.ov-el)와 이미지(img) 인라인 스타일을 한 번에 갱신.
+// renderPreview 를 호출하면 DOM 전체가 다시 그려져 드래그가 끊기기 때문.
+function _applyImgContainerDom(el, ov) {
+  const hasH = typeof ov.h === "number" && ov.h > 0;
+  el.style.left = (ov.x ?? 0) + "%";
+  el.style.top  = (ov.y ?? 0) + "%";
+  el.style.width = (ov.w ?? 30) + "%";
+  if (hasH) el.style.height = ov.h + "%";
+  const img = el.querySelector("img"); if (!img) return;
+  img.style.position = "absolute";
+  img.style.left = ((typeof ov.imgL === "number") ? ov.imgL : 0) + "%";
+  img.style.top  = ((typeof ov.imgT === "number") ? ov.imgT : 0) + "%";
+  img.style.width = ((typeof ov.imgW === "number" && ov.imgW > 0) ? ov.imgW : 100) + "%";
+  img.style.height = "auto";
+  img.style.objectFit = "";
+  img.style.objectPosition = "";
+  img.style.display = "block";
 }
 
 // 본체 드래그 → 이동. 오버레이=x/y, 필드=fieldStyles.dx/dy(상대 오프셋).
@@ -3191,18 +3266,15 @@ function renderFields(card) {
     let bodyHtml;
     if (o.type === "image") {
       const hVal = (typeof o.h === "number" && o.h > 0) ? o.h : 0;
-      const cxVal = (typeof o.cx === "number") ? o.cx : 50;
-      const cyVal = (typeof o.cy === "number") ? o.cy : 50;
-      const hasCrop = hVal > 0 || typeof o.cx === "number" || typeof o.cy === "number";
+      const hasCrop = hVal > 0
+        || (typeof o.imgL === "number" && o.imgL !== 0)
+        || (typeof o.imgT === "number" && o.imgT !== 0)
+        || (typeof o.imgW === "number" && o.imgW !== 100);
       bodyHtml = `<button class="btn btn-ghost ov-img-pick" data-ov="${o.id}" style="width:100%;font-size:11px">${o.url ? "🖼 이미지 변경/검색" : "🖼 이미지 선택/검색"}</button>
-        <p style="margin:5px 0 0;font-size:10px;color:var(--text-faint);line-height:1.4">💡 프리뷰에서 이미지의 <b>모서리</b>를 잡으면 종횡비 유지, <b>변(가운데 핸들)</b>을 잡으면 그 방향이 잘립니다.</p>
+        <p style="margin:5px 0 0;font-size:10px;color:var(--text-faint);line-height:1.4">💡 프리뷰에서 <b>모서리</b>(사각)는 종횡비 유지하며 크기 조절, <b>변</b>(원)은 컨테이너 영역만 줄여 이미지의 그 부분을 가립니다(이미지 크기 그대로).</p>
         <label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-faint);margin-top:5px" title="가로 길이 (%)">가로<input type="range" class="ov-width" data-ov="${o.id}" min="5" max="95" step="1" value="${o.w ?? 30}" style="flex:1;accent-color:var(--accent)"><span class="ov-width-val" data-ov="${o.id}" style="min-width:30px;text-align:right;font-variant-numeric:tabular-nums">${o.w ?? 30}%</span></label>
         <label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-faint);margin-top:4px" title="세로 길이 (%) — 0이면 원본 비율 유지(잘림 없음)">세로<input type="range" class="ov-height" data-ov="${o.id}" min="0" max="95" step="1" value="${hVal}" style="flex:1;accent-color:var(--accent)"><span class="ov-height-val" data-ov="${o.id}" style="min-width:30px;text-align:right;font-variant-numeric:tabular-nums">${hVal > 0 ? hVal + "%" : "자동"}</span></label>
-        <div style="display:flex;gap:8px;margin-top:4px;align-items:center">
-          <label style="flex:1;display:flex;align-items:center;gap:3px;font-size:10px;color:var(--text-faint)" title="잘림 위치 — 가로 (0=왼쪽 보존, 50=양쪽 균등, 100=오른쪽 보존)">⇔<input type="range" class="ov-cx" data-ov="${o.id}" min="0" max="100" step="1" value="${cxVal}" style="flex:1;accent-color:var(--accent)"></label>
-          <label style="flex:1;display:flex;align-items:center;gap:3px;font-size:10px;color:var(--text-faint)" title="잘림 위치 — 세로 (0=위 보존, 50=양쪽 균등, 100=아래 보존)">⇕<input type="range" class="ov-cy" data-ov="${o.id}" min="0" max="100" step="1" value="${cyVal}" style="flex:1;accent-color:var(--accent)"></label>
-        </div>
-        ${hasCrop ? `<button type="button" class="ov-crop-reset" data-ov="${o.id}" style="margin-top:4px;width:100%;background:none;border:1px solid var(--c-line,#e3e7ef);color:var(--text-faint);cursor:pointer;font-size:10px;padding:3px;border-radius:4px">크롭 리셋 ↺</button>` : ""}`;
+        ${hasCrop ? `<button type="button" class="ov-crop-reset" data-ov="${o.id}" style="margin-top:6px;width:100%;background:none;border:1px solid var(--c-line,#e3e7ef);color:var(--text-faint);cursor:pointer;font-size:10px;padding:3px;border-radius:4px">크롭 리셋 ↺</button>` : ""}`;
     } else {
       bodyHtml = `<textarea class="ta-auto ta-compact ov-text-in" data-ov="${o.id}" rows="1" placeholder="${OVT[o.type]} 내용" style="width:100%">${esc(o.text || "")}</textarea>
         <label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-faint);margin-top:5px">크기<input type="range" class="ov-size" data-ov="${o.id}" min="20" max="180" step="2" value="${o.size ?? (o.type === 'badge' ? 40 : 56)}" style="flex:1;accent-color:var(--accent)"></label>
@@ -3557,21 +3629,14 @@ function bindEditorEvents(card) {
     if (lbl) lbl.textContent = v > 0 ? v + "%" : "자동";
     renderPreview(); autoSave();
   }));
-  // 이미지 오버레이 — 크롭 위치 X/Y (object-position)
-  body.querySelectorAll(".ov-cx").forEach(el => el.addEventListener("input", e => {
-    const o = ovFind(e.target.dataset.ov); if (!o) return;
-    o.cx = +e.target.value; renderPreview(); autoSave();
-  }));
-  body.querySelectorAll(".ov-cy").forEach(el => el.addEventListener("input", e => {
-    const o = ovFind(e.target.dataset.ov); if (!o) return;
-    o.cy = +e.target.value; renderPreview(); autoSave();
-  }));
-  // 크롭 리셋 — 세로/위치 모두 기본값(자동)으로
+  // 크롭 리셋 — 세로/이미지 위치 모두 초기화 (이미지가 컨테이너에 꽉 차게)
   body.querySelectorAll(".ov-crop-reset").forEach(b => b.onclick = () => {
     const o = ovFind(b.dataset.ov); if (!o) return;
-    delete o.h; delete o.cx; delete o.cy;
-    // 호환성: 이전 버전에서 저장된 cropX/cropY 도 함께 정리
-    delete o.cropX; delete o.cropY;
+    delete o.h;
+    delete o.imgL; delete o.imgT; delete o.imgW;
+    // 호환성: 이전 버전 키도 정리
+    delete o.cx; delete o.cy; delete o.cropX; delete o.cropY;
+    delete o.cropL; delete o.cropR; delete o.cropT; delete o.cropB;
     renderEditor(); renderPreview(); autoSave();
   });
   body.querySelectorAll(".ov-color").forEach(el => {
