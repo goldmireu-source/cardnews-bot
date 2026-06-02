@@ -29,9 +29,11 @@ import logging
 from pathlib import Path
 
 from dotenv import load_dotenv
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.constants import ChatAction
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import (
+    Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes,
+)
 
 from claude_agent_sdk import (
     ClaudeSDKClient,
@@ -228,38 +230,62 @@ async def cmd_cwd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"현재 프로젝트: {_project_name(cwd)}\n작업 폴더: {cwd}\n세션: {sid or '(없음)'}")
 
 
+def _projects_keyboard(cur_cwd: str) -> InlineKeyboardMarkup:
+    """프로젝트별 원터치 전환 버튼 (현재 활성엔 ✅, 폴더없으면 ⚠️)."""
+    curn = os.path.normcase(os.path.abspath(cur_cwd))
+    rows = []
+    for name, path in PROJECTS.items():
+        if os.path.normcase(os.path.abspath(path)) == curn:
+            label = f"✅ {name} (현재)"
+        elif not os.path.isdir(path):
+            label = f"⚠️ {name} (폴더없음)"
+        else:
+            label = f"📂 {name}"
+        rows.append([InlineKeyboardButton(label, callback_data=f"proj:{name}")])
+    return InlineKeyboardMarkup(rows)
+
+
 async def cmd_projects(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not _allowed(update):
         return
     cur = _cwd_for(update.effective_chat.id)
-    curn = os.path.normcase(os.path.abspath(cur))
-    lines = ["📂 프로젝트 (/project <이름> 으로 전환):"]
-    for name, path in PROJECTS.items():
-        active = "✅" if os.path.normcase(os.path.abspath(path)) == curn else "▫️"
-        missing = "" if os.path.isdir(path) else "  ⚠️폴더없음"
-        lines.append(f"{active} {name} — {path}{missing}")
-    await update.message.reply_text("\n".join(lines))
+    await update.message.reply_text(
+        f"📂 작업할 프로젝트를 선택하세요 (현재: {_project_name(cur)})",
+        reply_markup=_projects_keyboard(cur))
+
+
+async def _switch_project(chat_id: int, name: str) -> str:
+    """프로젝트 전환 공통 로직. 결과 메시지 문자열 반환."""
+    if name not in PROJECTS:
+        return f"'{name}' 프로젝트가 없습니다. /projects 로 목록을 확인하세요."
+    path = PROJECTS[name]
+    if not os.path.isdir(path):
+        return f"⚠️ 폴더가 존재하지 않습니다: {path}"
+    await _drop_client(chat_id)            # 기존 세션 종료 (새 폴더로 새 세션)
+    _chat_cwds[chat_id] = path
+    return f"📂 작업 프로젝트를 '{name}' 로 전환했어요.\n{path}\n(새 대화 세션으로 시작합니다)"
 
 
 async def cmd_project(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not _allowed(update):
         return
-    if not ctx.args:
+    if not ctx.args:                       # 인자 없으면 버튼 목록
         await cmd_projects(update, ctx)
         return
-    name = ctx.args[0].strip()
-    if name not in PROJECTS:
-        await update.message.reply_text(f"'{name}' 프로젝트가 없습니다. /projects 로 목록을 확인하세요.")
+    msg = await _switch_project(update.effective_chat.id, ctx.args[0].strip())
+    await update.message.reply_text(msg)
+
+
+async def on_project_button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """인라인 버튼 탭 처리 — proj:<name>."""
+    q = update.callback_query
+    await q.answer()
+    if not _allowed(update):
+        await q.edit_message_text("⛔ 허용되지 않은 사용자입니다.")
         return
-    path = PROJECTS[name]
-    if not os.path.isdir(path):
-        await update.message.reply_text(f"⚠️ 폴더가 존재하지 않습니다: {path}")
-        return
-    cid = update.effective_chat.id
-    await _drop_client(cid)            # 기존 세션 종료 (새 폴더로 새 세션)
-    _chat_cwds[cid] = path
-    await update.message.reply_text(
-        f"📂 작업 프로젝트를 '{name}' 로 전환했어요.\n{path}\n(새 대화 세션으로 시작합니다)")
+    name = (q.data or "").split(":", 1)[1] if ":" in (q.data or "") else ""
+    msg = await _switch_project(q.message.chat_id, name)
+    await q.edit_message_text(msg)
 
 
 async def cmd_reset(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -335,7 +361,17 @@ def main():
     if not os.getenv("ANTHROPIC_API_KEY"):
         log.warning("ANTHROPIC_API_KEY 미설정 — Claude Code CLI 인증이 없으면 동작하지 않을 수 있습니다.")
 
-    app = Application.builder().token(TOKEN).build()
+    async def _post_init(application):
+        # 입력창 '/' 메뉴에 명령 목록 등록
+        await application.bot.set_my_commands([
+            BotCommand("projects", "프로젝트 목록·전환 버튼"),
+            BotCommand("project", "프로젝트 전환 (예: project dailysync)"),
+            BotCommand("cwd", "현재 작업 폴더"),
+            BotCommand("reset", "대화 초기화(새 세션)"),
+            BotCommand("whoami", "내 사용자 ID 확인"),
+        ])
+
+    app = Application.builder().token(TOKEN).post_init(_post_init).build()
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("help", cmd_start))
     app.add_handler(CommandHandler("whoami", cmd_whoami))
@@ -343,6 +379,7 @@ def main():
     app.add_handler(CommandHandler("projects", cmd_projects))
     app.add_handler(CommandHandler("project", cmd_project))
     app.add_handler(CommandHandler("reset", cmd_reset))
+    app.add_handler(CallbackQueryHandler(on_project_button, pattern=r"^proj:"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_text))
 
     log.info("코딩봇 시작 — 기본cwd=%s, 프로젝트=%s, 허용ID=%s",
