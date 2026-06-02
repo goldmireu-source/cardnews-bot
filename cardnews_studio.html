@@ -1917,11 +1917,39 @@ function renderOverlayEl(o) {
   if (o.type === "image") {
     // h(높이 %) 가 지정되면 컨테이너 종횡비 고정 + object-fit:cover 로 이미지를 잘라낸다.
     // cx/cy 는 잘린 이미지에서 어느 부분을 보일지 (object-position).
+    // cropX/cropY (%) 는 이미지의 가로/세로 영역을 그만큼 잘라낸다(영역 삭제).
+    //   - 잘린 만큼 컨테이너 가로/세로도 같이 줄어들어 빈 공간이 남지 않는다.
+    //   - cx, cy 가 잘림 위치를 결정 (cx=50 → 양옆 균등, cx=0 → 오른쪽만 잘림, cx=100 → 왼쪽만 잘림).
     const hasH = typeof o.h === "number" && o.h > 0;
     const cx = (typeof o.cx === "number") ? o.cx : 50;
     const cy = (typeof o.cy === "number") ? o.cy : 50;
-    const hasCrop = hasH || typeof o.cx === "number" || typeof o.cy === "number";
-    const boxStyle = `${pos}width:${o.w ?? 30}%;${hasH ? `height:${o.h}%;` : ""}overflow:hidden;border-radius:8px;`;
+    const wVal = o.w ?? 30;
+    // 잘라내기 비율 (0~80%). 세로 자름은 세로 길이가 명시되어 있을 때만 적용 가능
+    // (자동 높이 상태에서는 컨테이너 세로가 이미지 비율에 의해 결정되어 잘림을 표현할 수 없음).
+    const cropX = Math.max(0, Math.min(80, (typeof o.cropX === "number") ? o.cropX : 0));
+    const cropY = hasH ? Math.max(0, Math.min(80, (typeof o.cropY === "number") ? o.cropY : 0)) : 0;
+    const hasCrop = hasH || typeof o.cx === "number" || typeof o.cy === "number" || cropX > 0 || cropY > 0;
+
+    if (cropX > 0 || cropY > 0) {
+      // 컨테이너는 (w * (1 - cropX/100))% / (h * (1 - cropY/100))% 로 줄이고,
+      // 이미지는 컨테이너 대비 100/(1-crop/100)% 크기로 두어 원래 영역의 일부만 보이게 한다.
+      const boxW = wVal * (1 - cropX / 100);
+      const boxH = hasH ? o.h * (1 - cropY / 100) : null;
+      const imgWPct = cropX > 0 ? 100 / (1 - cropX / 100) : 100;
+      const imgHPct = cropY > 0 ? 100 / (1 - cropY / 100) : 100;
+      // 잘림 위치: cx=50 면 양옆 균등, cx=0 면 이미지 왼쪽 정렬(오른쪽이 잘림), cx=100 면 반대.
+      const imgL = cropX > 0 ? -cropX * cx / (100 - cropX) : 0;
+      const imgT = cropY > 0 ? -cropY * cy / (100 - cropY) : 0;
+      const boxStyle = `${pos}width:${boxW}%;${hasH ? `height:${boxH}%;` : ""}overflow:hidden;border-radius:8px;`;
+      const imgStyle = `position:absolute;left:${imgL}%;${cropY > 0 ? `top:${imgT}%;` : "top:0;"}`
+        + `width:${imgWPct}%;`
+        + (hasH ? `height:${imgHPct}%;object-fit:cover;object-position:${cx}% ${cy}%;` : `height:auto;`)
+        + `display:block;`;
+      return `<div class="ov-el ov-image" data-ov="${o.id}" style="${boxStyle}">`
+        + `<img src="${esc(o.url || "")}" style="${imgStyle}" onerror="this.style.opacity=0.2"></div>`;
+    }
+
+    const boxStyle = `${pos}width:${wVal}%;${hasH ? `height:${o.h}%;` : ""}overflow:hidden;border-radius:8px;`;
     const imgStyle = hasH
       ? `width:100%;height:100%;object-fit:cover;object-position:${cx}% ${cy}%;display:block;`
       : (hasCrop
@@ -3127,13 +3155,17 @@ function renderFields(card) {
       const hVal = (typeof o.h === "number" && o.h > 0) ? o.h : 0;
       const cxVal = (typeof o.cx === "number") ? o.cx : 50;
       const cyVal = (typeof o.cy === "number") ? o.cy : 50;
-      const hasCrop = hVal > 0 || typeof o.cx === "number" || typeof o.cy === "number";
+      const cropXVal = (typeof o.cropX === "number" && o.cropX > 0) ? o.cropX : 0;
+      const cropYVal = (typeof o.cropY === "number" && o.cropY > 0) ? o.cropY : 0;
+      const hasCrop = hVal > 0 || typeof o.cx === "number" || typeof o.cy === "number" || cropXVal > 0 || cropYVal > 0;
       bodyHtml = `<button class="btn btn-ghost ov-img-pick" data-ov="${o.id}" style="width:100%;font-size:11px">${o.url ? "🖼 이미지 변경/검색" : "🖼 이미지 선택/검색"}</button>
         <label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-faint);margin-top:5px" title="가로 길이 (%)">가로<input type="range" class="ov-width" data-ov="${o.id}" min="5" max="95" step="1" value="${o.w ?? 30}" style="flex:1;accent-color:var(--accent)"><span class="ov-width-val" data-ov="${o.id}" style="min-width:30px;text-align:right;font-variant-numeric:tabular-nums">${o.w ?? 30}%</span></label>
         <label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-faint);margin-top:4px" title="세로 길이 (%) — 0이면 원본 비율 유지">세로<input type="range" class="ov-height" data-ov="${o.id}" min="0" max="95" step="1" value="${hVal}" style="flex:1;accent-color:var(--accent)"><span class="ov-height-val" data-ov="${o.id}" style="min-width:30px;text-align:right;font-variant-numeric:tabular-nums">${hVal > 0 ? hVal + "%" : "자동"}</span></label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-faint);margin-top:4px" title="가로 자르기 — 이미지의 양옆을 그만큼 잘라 영역에서 삭제합니다.">✂↔<input type="range" class="ov-cropx" data-ov="${o.id}" min="0" max="80" step="1" value="${cropXVal}" style="flex:1;accent-color:var(--accent)"><span class="ov-cropx-val" data-ov="${o.id}" style="min-width:30px;text-align:right;font-variant-numeric:tabular-nums">${cropXVal}%</span></label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-faint);margin-top:4px" title="세로 자르기 — 이미지의 위/아래를 그만큼 잘라 영역에서 삭제합니다. (세로 길이가 0=자동 이면 동작하지 않음)">✂↕<input type="range" class="ov-cropy" data-ov="${o.id}" min="0" max="80" step="1" value="${cropYVal}" style="flex:1;accent-color:var(--accent)"${hVal <= 0 ? ' disabled' : ''}><span class="ov-cropy-val" data-ov="${o.id}" style="min-width:30px;text-align:right;font-variant-numeric:tabular-nums${hVal <= 0 ? ';opacity:0.4' : ''}">${hVal > 0 ? cropYVal + "%" : "—"}</span></label>
         <div style="display:flex;gap:8px;margin-top:4px;align-items:center">
-          <label style="flex:1;display:flex;align-items:center;gap:3px;font-size:10px;color:var(--text-faint)" title="이미지 잘림 위치 — 가로(0=왼쪽, 100=오른쪽)">⇔<input type="range" class="ov-cx" data-ov="${o.id}" min="0" max="100" step="1" value="${cxVal}" style="flex:1;accent-color:var(--accent)"></label>
-          <label style="flex:1;display:flex;align-items:center;gap:3px;font-size:10px;color:var(--text-faint)" title="이미지 잘림 위치 — 세로(0=위, 100=아래)">⇕<input type="range" class="ov-cy" data-ov="${o.id}" min="0" max="100" step="1" value="${cyVal}" style="flex:1;accent-color:var(--accent)"></label>
+          <label style="flex:1;display:flex;align-items:center;gap:3px;font-size:10px;color:var(--text-faint)" title="잘림 위치 — 가로 (0=왼쪽 보존, 50=양쪽 균등, 100=오른쪽 보존)">⇔<input type="range" class="ov-cx" data-ov="${o.id}" min="0" max="100" step="1" value="${cxVal}" style="flex:1;accent-color:var(--accent)"></label>
+          <label style="flex:1;display:flex;align-items:center;gap:3px;font-size:10px;color:var(--text-faint)" title="잘림 위치 — 세로 (0=위 보존, 50=양쪽 균등, 100=아래 보존)">⇕<input type="range" class="ov-cy" data-ov="${o.id}" min="0" max="100" step="1" value="${cyVal}" style="flex:1;accent-color:var(--accent)"></label>
         </div>
         ${hasCrop ? `<button type="button" class="ov-crop-reset" data-ov="${o.id}" style="margin-top:4px;width:100%;background:none;border:1px solid var(--c-line,#e3e7ef);color:var(--text-faint);cursor:pointer;font-size:10px;padding:3px;border-radius:4px">크롭 리셋 ↺</button>` : ""}`;
     } else {
@@ -3499,10 +3531,28 @@ function bindEditorEvents(card) {
     const o = ovFind(e.target.dataset.ov); if (!o) return;
     o.cy = +e.target.value; renderPreview(); autoSave();
   }));
-  // 크롭 리셋 — 세로/위치 모두 기본값으로
+  // 이미지 오버레이 — 가로 자름 (이미지 양옆 영역을 cropX% 만큼 삭제)
+  body.querySelectorAll(".ov-cropx").forEach(el => el.addEventListener("input", e => {
+    const o = ovFind(e.target.dataset.ov); if (!o) return;
+    const v = +e.target.value;
+    if (v <= 0) delete o.cropX; else o.cropX = v;
+    const lbl = body.querySelector(`.ov-cropx-val[data-ov="${e.target.dataset.ov}"]`);
+    if (lbl) lbl.textContent = v + "%";
+    renderPreview(); autoSave();
+  }));
+  // 이미지 오버레이 — 세로 자름 (세로 길이가 명시되어 있을 때만 동작)
+  body.querySelectorAll(".ov-cropy").forEach(el => el.addEventListener("input", e => {
+    const o = ovFind(e.target.dataset.ov); if (!o) return;
+    const v = +e.target.value;
+    if (v <= 0) delete o.cropY; else o.cropY = v;
+    const lbl = body.querySelector(`.ov-cropy-val[data-ov="${e.target.dataset.ov}"]`);
+    if (lbl) lbl.textContent = v + "%";
+    renderPreview(); autoSave();
+  }));
+  // 크롭 리셋 — 세로/위치/자름 모두 기본값으로
   body.querySelectorAll(".ov-crop-reset").forEach(b => b.onclick = () => {
     const o = ovFind(b.dataset.ov); if (!o) return;
-    delete o.h; delete o.cx; delete o.cy;
+    delete o.h; delete o.cx; delete o.cy; delete o.cropX; delete o.cropY;
     renderEditor(); renderPreview(); autoSave();
   });
   body.querySelectorAll(".ov-color").forEach(el => {
