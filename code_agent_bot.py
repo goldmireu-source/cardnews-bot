@@ -57,6 +57,30 @@ ALLOWED_IDS = {
 CWD = (os.getenv("CODE_BOT_CWD", "").strip() or str(Path(__file__).resolve().parent))
 TG_MAX = 3900  # 텔레그램 메시지 길이 한도(4096) 여유
 
+
+def _parse_projects() -> dict:
+    """전환 가능한 프로젝트 목록. CODE_BOT_PROJECTS 환경변수로 덮어쓰기 가능.
+    형식: 'name=path;name=path' (또는 줄바꿈 구분)."""
+    raw = os.getenv("CODE_BOT_PROJECTS", "").strip()
+    projs = {}
+    if raw:
+        for part in re.split(r"[;\n]+", raw):
+            if "=" in part:
+                name, path = part.split("=", 1)
+                if name.strip() and path.strip():
+                    projs[name.strip()] = path.strip()
+    if not projs:
+        projs = {
+            "cardnews": r"f:\cardnews_bot\cardnews_bot",
+            "dailysync": r"f:\ai-news-digest\ai-news-digest",
+            "studiohub": r"f:\studio_app",
+        }
+    return projs
+
+
+PROJECTS = _parse_projects()
+DEFAULT_CWD = CWD  # 채팅별 미설정 시 기본 작업 폴더
+
 # 치명적 bash 명령 차단 (안전망 — 완전하진 않음)
 _DANGER = [
     r"rm\s+-rf?\s+(/|~|\$HOME|\*)",
@@ -93,24 +117,25 @@ async def _permission(tool_name: str, inp: dict, context):
     return PermissionResultAllow(updated_input=inp)
 
 
-def _make_options() -> ClaudeAgentOptions:
+def _make_options(cwd: str) -> ClaudeAgentOptions:
     return ClaudeAgentOptions(
-        cwd=CWD,
+        cwd=cwd,
         permission_mode="acceptEdits",   # 파일 편집 자동 승인, 나머지는 can_use_tool 로 게이트
         can_use_tool=_permission,
         system_prompt=(
             "당신은 텔레그램으로 지시받아 이 저장소에서 코딩 작업을 수행하는 개발 에이전트입니다. "
             "한국어로 간결히 보고하세요. 파일을 직접 수정하고, 필요한 셸 명령을 실행하며, "
             "사용자가 요청하면 git 커밋·푸시까지 합니다. 위험하거나 비가역적인 작업(강제 푸시, 대량 삭제 등)은 "
-            "실행 전에 한 줄로 확인 요청하세요."
+            "실행 전에 한 줄로 확인 요청하세요. 현재 작업 폴더 밖의 다른 프로젝트는 건드리지 마세요."
         ),
     )
 
 
-# 채팅별 살아있는 세션 + 직렬화 락
+# 채팅별 살아있는 세션 + 작업폴더 + 직렬화 락
 _clients: dict[int, ClaudeSDKClient] = {}
 _locks: dict[int, asyncio.Lock] = {}
-_sessions: dict[int, str] = {}  # chat_id -> 마지막 session_id (참고용)
+_sessions: dict[int, str] = {}     # chat_id -> 마지막 session_id (참고용)
+_chat_cwds: dict[int, str] = {}    # chat_id -> 현재 작업 프로젝트 폴더
 
 
 def _allowed(update: Update) -> bool:
@@ -118,13 +143,36 @@ def _allowed(update: Update) -> bool:
     return bool(u and u.id in ALLOWED_IDS)
 
 
+def _cwd_for(chat_id: int) -> str:
+    return _chat_cwds.get(chat_id, DEFAULT_CWD)
+
+
+def _project_name(path: str) -> str:
+    norm = os.path.normcase(os.path.abspath(path))
+    for name, p in PROJECTS.items():
+        if os.path.normcase(os.path.abspath(p)) == norm:
+            return name
+    return path
+
+
+async def _drop_client(chat_id: int):
+    c = _clients.pop(chat_id, None)
+    if c:
+        try:
+            await c.disconnect()
+        except Exception:
+            pass
+    _sessions.pop(chat_id, None)
+
+
 async def _get_client(chat_id: int) -> ClaudeSDKClient:
     c = _clients.get(chat_id)
     if c is None:
-        c = ClaudeSDKClient(options=_make_options())
+        cwd = _cwd_for(chat_id)
+        c = ClaudeSDKClient(options=_make_options(cwd))
         await c.connect()
         _clients[chat_id] = c
-        log.info("new agent session for chat %s (cwd=%s)", chat_id, CWD)
+        log.info("new agent session for chat %s (cwd=%s)", chat_id, cwd)
     return c
 
 
@@ -143,12 +191,13 @@ async def _send_chunked(update: Update, text: str):
 # ---------------- 명령 ----------------
 WELCOME = (
     "🤖 코딩 에이전트 봇\n\n"
-    "메시지를 보내면 이 저장소에서 코드를 읽고·수정하고·명령을 실행하고 git 동기화까지 합니다.\n"
-    f"작업 폴더: {CWD}\n\n"
+    "메시지를 보내면 선택한 프로젝트 폴더에서 코드를 읽고·수정하고·명령을 실행하고 git 동기화까지 합니다.\n\n"
     "명령:\n"
+    "/projects — 프로젝트 목록 + 현재 작업 프로젝트\n"
+    "/project <이름> — 작업 프로젝트 전환 (예: /project dailysync)\n"
     "/whoami — 내 사용자 ID 확인(허용목록 등록용)\n"
     "/reset — 대화 맥락 초기화(새 세션)\n"
-    "/cwd — 작업 폴더 표시\n\n"
+    "/cwd — 현재 작업 폴더 표시\n\n"
     "예) '서버 라우트에 헬스체크 추가하고 커밋해줘', 'git status 보여줘', '방금 변경 푸시해줘'"
 )
 
@@ -172,21 +221,51 @@ async def cmd_whoami(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def cmd_cwd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not _allowed(update):
         return
-    sid = _sessions.get(update.effective_chat.id)
-    await update.message.reply_text(f"작업 폴더: {CWD}\n세션: {sid or '(없음)'}")
+    cid = update.effective_chat.id
+    cwd = _cwd_for(cid)
+    sid = _sessions.get(cid)
+    await update.message.reply_text(
+        f"현재 프로젝트: {_project_name(cwd)}\n작업 폴더: {cwd}\n세션: {sid or '(없음)'}")
+
+
+async def cmd_projects(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not _allowed(update):
+        return
+    cur = _cwd_for(update.effective_chat.id)
+    curn = os.path.normcase(os.path.abspath(cur))
+    lines = ["📂 프로젝트 (/project <이름> 으로 전환):"]
+    for name, path in PROJECTS.items():
+        active = "✅" if os.path.normcase(os.path.abspath(path)) == curn else "▫️"
+        missing = "" if os.path.isdir(path) else "  ⚠️폴더없음"
+        lines.append(f"{active} {name} — {path}{missing}")
+    await update.message.reply_text("\n".join(lines))
+
+
+async def cmd_project(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not _allowed(update):
+        return
+    if not ctx.args:
+        await cmd_projects(update, ctx)
+        return
+    name = ctx.args[0].strip()
+    if name not in PROJECTS:
+        await update.message.reply_text(f"'{name}' 프로젝트가 없습니다. /projects 로 목록을 확인하세요.")
+        return
+    path = PROJECTS[name]
+    if not os.path.isdir(path):
+        await update.message.reply_text(f"⚠️ 폴더가 존재하지 않습니다: {path}")
+        return
+    cid = update.effective_chat.id
+    await _drop_client(cid)            # 기존 세션 종료 (새 폴더로 새 세션)
+    _chat_cwds[cid] = path
+    await update.message.reply_text(
+        f"📂 작업 프로젝트를 '{name}' 로 전환했어요.\n{path}\n(새 대화 세션으로 시작합니다)")
 
 
 async def cmd_reset(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not _allowed(update):
         return
-    cid = update.effective_chat.id
-    c = _clients.pop(cid, None)
-    if c:
-        try:
-            await c.disconnect()
-        except Exception:
-            pass
-    _sessions.pop(cid, None)
+    await _drop_client(update.effective_chat.id)
     await update.message.reply_text("🔄 대화 맥락을 초기화했어요. 새 세션으로 시작합니다.")
 
 
@@ -261,10 +340,13 @@ def main():
     app.add_handler(CommandHandler("help", cmd_start))
     app.add_handler(CommandHandler("whoami", cmd_whoami))
     app.add_handler(CommandHandler("cwd", cmd_cwd))
+    app.add_handler(CommandHandler("projects", cmd_projects))
+    app.add_handler(CommandHandler("project", cmd_project))
     app.add_handler(CommandHandler("reset", cmd_reset))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_text))
 
-    log.info("코딩봇 시작 — cwd=%s, 허용ID=%s", CWD, sorted(ALLOWED_IDS))
+    log.info("코딩봇 시작 — 기본cwd=%s, 프로젝트=%s, 허용ID=%s",
+             DEFAULT_CWD, list(PROJECTS.keys()), sorted(ALLOWED_IDS))
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
