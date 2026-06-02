@@ -1915,8 +1915,20 @@ function setPreviewZoom(scale) {
 function renderOverlayEl(o) {
   const pos = `left:${o.x ?? 30}%;top:${o.y ?? 30}%;${typeof o.z === "number" ? `z-index:${o.z};` : ""}`;
   if (o.type === "image") {
-    return `<div class="ov-el ov-image" data-ov="${o.id}" style="${pos}width:${o.w ?? 30}%">`
-      + `<img src="${esc(o.url || "")}" style="width:100%;height:auto;display:block;border-radius:8px" onerror="this.style.opacity=0.2"></div>`;
+    // h(높이 %) 가 지정되면 컨테이너 종횡비 고정 + object-fit:cover 로 이미지를 잘라낸다.
+    // cx/cy 는 잘린 이미지에서 어느 부분을 보일지 (object-position).
+    const hasH = typeof o.h === "number" && o.h > 0;
+    const cx = (typeof o.cx === "number") ? o.cx : 50;
+    const cy = (typeof o.cy === "number") ? o.cy : 50;
+    const hasCrop = hasH || typeof o.cx === "number" || typeof o.cy === "number";
+    const boxStyle = `${pos}width:${o.w ?? 30}%;${hasH ? `height:${o.h}%;` : ""}overflow:hidden;border-radius:8px;`;
+    const imgStyle = hasH
+      ? `width:100%;height:100%;object-fit:cover;object-position:${cx}% ${cy}%;display:block;`
+      : (hasCrop
+          ? `width:100%;height:auto;display:block;object-position:${cx}% ${cy}%;`
+          : `width:100%;height:auto;display:block;`);
+    return `<div class="ov-el ov-image" data-ov="${o.id}" style="${boxStyle}">`
+      + `<img src="${esc(o.url || "")}" style="${imgStyle}" onerror="this.style.opacity=0.2"></div>`;
   }
   if (o.type === "badge") {
     return `<div class="ov-el ov-badge" data-ov="${o.id}" style="${pos}font-size:${o.size ?? 40}px;`
@@ -2019,8 +2031,8 @@ function startResize(e, el, corner, scaler, card) {
   const fixed = { nw:{x:r0.right,y:r0.bottom}, ne:{x:r0.left,y:r0.bottom}, sw:{x:r0.right,y:r0.top}, se:{x:r0.left,y:r0.top} }[corner];
   const origW = Math.max(20, r0.width);
   const isOv = el.classList.contains("ov-el");
-  let ov = null, st = null, origSize = 0, origWpct = 0, origScale = 1;
-  if (isOv) { ov = (card.overlays || []).find(o => o.id === el.dataset.ov); if (ov) { origSize = ov.size || (ov.type === "badge" ? 40 : 56); origWpct = ov.w || 40; } }
+  let ov = null, st = null, origSize = 0, origWpct = 0, origScale = 1, origH = 0;
+  if (isOv) { ov = (card.overlays || []).find(o => o.id === el.dataset.ov); if (ov) { origSize = ov.size || (ov.type === "badge" ? 40 : 56); origWpct = ov.w || 40; origH = (typeof ov.h === "number" && ov.h > 0) ? ov.h : 0; } }
   else { st = ensureFieldStyle(card, el.dataset.fld); origScale = (typeof st.scale === "number" && st.scale > 0) ? st.scale : 1; }
   const leftMoves = (corner === "nw" || corner === "sw"), topMoves = (corner === "nw" || corner === "ne");
   try { el.setPointerCapture(e.pointerId); } catch (e2) {}
@@ -2028,7 +2040,12 @@ function startResize(e, el, corner, scaler, card) {
     const ratio = Math.max(0.2, Math.min(6, Math.abs(ev.clientX - fixed.x) / origW));
     if (isOv) {
       if (!ov) return;
-      if (ov.type === "image") { ov.w = Math.max(5, Math.min(100, origWpct * ratio)); el.style.width = ov.w + "%"; }
+      if (ov.type === "image") {
+        ov.w = Math.max(5, Math.min(100, origWpct * ratio));
+        el.style.width = ov.w + "%";
+        // 사용자가 세로 길이를 지정한 이미지는 종횡비를 유지하며 함께 조정
+        if (origH > 0) { ov.h = Math.max(5, Math.min(100, origH * ratio)); el.style.height = ov.h + "%"; }
+      }
       else { ov.size = Math.max(12, Math.min(400, Math.round(origSize * ratio))); el.style.fontSize = ov.size + "px"; }
       const nr = el.getBoundingClientRect();
       const newLeft = leftMoves ? (fixed.x - nr.width) : fixed.x;
@@ -2131,7 +2148,18 @@ function zOp(op) {
   else if (op === "forward") nz = cur + 1;
   else if (op === "backward") nz = cur - 1;
   _setSelZ(card, nz);
+  // 정규화 — z 값이 음수가 되면 카드 내부 일반 콘텐츠 뒤로 사라져 클릭이 안 되므로
+  // 모든 z 에 동일한 보정값을 더해 0 이상으로 끌어올린다(상대 순서는 그대로 유지).
+  const allZs = _collectZ(card);
+  const minZ = Math.min(...allZs);
+  if (minZ < 0) {
+    const shift = -minZ;
+    (card.overlays || []).forEach(o => { if (typeof o.z === "number") o.z += shift; });
+    Object.values(card.fieldStyles || {}).forEach(st => { if (st && typeof st.z === "number") st.z += shift; });
+  }
   renderPreview(); autoSave();
+  // 선택 상태(SEL)는 유지 — renderPreview 안의 bindOverlayDrag 가 다시 applySelection 을 호출하므로
+  // 핸들/툴바도 자연스럽게 다시 표시된다.
 }
 
 function _pasteOverlay(card, e) {
@@ -3096,8 +3124,18 @@ function renderFields(card) {
     const head = `<div style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text-faint);margin-bottom:5px">${OVT[o.type] || o.type} <span class="ov-pos" data-ov="${o.id}">${Math.round(o.x ?? 30)}%, ${Math.round(o.y ?? 30)}%</span><button class="icon-btn ov-del" data-ov="${o.id}" title="삭제" style="margin-left:auto">×</button></div>`;
     let bodyHtml;
     if (o.type === "image") {
+      const hVal = (typeof o.h === "number" && o.h > 0) ? o.h : 0;
+      const cxVal = (typeof o.cx === "number") ? o.cx : 50;
+      const cyVal = (typeof o.cy === "number") ? o.cy : 50;
+      const hasCrop = hVal > 0 || typeof o.cx === "number" || typeof o.cy === "number";
       bodyHtml = `<button class="btn btn-ghost ov-img-pick" data-ov="${o.id}" style="width:100%;font-size:11px">${o.url ? "🖼 이미지 변경/검색" : "🖼 이미지 선택/검색"}</button>
-        <label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-faint);margin-top:5px">너비<input type="range" class="ov-width" data-ov="${o.id}" min="10" max="90" step="1" value="${o.w ?? 30}" style="flex:1;accent-color:var(--accent)"></label>`;
+        <label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-faint);margin-top:5px" title="가로 길이 (%)">가로<input type="range" class="ov-width" data-ov="${o.id}" min="5" max="95" step="1" value="${o.w ?? 30}" style="flex:1;accent-color:var(--accent)"><span class="ov-width-val" data-ov="${o.id}" style="min-width:30px;text-align:right;font-variant-numeric:tabular-nums">${o.w ?? 30}%</span></label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-faint);margin-top:4px" title="세로 길이 (%) — 0이면 원본 비율 유지">세로<input type="range" class="ov-height" data-ov="${o.id}" min="0" max="95" step="1" value="${hVal}" style="flex:1;accent-color:var(--accent)"><span class="ov-height-val" data-ov="${o.id}" style="min-width:30px;text-align:right;font-variant-numeric:tabular-nums">${hVal > 0 ? hVal + "%" : "자동"}</span></label>
+        <div style="display:flex;gap:8px;margin-top:4px;align-items:center">
+          <label style="flex:1;display:flex;align-items:center;gap:3px;font-size:10px;color:var(--text-faint)" title="이미지 잘림 위치 — 가로(0=왼쪽, 100=오른쪽)">⇔<input type="range" class="ov-cx" data-ov="${o.id}" min="0" max="100" step="1" value="${cxVal}" style="flex:1;accent-color:var(--accent)"></label>
+          <label style="flex:1;display:flex;align-items:center;gap:3px;font-size:10px;color:var(--text-faint)" title="이미지 잘림 위치 — 세로(0=위, 100=아래)">⇕<input type="range" class="ov-cy" data-ov="${o.id}" min="0" max="100" step="1" value="${cyVal}" style="flex:1;accent-color:var(--accent)"></label>
+        </div>
+        ${hasCrop ? `<button type="button" class="ov-crop-reset" data-ov="${o.id}" style="margin-top:4px;width:100%;background:none;border:1px solid var(--c-line,#e3e7ef);color:var(--text-faint);cursor:pointer;font-size:10px;padding:3px;border-radius:4px">크롭 리셋 ↺</button>` : ""}`;
     } else {
       bodyHtml = `<textarea class="ta-auto ta-compact ov-text-in" data-ov="${o.id}" rows="1" placeholder="${OVT[o.type]} 내용" style="width:100%">${esc(o.text || "")}</textarea>
         <label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-faint);margin-top:5px">크기<input type="range" class="ov-size" data-ov="${o.id}" min="20" max="180" step="2" value="${o.size ?? (o.type === 'badge' ? 40 : 56)}" style="flex:1;accent-color:var(--accent)"></label>
@@ -3438,8 +3476,35 @@ function bindEditorEvents(card) {
   }));
   body.querySelectorAll(".ov-width").forEach(el => el.addEventListener("input", e => {
     const o = ovFind(e.target.dataset.ov); if (!o) return;
-    o.w = +e.target.value; renderPreview(); autoSave();
+    o.w = +e.target.value;
+    const lbl = body.querySelector(`.ov-width-val[data-ov="${e.target.dataset.ov}"]`);
+    if (lbl) lbl.textContent = o.w + "%";
+    renderPreview(); autoSave();
   }));
+  // 이미지 오버레이 — 세로 길이(높이 %). 0이면 원본 비율(자동), 그 외면 컨테이너 height 고정 + object-fit:cover.
+  body.querySelectorAll(".ov-height").forEach(el => el.addEventListener("input", e => {
+    const o = ovFind(e.target.dataset.ov); if (!o) return;
+    const v = +e.target.value;
+    if (v <= 0) delete o.h; else o.h = v;
+    const lbl = body.querySelector(`.ov-height-val[data-ov="${e.target.dataset.ov}"]`);
+    if (lbl) lbl.textContent = v > 0 ? v + "%" : "자동";
+    renderPreview(); autoSave();
+  }));
+  // 이미지 오버레이 — 크롭 위치 X/Y (object-position)
+  body.querySelectorAll(".ov-cx").forEach(el => el.addEventListener("input", e => {
+    const o = ovFind(e.target.dataset.ov); if (!o) return;
+    o.cx = +e.target.value; renderPreview(); autoSave();
+  }));
+  body.querySelectorAll(".ov-cy").forEach(el => el.addEventListener("input", e => {
+    const o = ovFind(e.target.dataset.ov); if (!o) return;
+    o.cy = +e.target.value; renderPreview(); autoSave();
+  }));
+  // 크롭 리셋 — 세로/위치 모두 기본값으로
+  body.querySelectorAll(".ov-crop-reset").forEach(b => b.onclick = () => {
+    const o = ovFind(b.dataset.ov); if (!o) return;
+    delete o.h; delete o.cx; delete o.cy;
+    renderEditor(); renderPreview(); autoSave();
+  });
   body.querySelectorAll(".ov-color").forEach(el => {
     el.addEventListener("input", e => { const o = ovFind(e.target.dataset.ov); if (!o) return; o.color = e.target.value; e.target.style.opacity = "1"; renderPreview(); autoSave(); });
     el.addEventListener("dblclick", e => { const o = ovFind(e.target.dataset.ov); if (!o) return; delete o.color; e.target.style.opacity = "0.45"; renderPreview(); autoSave(); });
