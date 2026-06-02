@@ -42,7 +42,7 @@ BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 SERVER_URL = os.getenv("SERVER_URL", "http://localhost:5050").rstrip("/")
 ALLOWED_USERS = [u.strip() for u in os.getenv("ALLOWED_USERS", "").split(",") if u.strip()]
-MODEL = os.getenv("MODEL", "claude-sonnet-4-20250514")
+MODEL = os.getenv("MODEL_FAST", "claude-haiku-4-5-20251001")
 
 DEFAULT_BRAND = {
     "name": "인공지능사관학교 서포터즈",

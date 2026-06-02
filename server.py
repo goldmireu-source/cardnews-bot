@@ -49,7 +49,11 @@ SESSIONS_DIR.mkdir(exist_ok=True)
 UPLOADS_DIR.mkdir(exist_ok=True)
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+# 모델 분기 — 품질이 결과물에 직결되는 호출은 MODEL(Sonnet) 유지,
+# 정형화된 짧은 텍스트(캡션·봇 응답)는 MODEL_FAST(Haiku) 로 처리해 출력 비용까지 절감.
+# .env 에서 MODEL / MODEL_FAST 둘 다 오버라이드 가능.
 MODEL = os.getenv("MODEL", "claude-sonnet-4-20250514")
+MODEL_FAST = os.getenv("MODEL_FAST", "claude-haiku-4-5-20251001")
 SERVER_URL = os.getenv("SERVER_URL", "http://localhost:5050").rstrip("/")
 claude = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
 
@@ -708,7 +712,8 @@ def generate_viral_caption(session_data: dict, max_len: int = 2100) -> str:
 
     try:
         resp = claude.messages.create(
-            model=MODEL,
+            # 정형화된 짧은 캡션 — Haiku 4.5 로 충분, 출력 비용 ~1/3.
+            model=MODEL_FAST,
             max_tokens=1800,
             messages=[{"role": "user", "content": user_prompt}],
         )
@@ -812,7 +817,13 @@ def generate_cards(text: str, tone: str = DEFAULT_TONE, brand: dict = None) -> d
     response = claude.messages.create(
         model=MODEL,
         max_tokens=4096,
-        system=build_system_prompt(tone),
+        # system 을 캐시 가능한 블록 형태로 — 동일 tone 의 후속 호출에서 system 토큰을 ~0.1× 비용으로 재사용.
+        # 5분 TTL 안에서 카드뉴스가 연속 생성될 때 입력 비용이 크게 떨어진다(검증: response.usage.cache_read_input_tokens).
+        system=[{
+            "type": "text",
+            "text": build_system_prompt(tone),
+            "cache_control": {"type": "ephemeral"},
+        }],
         messages=[{"role": "user", "content": user_text}],
     )
     return extract_json(response.content[0].text)
