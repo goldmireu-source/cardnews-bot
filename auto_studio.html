@@ -602,6 +602,21 @@ nav.tabs button.active {
 
     <div style="margin-top: 18px;">
       <div class="field">
+        <label>자료 첨부 (선택) — 이미지·PDF 또는 텍스트</label>
+        <p style="margin:0 0 8px;font-size:11px;color:var(--text-faint);line-height:1.5">
+          자료가 있으면 그 내용을 반영해 사관학교 홍보 카드뉴스를 만들고, 없으면 위에서 고른 템플릿으로 기본 생성합니다.
+          예: 사관학교 행사 사진/포스터, 강의 자료, 후기 글, 공지문 등.
+        </p>
+        <div id="ac-drop" style="border:2px dashed var(--line);border-radius:12px;padding:22px 18px;text-align:center;cursor:pointer;background:rgba(110,231,255,0.03);transition:border-color .15s">
+          <input type="file" id="ac-file" accept="image/png,image/jpeg,image/webp,image/gif,application/pdf" hidden>
+          <div style="font-size:26px;line-height:1">📎</div>
+          <p style="margin:6px 0 2px"><b>이미지·PDF를 끌어다 놓거나 클릭</b>해서 업로드</p>
+          <p style="margin:0;font-size:11px;color:var(--text-faint)">아래 텍스트칸에 붙여넣기(Ctrl+V)도 가능 · png·jpg·webp·gif·pdf, 최대 12MB</p>
+          <p id="ac-file-name" style="margin:6px 0 0;font-size:12px;color:var(--accent)"></p>
+        </div>
+        <textarea id="ac-text" rows="5" placeholder="또는 자료 텍스트를 여기에 직접 입력 (모집 안내문, 후기 등). 파일과 함께 넣으면 보조 설명으로 사용됩니다." style="width:100%;margin-top:10px;resize:vertical"></textarea>
+      </div>
+      <div class="field">
         <label>추가 요청 (선택)</label>
         <textarea id="ac-note" placeholder="예: 이번 기수만 추가할 정보, 강조하고 싶은 포인트"></textarea>
       </div>
@@ -977,10 +992,81 @@ document.querySelectorAll("#academy-tpl .tpl").forEach(b => {
   });
 });
 
+// 사관학교 — 자료 첨부(이미지/PDF + 텍스트) 처리. 소재 분석 탭과 같은 패턴.
+const __acMaterial = (function () {
+  const drop = document.getElementById("ac-drop");
+  const fileInput = document.getElementById("ac-file");
+  const nameEl = document.getElementById("ac-file-name");
+  const textEl = document.getElementById("ac-text");
+  if (!drop) return { getFile: () => null, getText: () => "", reset: () => {} };
+  let pickedFile = null;
+  function setFile(f) {
+    pickedFile = f || null;
+    nameEl.textContent = f ? `첨부됨: ${f.name} (${Math.round(f.size / 1024)}KB)` : "";
+  }
+  drop.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", () => setFile(fileInput.files[0] || null));
+  drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.style.borderColor = "var(--accent)"; });
+  drop.addEventListener("dragleave", () => { drop.style.borderColor = ""; });
+  drop.addEventListener("drop", (e) => {
+    e.preventDefault(); drop.style.borderColor = "";
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+  });
+  // 텍스트칸에 이미지 붙여넣기 → 자동 첨부
+  textEl.addEventListener("paste", (e) => {
+    const items = (e.clipboardData && e.clipboardData.items) || [];
+    const img = [...items].find((i) => i.type && i.type.startsWith("image/"));
+    if (img) {
+      const f = img.getAsFile();
+      if (f) { setFile(f); toast("붙여넣은 이미지를 첨부했어요", "success"); }
+    }
+  });
+  return {
+    getFile: () => pickedFile,
+    getText: () => (textEl.value || "").trim(),
+    reset: () => { setFile(null); fileInput.value = ""; textEl.value = ""; },
+  };
+})();
+
 document.getElementById("btn-ac-generate").addEventListener("click", async (e) => {
   if (!selectedTemplate) return;
+  const btn = e.currentTarget;
   const note = document.getElementById("ac-note").value.trim();
-  await callGenerate({ source_type: "academy", template: selectedTemplate, note }, e.currentTarget, "사관학교");
+  const file = __acMaterial.getFile();
+  const text = __acMaterial.getText();
+  const hasMaterial = !!file || text.length >= 20;
+
+  let material = "";
+  if (hasMaterial) {
+    // 자료가 있으면 먼저 분석해서 텍스트 요약을 얻고 generate 에 넘긴다.
+    const fd = new FormData();
+    if (file) fd.append("file", file);
+    if (text) fd.append("text", text);
+    const orig = btn.textContent;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> 자료 분석 중… (최대 30초)';
+    const pt = persistentToast("⏳ 첨부 자료를 먼저 분석하는 중…", "info");
+    try {
+      const r = await fetch("/api/auto/material/analyze", { method: "POST", body: fd });
+      const j = await r.json();
+      if (!r.ok || j.error) throw new Error(j.error || `서버 오류 ${r.status}`);
+      material = (j.summary || "").trim();
+      pt.remove();
+    } catch (err) {
+      pt.remove();
+      toast("자료 분석 실패: " + err.message, "error", 6000);
+      btn.disabled = false;
+      btn.textContent = orig;
+      return;
+    }
+    // 분석 성공 — 곧장 generate 단계로 (callGenerate 가 버튼 상태/토스트를 다시 잡는다)
+    btn.textContent = orig;
+  }
+
+  await callGenerate(
+    { source_type: "academy", template: selectedTemplate, note, material },
+    btn, "사관학교"
+  );
 });
 
 // ==================================================================

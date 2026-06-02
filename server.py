@@ -1225,6 +1225,7 @@ def _compose_source_text(source_type: str, body: dict) -> tuple[str, dict]:
     if source_type == "academy":
         template = body.get("template") or "intro"
         note = (body.get("note") or "").strip()
+        material = (body.get("material") or "").strip()
         TEMPLATES = {
             "intro": (
                 "[인공지능 사관학교 교육과정 소개]\n"
@@ -1257,10 +1258,36 @@ def _compose_source_text(source_type: str, body: dict) -> tuple[str, dict]:
                 "지원 망설이는 사람의 마음을 움직일 수 있게 카드뉴스로 만들어주세요."
             ),
         }
-        text = TEMPLATES.get(template, TEMPLATES["intro"])
+        TPL_LABEL = {
+            "intro": "교육과정 소개",
+            "curriculum": "커리큘럼 상세",
+            "review": "수강 후기",
+            "apply": "모집 안내",
+        }
+        base = TEMPLATES.get(template, TEMPLATES["intro"])
+        if material:
+            # 사용자가 첨부한 자료(이미지/PDF/텍스트)의 분석 요약을 우선 콘텐츠로 삼고,
+            # 선택한 템플릿은 톤·형식 가이드로 함께 전달.
+            tpl_label = TPL_LABEL.get(template, template)
+            text = (
+                f"[인공지능 사관학교 홍보 카드뉴스 — 사용자 제공 자료 기반]\n"
+                f"목표 카테고리/톤: '{tpl_label}'\n\n"
+                f"아래 [자료] 가 사용자가 제공한 실제 내용입니다. 이 자료의 사실관계를 우선으로 반영하고, "
+                f"'{tpl_label}' 분위기와 형식으로 카드뉴스를 만들어주세요. "
+                f"자료에 없는 사실은 추측하지 말고, 자료에 부족한 부분만 사관학교 일반 정보로 보완하세요.\n\n"
+                f"[참고 — 사관학교 '{tpl_label}' 기본 컨텍스트]\n{base}\n\n"
+                f"[자료]\n{material}\n"
+            )
+        else:
+            text = base
         if note:
             text += f"\n\n추가 요청사항:\n{note}"
-        meta = {"source": "academy", "template": template, "kind": "academy"}
+        meta = {
+            "source": "academy",
+            "template": template,
+            "kind": "academy",
+            "has_material": bool(material),
+        }
         return text, meta
 
     if source_type == "freeform":
