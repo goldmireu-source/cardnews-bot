@@ -3857,7 +3857,13 @@ async function openBgImagePicker(card, overlayId) {
           <input type="text" id="bg-img-url" placeholder="또는 이미지 URL 직접 붙여넣기" style="flex:1;padding:9px 10px;border:1px solid var(--c-line,#e3e7ef);border-radius:6px">
           <button class="btn" id="bg-img-url-apply">URL 적용</button>
         </div>
-        <p class="intro" style="font-size:11px;color:var(--text-faint);margin:4px 0">${clusterId ? "이 클러스터 기사에서 모은 이미지입니다. 또는 키워드로 검색하세요." : "키워드로 이미지를 검색하거나 URL을 붙여넣으세요. (Openverse·Wikipedia 무료, 키 있으면 Unsplash 포함)"}</p>
+        <div id="bg-img-upload-drop" style="display:flex;gap:6px;margin-bottom:6px;align-items:center;padding:10px 12px;border:1.5px dashed var(--c-line,#e3e7ef);border-radius:6px;background:rgba(110,231,255,0.03);cursor:pointer;transition:border-color .15s">
+          <input type="file" id="bg-img-upload-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+          <span style="font-size:18px">📁</span>
+          <span style="flex:1;font-size:12px"><b>내 컴퓨터에서 업로드</b> — 클릭 또는 끌어다 놓기 <span style="color:var(--text-faint)">(png/jpg/webp/gif, 최대 12MB)</span></span>
+          <button type="button" class="btn" id="bg-img-upload-pick" style="font-size:11px;padding:5px 10px">파일 선택</button>
+        </div>
+        <p class="intro" style="font-size:11px;color:var(--text-faint);margin:4px 0">${clusterId ? "이 클러스터 기사에서 모은 이미지입니다. 또는 키워드로 검색하거나 직접 업로드하세요." : "키워드로 이미지를 검색하거나, URL을 붙여넣거나, 직접 업로드하세요. (Openverse·Wikipedia 무료, 키 있으면 Unsplash 포함)"}</p>
         <div id="bg-img-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:8px;min-height:180px"></div>
       </div>
     </div>`;
@@ -3931,6 +3937,46 @@ async function openBgImagePicker(card, overlayId) {
   back.querySelector("#bg-img-q").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); doSearch(e.target.value); } });
   back.querySelector("#bg-img-url-apply").onclick = () => applyUrl(back.querySelector("#bg-img-url").value.trim());
   back.querySelector("#bg-img-url").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); applyUrl(e.target.value.trim()); } });
+
+  // 파일 직접 업로드 — 배경 업로드 라우트(/api/uploads/bg/<sid>) 재사용. 결과 URL 은 /uploads/ 로
+  // 시작하므로 applyUrl 에서 외부 프록시를 우회하고 그대로 사용된다.
+  const upDrop   = back.querySelector("#bg-img-upload-drop");
+  const upInput  = back.querySelector("#bg-img-upload-input");
+  const upPick   = back.querySelector("#bg-img-upload-pick");
+  const uploadFile = async (f) => {
+    if (!f) return;
+    if (!/^image\//.test(f.type)) { toast("이미지 파일만 업로드할 수 있어요", "warning"); return; }
+    const sid = (typeof getUploadSessionId === "function") ? getUploadSessionId() : ("studio_" + Date.now().toString(36));
+    const fd = new FormData(); fd.append("file", f);
+    const origPickText = upPick ? upPick.textContent : "";
+    if (upPick) { upPick.disabled = true; upPick.textContent = "업로드 중…"; }
+    const pt = (typeof persistentToast === "function") ? persistentToast("⏳ 이미지 업로드 중…", "info") : null;
+    try {
+      const r = await fetch(`/api/uploads/bg/${sid}`, { method: "POST", body: fd });
+      const j = await r.json();
+      if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
+      if (pt) pt.remove();
+      applyUrl(j.url); // 모달 자동 닫힘 + 카드/오버레이 적용
+    } catch (err) {
+      if (pt) pt.remove();
+      toast("업로드 실패: " + err.message, "error", 6000);
+    } finally {
+      if (upPick) { upPick.disabled = false; upPick.textContent = origPickText; }
+      if (upInput) upInput.value = "";
+    }
+  };
+  if (upPick)  upPick.onclick  = (e) => { e.stopPropagation(); upInput && upInput.click(); };
+  if (upDrop)  upDrop.onclick  = () => upInput && upInput.click();
+  if (upInput) upInput.addEventListener("change", () => uploadFile(upInput.files && upInput.files[0]));
+  if (upDrop) {
+    upDrop.addEventListener("dragover",  e => { e.preventDefault(); upDrop.style.borderColor = "var(--accent, #6ee7ff)"; });
+    upDrop.addEventListener("dragleave", () => { upDrop.style.borderColor = ""; });
+    upDrop.addEventListener("drop", e => {
+      e.preventDefault(); upDrop.style.borderColor = "";
+      const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f) uploadFile(f);
+    });
+  }
 
   // 초기 로드: 클러스터 기사 이미지가 있으면 자동 표시, 없으면 검색 안내
   if (clusterId) {
