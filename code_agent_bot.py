@@ -250,9 +250,9 @@ def main():
     if not TOKEN:
         raise SystemExit("CODE_BOT_TOKEN 미설정 (.env). @BotFather 에서 봇 생성 후 토큰을 넣으세요.")
     if not ALLOWED_IDS:
-        raise SystemExit(
-            "CODE_BOT_ALLOWED_IDS 미설정 (.env). 보안상 허용 사용자 ID가 반드시 필요합니다. "
-            "봇을 먼저 띄운 뒤 /whoami 로 본인 ID를 확인해 등록하세요.")
+        # 허용ID가 없으면 코딩은 전부 차단되지만, /whoami 로 본인 ID를 확인할 수 있게 봇은 띄운다.
+        log.warning("CODE_BOT_ALLOWED_IDS 미설정 — 모든 코딩요청 차단됨. 봇에 /whoami 보내 ID 확인 후 "
+                    ".env 의 CODE_BOT_ALLOWED_IDS 에 등록하고 재실행하세요.")
     if not os.getenv("ANTHROPIC_API_KEY"):
         log.warning("ANTHROPIC_API_KEY 미설정 — Claude Code CLI 인증이 없으면 동작하지 않을 수 있습니다.")
 
