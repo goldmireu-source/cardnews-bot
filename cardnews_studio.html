@@ -1150,6 +1150,11 @@ input, textarea, select { font-family: inherit; }
 .ov-handle[data-corner="ne"] { right: -19px; top: -19px; cursor: nesw-resize; }
 .ov-handle[data-corner="sw"] { left: -19px; bottom: -19px; cursor: nesw-resize; }
 .ov-handle[data-corner="se"] { right: -19px; bottom: -19px; cursor: nwse-resize; }
+/* 변(엣지) 핸들 — 이미지 오버레이에서만 표시. 모서리 핸들과 시각적으로 구분되도록 살짝 둥글게 */
+.ov-handle[data-corner="n"] { left: 50%; top: -19px; transform: translateX(-50%); cursor: ns-resize; border-radius: 50%; }
+.ov-handle[data-corner="s"] { left: 50%; bottom: -19px; transform: translateX(-50%); cursor: ns-resize; border-radius: 50%; }
+.ov-handle[data-corner="e"] { right: -19px; top: 50%; transform: translateY(-50%); cursor: ew-resize; border-radius: 50%; }
+.ov-handle[data-corner="w"] { left: -19px; top: 50%; transform: translateY(-50%); cursor: ew-resize; border-radius: 50%; }
 
 /* 필드별 사용자 색상은 RENDERER 결과 element 의 인라인 style 로 적용됨
    (style="color: #XXX !important"). 글자 크기는 카드 root --field-scale 변수 곱셈. */
@@ -1915,46 +1920,19 @@ function setPreviewZoom(scale) {
 function renderOverlayEl(o) {
   const pos = `left:${o.x ?? 30}%;top:${o.y ?? 30}%;${typeof o.z === "number" ? `z-index:${o.z};` : ""}`;
   if (o.type === "image") {
-    // h(높이 %) 가 지정되면 컨테이너 종횡비 고정 + object-fit:cover 로 이미지를 잘라낸다.
-    // cx/cy 는 잘린 이미지에서 어느 부분을 보일지 (object-position).
-    // cropX/cropY (%) 는 이미지의 가로/세로 영역을 그만큼 잘라낸다(영역 삭제).
-    //   - 잘린 만큼 컨테이너 가로/세로도 같이 줄어들어 빈 공간이 남지 않는다.
-    //   - cx, cy 가 잘림 위치를 결정 (cx=50 → 양옆 균등, cx=0 → 오른쪽만 잘림, cx=100 → 왼쪽만 잘림).
+    // 모델: w(가로 %), h(세로 %, 0/미설정=자동), cx/cy(잘림 위치 %, 기본 50=가운데).
+    // - h 가 명시되어 있으면 컨테이너 종횡비가 고정되고 이미지는 object-fit:cover 로 채워져
+    //   비율이 다른 부분이 잘려서 영역에서 사라진다(가로/세로 잘라내기).
+    // - h 가 자동이면 이미지 원본 비율로 표시(잘림 없음).
+    // 프리뷰의 코너/엣지 핸들 드래그가 w, h 를 직접 조절 — 엣지를 잡고 끌어당기면 그 방향이 잘림.
     const hasH = typeof o.h === "number" && o.h > 0;
     const cx = (typeof o.cx === "number") ? o.cx : 50;
     const cy = (typeof o.cy === "number") ? o.cy : 50;
     const wVal = o.w ?? 30;
-    // 잘라내기 비율 (0~80%). 세로 자름은 세로 길이가 명시되어 있을 때만 적용 가능
-    // (자동 높이 상태에서는 컨테이너 세로가 이미지 비율에 의해 결정되어 잘림을 표현할 수 없음).
-    const cropX = Math.max(0, Math.min(80, (typeof o.cropX === "number") ? o.cropX : 0));
-    const cropY = hasH ? Math.max(0, Math.min(80, (typeof o.cropY === "number") ? o.cropY : 0)) : 0;
-    const hasCrop = hasH || typeof o.cx === "number" || typeof o.cy === "number" || cropX > 0 || cropY > 0;
-
-    if (cropX > 0 || cropY > 0) {
-      // 컨테이너는 (w * (1 - cropX/100))% / (h * (1 - cropY/100))% 로 줄이고,
-      // 이미지는 컨테이너 대비 100/(1-crop/100)% 크기로 두어 원래 영역의 일부만 보이게 한다.
-      const boxW = wVal * (1 - cropX / 100);
-      const boxH = hasH ? o.h * (1 - cropY / 100) : null;
-      const imgWPct = cropX > 0 ? 100 / (1 - cropX / 100) : 100;
-      const imgHPct = cropY > 0 ? 100 / (1 - cropY / 100) : 100;
-      // 잘림 위치: cx=50 면 양옆 균등, cx=0 면 이미지 왼쪽 정렬(오른쪽이 잘림), cx=100 면 반대.
-      const imgL = cropX > 0 ? -cropX * cx / (100 - cropX) : 0;
-      const imgT = cropY > 0 ? -cropY * cy / (100 - cropY) : 0;
-      const boxStyle = `${pos}width:${boxW}%;${hasH ? `height:${boxH}%;` : ""}overflow:hidden;border-radius:8px;`;
-      const imgStyle = `position:absolute;left:${imgL}%;${cropY > 0 ? `top:${imgT}%;` : "top:0;"}`
-        + `width:${imgWPct}%;`
-        + (hasH ? `height:${imgHPct}%;object-fit:cover;object-position:${cx}% ${cy}%;` : `height:auto;`)
-        + `display:block;`;
-      return `<div class="ov-el ov-image" data-ov="${o.id}" style="${boxStyle}">`
-        + `<img src="${esc(o.url || "")}" style="${imgStyle}" onerror="this.style.opacity=0.2"></div>`;
-    }
-
     const boxStyle = `${pos}width:${wVal}%;${hasH ? `height:${o.h}%;` : ""}overflow:hidden;border-radius:8px;`;
     const imgStyle = hasH
       ? `width:100%;height:100%;object-fit:cover;object-position:${cx}% ${cy}%;display:block;`
-      : (hasCrop
-          ? `width:100%;height:auto;display:block;object-position:${cx}% ${cy}%;`
-          : `width:100%;height:auto;display:block;`);
+      : `width:100%;height:auto;display:block;`;
     return `<div class="ov-el ov-image" data-ov="${o.id}" style="${boxStyle}">`
       + `<img src="${esc(o.url || "")}" style="${imgStyle}" onerror="this.style.opacity=0.2"></div>`;
   }
@@ -2042,7 +2020,13 @@ function applySelection(scaler, card) {
   if (tb) tb.style.display = el ? "flex" : "none"; // 선택 시 레이어 툴바 표시
   if (!el) return;
   el.classList.add("sel-active");
-  ["nw", "ne", "sw", "se"].forEach(corner => {
+  // 이미지 오버레이는 모서리 4개 + 변(엣지) 4개 = 총 8개 핸들.
+  //   - 모서리: 종횡비 유지하며 크기 조정 (잘림 없음)
+  //   - 변(n/e/s/w): 한 방향만 조정 → 컨테이너 비율이 달라져 그 방향이 잘림
+  // 그 외(텍스트/배지/필드)는 기존 4모서리만.
+  const isImage = el.classList.contains("ov-image");
+  const corners = isImage ? ["nw", "ne", "sw", "se", "n", "e", "s", "w"] : ["nw", "ne", "sw", "se"];
+  corners.forEach(corner => {
     const h = document.createElement("div");
     h.className = "ov-handle"; h.dataset.corner = corner;
     el.appendChild(h);
@@ -2050,39 +2034,93 @@ function applySelection(scaler, card) {
   });
 }
 
-// 모서리 핸들 드래그 → 크기 조정. 오버레이=글자/너비(반대편 모서리 고정), 필드=scale(자연 위치 기준).
+// 모서리 / 변(엣지) 핸들 드래그 → 크기 조정.
+//   - 텍스트/배지: 기존 동작 유지 (가로 비율로 글자 크기 변경, 모서리만 사용)
+//   - 이미지 + 모서리(nw/ne/sw/se): 종횡비 유지하며 가로/세로 동시 조정 (잘림 없음)
+//   - 이미지 + 변(n/s/e/w): 한 방향만 조정 → 컨테이너 비율이 바뀌어 그 방향이 잘림
+//   - 필드: 기존 scale 동작 유지
 function startResize(e, el, corner, scaler, card) {
   e.preventDefault(); e.stopPropagation();
   const cardEl = scaler.querySelector(".card"); if (!cardEl) return;
   const cardRect = cardEl.getBoundingClientRect();
   const r0 = el.getBoundingClientRect();
-  const fixed = { nw:{x:r0.right,y:r0.bottom}, ne:{x:r0.left,y:r0.bottom}, sw:{x:r0.right,y:r0.top}, se:{x:r0.left,y:r0.top} }[corner];
+  // 핸들 반대편이 드래그 중 고정됨. 변(엣지) 핸들의 경우엔 같은 축의 반대편 변이 기준.
+  const FIXED = {
+    nw:{x:r0.right,y:r0.bottom}, ne:{x:r0.left,y:r0.bottom},
+    sw:{x:r0.right,y:r0.top},    se:{x:r0.left,y:r0.top},
+    e: {x:r0.left, y:r0.top},    w: {x:r0.right,y:r0.top},
+    n: {x:r0.left, y:r0.bottom}, s: {x:r0.left, y:r0.top},
+  };
+  const fixed = FIXED[corner] || FIXED.se;
   const origW = Math.max(20, r0.width);
+  const origPxH = Math.max(20, r0.height);
+  const isHorzEdge = (corner === "e" || corner === "w");
+  const isVertEdge = (corner === "n" || corner === "s");
+  const isCorner = !isHorzEdge && !isVertEdge;
   const isOv = el.classList.contains("ov-el");
-  let ov = null, st = null, origSize = 0, origWpct = 0, origScale = 1, origH = 0;
-  if (isOv) { ov = (card.overlays || []).find(o => o.id === el.dataset.ov); if (ov) { origSize = ov.size || (ov.type === "badge" ? 40 : 56); origWpct = ov.w || 40; origH = (typeof ov.h === "number" && ov.h > 0) ? ov.h : 0; } }
-  else { st = ensureFieldStyle(card, el.dataset.fld); origScale = (typeof st.scale === "number" && st.scale > 0) ? st.scale : 1; }
-  const leftMoves = (corner === "nw" || corner === "sw"), topMoves = (corner === "nw" || corner === "ne");
+  let ov = null, st = null, origSize = 0, origWpct = 0, origScale = 1, origHpct = 0;
+  if (isOv) {
+    ov = (card.overlays || []).find(o => o.id === el.dataset.ov);
+    if (ov) {
+      origSize = ov.size || (ov.type === "badge" ? 40 : 56);
+      origWpct = ov.w || 40;
+      // h 가 자동(미설정)인 이미지는 지금 보이는 픽셀 높이를 카드 대비 % 로 변환해 기준값으로 사용.
+      // 이렇게 해야 가로/세로 변(엣지) 드래그 시 자연스럽게 잘림이 일어난다.
+      if (ov.type === "image") {
+        origHpct = (typeof ov.h === "number" && ov.h > 0) ? ov.h : (origPxH / cardRect.height * 100);
+      } else {
+        origHpct = (typeof ov.h === "number" && ov.h > 0) ? ov.h : 0;
+      }
+    }
+  } else {
+    st = ensureFieldStyle(card, el.dataset.fld);
+    origScale = (typeof st.scale === "number" && st.scale > 0) ? st.scale : 1;
+  }
+  // 어느 변이 움직이는가 (위치 보정용). 세로 엣지(n/s) → x 위치는 그대로, 가로 엣지(e/w) → y 위치는 그대로.
+  const leftMoves = (corner === "nw" || corner === "sw" || corner === "w");
+  const topMoves  = (corner === "nw" || corner === "ne" || corner === "n");
+  const fixesX = isVertEdge; // x 위치 변경 안 함
+  const fixesY = isHorzEdge; // y 위치 변경 안 함
   try { el.setPointerCapture(e.pointerId); } catch (e2) {}
   const move = ev => {
-    const ratio = Math.max(0.2, Math.min(6, Math.abs(ev.clientX - fixed.x) / origW));
+    const xRatio = Math.max(0.2, Math.min(6, Math.abs(ev.clientX - fixed.x) / origW));
+    const yRatio = Math.max(0.2, Math.min(6, Math.abs(ev.clientY - fixed.y) / origPxH));
     if (isOv) {
       if (!ov) return;
       if (ov.type === "image") {
-        ov.w = Math.max(5, Math.min(100, origWpct * ratio));
+        if (isCorner) {
+          // 종횡비 유지 — 가로 비율에 맞춰 세로도 동일 비율로 조정
+          ov.w = Math.max(5, Math.min(100, origWpct * xRatio));
+          ov.h = Math.max(5, Math.min(100, origHpct * xRatio));
+        } else if (isHorzEdge) {
+          // 가로만 변경 — h 를 현재 비율로 명시(자동→명시)해서 cover 잘림 발생
+          ov.w = Math.max(5, Math.min(100, origWpct * xRatio));
+          ov.h = origHpct;
+        } else if (isVertEdge) {
+          // 세로만 변경
+          ov.h = Math.max(5, Math.min(100, origHpct * yRatio));
+        }
         el.style.width = ov.w + "%";
-        // 사용자가 세로 길이를 지정한 이미지는 종횡비를 유지하며 함께 조정
-        if (origH > 0) { ov.h = Math.max(5, Math.min(100, origH * ratio)); el.style.height = ov.h + "%"; }
+        el.style.height = ov.h + "%";
+      } else {
+        // 텍스트/배지 — 가로 비율로 글자 크기
+        ov.size = Math.max(12, Math.min(400, Math.round(origSize * xRatio)));
+        el.style.fontSize = ov.size + "px";
       }
-      else { ov.size = Math.max(12, Math.min(400, Math.round(origSize * ratio))); el.style.fontSize = ov.size + "px"; }
+      // 위치 보정 — 드래그하지 않는 변이 그대로 머무르게
       const nr = el.getBoundingClientRect();
-      const newLeft = leftMoves ? (fixed.x - nr.width) : fixed.x;
-      const newTop = topMoves ? (fixed.y - nr.height) : fixed.y;
-      ov.x = Math.max(0, Math.min(100, (newLeft - cardRect.left) / cardRect.width * 100));
-      ov.y = Math.max(0, Math.min(100, (newTop - cardRect.top) / cardRect.height * 100));
-      el.style.left = ov.x + "%"; el.style.top = ov.y + "%";
+      if (!fixesX) {
+        const newLeft = leftMoves ? (fixed.x - nr.width) : fixed.x;
+        ov.x = Math.max(0, Math.min(100, (newLeft - cardRect.left) / cardRect.width * 100));
+        el.style.left = ov.x + "%";
+      }
+      if (!fixesY) {
+        const newTop = topMoves ? (fixed.y - nr.height) : fixed.y;
+        ov.y = Math.max(0, Math.min(100, (newTop - cardRect.top) / cardRect.height * 100));
+        el.style.top = ov.y + "%";
+      }
     } else {
-      st.scale = Math.max(0.3, Math.min(4, +(origScale * ratio).toFixed(3)));
+      st.scale = Math.max(0.3, Math.min(4, +(origScale * xRatio).toFixed(3)));
       el.style.setProperty("--field-scale", st.scale);
     }
   };
@@ -3155,14 +3193,11 @@ function renderFields(card) {
       const hVal = (typeof o.h === "number" && o.h > 0) ? o.h : 0;
       const cxVal = (typeof o.cx === "number") ? o.cx : 50;
       const cyVal = (typeof o.cy === "number") ? o.cy : 50;
-      const cropXVal = (typeof o.cropX === "number" && o.cropX > 0) ? o.cropX : 0;
-      const cropYVal = (typeof o.cropY === "number" && o.cropY > 0) ? o.cropY : 0;
-      const hasCrop = hVal > 0 || typeof o.cx === "number" || typeof o.cy === "number" || cropXVal > 0 || cropYVal > 0;
+      const hasCrop = hVal > 0 || typeof o.cx === "number" || typeof o.cy === "number";
       bodyHtml = `<button class="btn btn-ghost ov-img-pick" data-ov="${o.id}" style="width:100%;font-size:11px">${o.url ? "🖼 이미지 변경/검색" : "🖼 이미지 선택/검색"}</button>
+        <p style="margin:5px 0 0;font-size:10px;color:var(--text-faint);line-height:1.4">💡 프리뷰에서 이미지의 <b>모서리</b>를 잡으면 종횡비 유지, <b>변(가운데 핸들)</b>을 잡으면 그 방향이 잘립니다.</p>
         <label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-faint);margin-top:5px" title="가로 길이 (%)">가로<input type="range" class="ov-width" data-ov="${o.id}" min="5" max="95" step="1" value="${o.w ?? 30}" style="flex:1;accent-color:var(--accent)"><span class="ov-width-val" data-ov="${o.id}" style="min-width:30px;text-align:right;font-variant-numeric:tabular-nums">${o.w ?? 30}%</span></label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-faint);margin-top:4px" title="세로 길이 (%) — 0이면 원본 비율 유지">세로<input type="range" class="ov-height" data-ov="${o.id}" min="0" max="95" step="1" value="${hVal}" style="flex:1;accent-color:var(--accent)"><span class="ov-height-val" data-ov="${o.id}" style="min-width:30px;text-align:right;font-variant-numeric:tabular-nums">${hVal > 0 ? hVal + "%" : "자동"}</span></label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-faint);margin-top:4px" title="가로 자르기 — 이미지의 양옆을 그만큼 잘라 영역에서 삭제합니다.">✂↔<input type="range" class="ov-cropx" data-ov="${o.id}" min="0" max="80" step="1" value="${cropXVal}" style="flex:1;accent-color:var(--accent)"><span class="ov-cropx-val" data-ov="${o.id}" style="min-width:30px;text-align:right;font-variant-numeric:tabular-nums">${cropXVal}%</span></label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-faint);margin-top:4px" title="세로 자르기 — 이미지의 위/아래를 그만큼 잘라 영역에서 삭제합니다. (세로 길이가 0=자동 이면 동작하지 않음)">✂↕<input type="range" class="ov-cropy" data-ov="${o.id}" min="0" max="80" step="1" value="${cropYVal}" style="flex:1;accent-color:var(--accent)"${hVal <= 0 ? ' disabled' : ''}><span class="ov-cropy-val" data-ov="${o.id}" style="min-width:30px;text-align:right;font-variant-numeric:tabular-nums${hVal <= 0 ? ';opacity:0.4' : ''}">${hVal > 0 ? cropYVal + "%" : "—"}</span></label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-faint);margin-top:4px" title="세로 길이 (%) — 0이면 원본 비율 유지(잘림 없음)">세로<input type="range" class="ov-height" data-ov="${o.id}" min="0" max="95" step="1" value="${hVal}" style="flex:1;accent-color:var(--accent)"><span class="ov-height-val" data-ov="${o.id}" style="min-width:30px;text-align:right;font-variant-numeric:tabular-nums">${hVal > 0 ? hVal + "%" : "자동"}</span></label>
         <div style="display:flex;gap:8px;margin-top:4px;align-items:center">
           <label style="flex:1;display:flex;align-items:center;gap:3px;font-size:10px;color:var(--text-faint)" title="잘림 위치 — 가로 (0=왼쪽 보존, 50=양쪽 균등, 100=오른쪽 보존)">⇔<input type="range" class="ov-cx" data-ov="${o.id}" min="0" max="100" step="1" value="${cxVal}" style="flex:1;accent-color:var(--accent)"></label>
           <label style="flex:1;display:flex;align-items:center;gap:3px;font-size:10px;color:var(--text-faint)" title="잘림 위치 — 세로 (0=위 보존, 50=양쪽 균등, 100=아래 보존)">⇕<input type="range" class="ov-cy" data-ov="${o.id}" min="0" max="100" step="1" value="${cyVal}" style="flex:1;accent-color:var(--accent)"></label>
@@ -3531,28 +3566,12 @@ function bindEditorEvents(card) {
     const o = ovFind(e.target.dataset.ov); if (!o) return;
     o.cy = +e.target.value; renderPreview(); autoSave();
   }));
-  // 이미지 오버레이 — 가로 자름 (이미지 양옆 영역을 cropX% 만큼 삭제)
-  body.querySelectorAll(".ov-cropx").forEach(el => el.addEventListener("input", e => {
-    const o = ovFind(e.target.dataset.ov); if (!o) return;
-    const v = +e.target.value;
-    if (v <= 0) delete o.cropX; else o.cropX = v;
-    const lbl = body.querySelector(`.ov-cropx-val[data-ov="${e.target.dataset.ov}"]`);
-    if (lbl) lbl.textContent = v + "%";
-    renderPreview(); autoSave();
-  }));
-  // 이미지 오버레이 — 세로 자름 (세로 길이가 명시되어 있을 때만 동작)
-  body.querySelectorAll(".ov-cropy").forEach(el => el.addEventListener("input", e => {
-    const o = ovFind(e.target.dataset.ov); if (!o) return;
-    const v = +e.target.value;
-    if (v <= 0) delete o.cropY; else o.cropY = v;
-    const lbl = body.querySelector(`.ov-cropy-val[data-ov="${e.target.dataset.ov}"]`);
-    if (lbl) lbl.textContent = v + "%";
-    renderPreview(); autoSave();
-  }));
-  // 크롭 리셋 — 세로/위치/자름 모두 기본값으로
+  // 크롭 리셋 — 세로/위치 모두 기본값(자동)으로
   body.querySelectorAll(".ov-crop-reset").forEach(b => b.onclick = () => {
     const o = ovFind(b.dataset.ov); if (!o) return;
-    delete o.h; delete o.cx; delete o.cy; delete o.cropX; delete o.cropY;
+    delete o.h; delete o.cx; delete o.cy;
+    // 호환성: 이전 버전에서 저장된 cropX/cropY 도 함께 정리
+    delete o.cropX; delete o.cropY;
     renderEditor(); renderPreview(); autoSave();
   });
   body.querySelectorAll(".ov-color").forEach(el => {
