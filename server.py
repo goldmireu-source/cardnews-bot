@@ -269,8 +269,11 @@ BOT_INTEGRATION_SCRIPT = r"""
       if (typeof window.autofitStat === "function") window.autofitStat(renderArea);
       // 배경 이미지 휘도 분석 (밝은 배경 자동 감지)
       if (typeof window.applyBgLuminance === "function") await window.applyBgLuminance(renderArea);
+      // 이미지 로드 완료 대기 + CSS var() gradient 인라인 치환 (html2canvas 대응)
+      if (typeof window._waitForImagesLoaded === "function") await window._waitForImagesLoaded(renderArea);
       const el = renderArea.querySelector(".card");
       if (!el) continue;
+      if (typeof window._inlineBgOverlayForExport === "function") window._inlineBgOverlayForExport(el);
       const canvas = await html2canvas(el, { width:1080, height:1350, scale:1, useCORS:true, backgroundColor:null });
       const blob = await new Promise(res => canvas.toBlob(res, "image/png"));
       formData.append("files", blob, `${String(i).padStart(2,"0")}.png`);
@@ -342,8 +345,11 @@ BOT_INTEGRATION_SCRIPT = r"""
         await new Promise(r => setTimeout(r, 150));
         if (typeof window.autofitStat === "function") window.autofitStat(renderArea);
         if (typeof window.applyBgLuminance === "function") await window.applyBgLuminance(renderArea);
+        // 이미지 로드 완료 대기 + CSS var() gradient 인라인 치환 (html2canvas 대응)
+        if (typeof window._waitForImagesLoaded === "function") await window._waitForImagesLoaded(renderArea);
         const el = renderArea.querySelector(".card");
         if (!el) continue;
+        if (typeof window._inlineBgOverlayForExport === "function") window._inlineBgOverlayForExport(el);
         const canvas = await html2canvas(el, { width:1080, height:1350, scale:1, useCORS:true, backgroundColor:null });
         const blob = await new Promise(res => canvas.toBlob(res, "image/png"));
         formData.append("files", blob, `${String(i).padStart(2,"0")}.png`);

@@ -1568,6 +1568,7 @@ input, textarea, select { font-family: inherit; }
         <button class="btn btn-ghost" id="btn-reset">초기화</button>
       </div>
       <button class="btn btn-primary" id="btn-export">📥 전체 PNG 다운로드 (ZIP)</button>
+      <button class="btn btn-primary" id="btn-preview-publish" style="background:linear-gradient(135deg,#0ea5e9,#6366f1);color:#fff;border:none">🔍 발행 미리보기</button>
       <button class="btn btn-primary" id="btn-publish" style="background:linear-gradient(135deg,#e1306c,#833ab4);color:#fff;border:none">📲 인스타·스레드 발행</button>
     </div>
   </aside>
@@ -1823,9 +1824,12 @@ const FIELD_TO_SELECTOR = {
 const ARRAY_FIELD_TO_SELECTOR = {
   "descItems.title":       ".item-title",
   "descItems.desc":        ".item-desc",
+  "descItems.idx":         ".idx",
   "timelineItems.label":   ".tl-label",
   "timelineItems.content": ".tl-body",
+  "timelineItems.dot":     ".tl-dot",
   "items":                 ".text",
+  "items.bullet":          ".bullet, .box, .dot",
 };
 
 function applyFieldStyles(card, rootEl) {
@@ -1979,18 +1983,22 @@ function forEachFieldEl(card, root, cb) {
   fields.forEach(f => {
     if (f === "items") {
       const els = root.querySelectorAll(".text");
+      const layoutKey = `${card.type}/${card.layout}`;
+      const bulletSel = { "list/numbered": ".bullet", "list/check": ".box", "list/icon": ".dot", "list/grid": ".bullet" }[layoutKey] || null;
+      const bulletEls = bulletSel ? root.querySelectorAll(bulletSel) : [];
       (card.data.items || []).forEach((_, i) => {
         if (!els[i]) return;
         cb(`items.${i}`, els[i]);
         const sub = els[i].querySelector(".item-sub"); // 항목별 세부내용(있을 때만)
         if (sub) cb(`itemDescs.${i}`, sub);
+        if (bulletEls[i]) cb(`items.${i}.bullet`, bulletEls[i]);
       });
     } else if (f === "descItems") {
-      const t = root.querySelectorAll(".item-title"), dd = root.querySelectorAll(".item-desc");
-      (card.data.descItems || []).forEach((_, i) => { if (t[i]) cb(`descItems.${i}.title`, t[i]); if (dd[i]) cb(`descItems.${i}.desc`, dd[i]); });
+      const t = root.querySelectorAll(".item-title"), dd = root.querySelectorAll(".item-desc"), idxEls = root.querySelectorAll(".idx");
+      (card.data.descItems || []).forEach((_, i) => { if (t[i]) cb(`descItems.${i}.title`, t[i]); if (dd[i]) cb(`descItems.${i}.desc`, dd[i]); if (idxEls[i]) cb(`descItems.${i}.idx`, idxEls[i]); });
     } else if (f === "timelineItems") {
-      const l = root.querySelectorAll(".tl-label"), b = root.querySelectorAll(".tl-body");
-      (card.data.timelineItems || []).forEach((_, i) => { if (l[i]) cb(`timelineItems.${i}.label`, l[i]); if (b[i]) cb(`timelineItems.${i}.content`, b[i]); });
+      const l = root.querySelectorAll(".tl-label"), b = root.querySelectorAll(".tl-body"), dots = root.querySelectorAll(".tl-dot");
+      (card.data.timelineItems || []).forEach((_, i) => { if (l[i]) cb(`timelineItems.${i}.label`, l[i]); if (b[i]) cb(`timelineItems.${i}.content`, b[i]); if (dots[i]) cb(`timelineItems.${i}.dot`, dots[i]); });
     } else {
       const map = FIELD_TO_SELECTOR[f];
       let el = null;
@@ -2289,15 +2297,6 @@ function zOp(op) {
   else if (op === "forward") nz = cur + 1;
   else if (op === "backward") nz = cur - 1;
   _setSelZ(card, nz);
-  // 정규화 — z 값이 음수가 되면 카드 내부 일반 콘텐츠 뒤로 사라져 클릭이 안 되므로
-  // 모든 z 에 동일한 보정값을 더해 0 이상으로 끌어올린다(상대 순서는 그대로 유지).
-  const allZs = _collectZ(card);
-  const minZ = Math.min(...allZs);
-  if (minZ < 0) {
-    const shift = -minZ;
-    (card.overlays || []).forEach(o => { if (typeof o.z === "number") o.z += shift; });
-    Object.values(card.fieldStyles || {}).forEach(st => { if (st && typeof st.z === "number") st.z += shift; });
-  }
   renderPreview(); autoSave();
   // 선택 상태(SEL)는 유지 — renderPreview 안의 bindOverlayDrag 가 다시 applySelection 을 호출하므로
   // 핸들/툴바도 자연스럽게 다시 표시된다.
@@ -2361,6 +2360,30 @@ function onStudioOverlayKey(e) {
   if (e.key === "Escape") { SEL = null; renderPreview(); }
 }
 document.addEventListener("keydown", onStudioOverlayKey);
+
+// 외부 이미지 붙여넣기 — 브라우저/파일탐색기에서 복사한 이미지를 Ctrl+V로 카드에 추가
+document.addEventListener("paste", e => {
+  const ae = document.activeElement;
+  if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable)) return;
+  if (_ovClipboard) return; // 내부 오버레이 클립보드 우선 — keydown Ctrl+V 핸들러에 위임
+  const imgItem = [...(e.clipboardData?.items || [])].find(it => it.type.startsWith("image/"));
+  if (!imgItem) return;
+  e.preventDefault();
+  const card = STATE.cards.find(c => c.id === STATE.activeId);
+  if (!card) return;
+  const file = imgItem.getAsFile();
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    card.overlays = card.overlays || [];
+    const ov = { id: "ov" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), type: "image", url: ev.target.result, x: 10, y: 10, w: 60 };
+    card.overlays.push(ov);
+    SEL = { kind: "ov", key: ov.id };
+    renderEditor(); renderPreview(); autoSave();
+    toast("이미지 붙여넣기됨", "success");
+  };
+  reader.readAsDataURL(file);
+});
 
 function renderCard(card, pageNum, total) {
   const key = `${card.type}/${card.layout}`;
@@ -3836,6 +3859,67 @@ async function applyBgLuminance(scope) {
 window.applyBgLuminance = applyBgLuminance;
 
 // ====================================================================
+// html2canvas 캡처 전처리 헬퍼
+// ====================================================================
+
+// 렌더 영역 내 모든 <img>를 캡처 가능 상태로 준비:
+//   1. 외부 직접 URL(https?://) → /img-proxy 경유로 교체 (CORS 없는 서버 대응)
+//   2. CSS background-image 에도 동일 처리 (.bg-image-layer 등)
+//   3. 모든 <img> 로드 완료까지 대기
+async function _waitForImagesLoaded(root) {
+  // <img src="https://..."> → <img src="/img-proxy?url=...">
+  const waitFor = [];
+  root.querySelectorAll("img").forEach(img => {
+    const src = img.getAttribute("src") || "";
+    if (!src) return;
+    if (/^https?:\/\//i.test(src)) {
+      img.src = `/img-proxy?url=${encodeURIComponent(src)}`;
+      waitFor.push(new Promise(r => { img.onload = img.onerror = r; }));
+    } else if (!img.complete) {
+      waitFor.push(new Promise(r => { img.onload = img.onerror = r; }));
+    }
+  });
+  // background-image:url("https://...") → url("/img-proxy?url=...")
+  root.querySelectorAll("[style]").forEach(el => {
+    const bi = el.style.backgroundImage;
+    if (!bi) return;
+    const m = bi.match(/url\(["']?(https?:\/\/[^"')]+)["']?\)/);
+    if (!m) return;
+    el.style.backgroundImage = `url('/img-proxy?url=${encodeURIComponent(m[1])}')`;
+  });
+  await Promise.all(waitFor);
+}
+
+// html2canvas 는 CSS var() inside rgba()/gradient 를 제대로 해석하지 못할 수 있음.
+// 캡처 직전에 --bg-darken 값을 계산해 .bg-image-overlay 에 인라인 style 로 주입한다.
+function _inlineBgOverlayForExport(cardEl) {
+  const overlay = cardEl.querySelector(".bg-image-overlay");
+  if (!overlay) return;
+  const darkenStr = cardEl.style.getPropertyValue("--bg-darken");
+  if (!darkenStr) return;
+  const darken = Math.max(0, Math.min(1, parseFloat(darkenStr) || 0));
+  const clamp = v => Math.min(1, Math.max(0, v));
+  const r = v => +v.toFixed(4);
+  const isBand = cardEl.classList.contains("bg-band");
+  const isBright = cardEl.classList.contains("bright-bg");
+  const isClosing = /\blo-closing-/.test(cardEl.className);
+  if (isBand) {
+    overlay.style.background = `rgba(0,0,0,${r(darken)})`;
+  } else if (isBright) {
+    overlay.style.background = `linear-gradient(180deg,rgba(0,0,0,${r(clamp(darken*0.85))}) 0%,rgba(0,0,0,${r(clamp(darken*1.5))}) 60%,rgba(0,0,0,${r(clamp(darken*1.7))}) 100%)`;
+  } else if (isClosing) {
+    overlay.style.background = [
+      `radial-gradient(ellipse 70% 50% at center,rgba(0,0,0,${r(clamp(darken*0.4))}) 0%,rgba(0,0,0,0) 70%)`,
+      `linear-gradient(180deg,rgba(0,0,0,${r(clamp(darken*0.5))}) 0%,rgba(0,0,0,${r(darken)}) 50%,rgba(0,0,0,${r(clamp(darken*1.1))}) 100%)`,
+    ].join(",");
+  } else {
+    overlay.style.background = `linear-gradient(180deg,rgba(0,0,0,${r(clamp(darken*0.55))}) 0%,rgba(0,0,0,${r(darken)}) 60%,rgba(0,0,0,${r(clamp(darken*1.05))}) 100%)`;
+  }
+}
+window._waitForImagesLoaded = _waitForImagesLoaded;
+window._inlineBgOverlayForExport = _inlineBgOverlayForExport;
+
+// ====================================================================
 // 배경 이미지 피커 — 클러스터 기반 후보 이미지 그리드 모달
 // ====================================================================
 async function openBgImagePicker(card, overlayId) {
@@ -4235,7 +4319,10 @@ async function exportAll() {
     autofitStat(renderArea);
     // 배경 이미지가 있으면 휘도 분석 완료까지 대기 (밝은 배경 자동 감지)
     await applyBgLuminance(renderArea);
+    // 이미지 로드 완료 대기 + CSS var() gradient 인라인 치환 (html2canvas 대응)
+    await _waitForImagesLoaded(renderArea);
     const cardEl = renderArea.querySelector(".card");
+    if (cardEl) _inlineBgOverlayForExport(cardEl);
     const canvas = await html2canvas(cardEl, { width:1080, height:1350, scale:1, useCORS:true, backgroundColor:null });
     const blob = await new Promise(res => canvas.toBlob(res, "image/png"));
     const num = String(i + 1).padStart(2, "0");
@@ -4252,6 +4339,74 @@ async function exportAll() {
   btn.disabled = false;
   btn.textContent = orig;
   toast(`✓ ${STATE.cards.length}장 다운로드 완료`, "success");
+}
+
+// ====================================================================
+// 발행 미리보기 — 실제 html2canvas 파이프라인으로 렌더한 결과를 모달에 표시
+// ====================================================================
+async function openPublishPreview() {
+  if (STATE.cards.length === 0) { toast("미리볼 카드가 없습니다", "error"); return; }
+  const btn = document.getElementById("btn-preview-publish");
+  const orig = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.textContent = "🔄 렌더링 중…"; }
+
+  const renderArea = document.getElementById("render-area");
+  renderArea.className = `render-area theme-${STATE.theme}`;
+  const blobs = [];
+
+  try {
+    for (let i = 0; i < STATE.cards.length; i++) {
+      if (btn) btn.textContent = `🔄 ${i + 1}/${STATE.cards.length} 렌더링…`;
+      const card = STATE.cards[i];
+      renderArea.innerHTML = renderCard(card, i + 1, STATE.cards.length);
+      await new Promise(r => setTimeout(r, 120));
+      autofitStat(renderArea);
+      await applyBgLuminance(renderArea);
+      await _waitForImagesLoaded(renderArea);
+      const cardEl = renderArea.querySelector(".card");
+      if (cardEl) _inlineBgOverlayForExport(cardEl);
+      const canvas = await html2canvas(cardEl, { width: 1080, height: 1350, scale: 1, useCORS: true, backgroundColor: null });
+      blobs.push({ canvas, card, num: i + 1 });
+    }
+  } finally {
+    renderArea.innerHTML = "";
+    if (btn) { btn.disabled = false; btn.textContent = orig; }
+  }
+
+  // 모달 표시
+  const back = document.createElement("div");
+  back.className = "modal-backdrop";
+  back.style.cssText = "z-index:9000;overflow-y:auto;align-items:flex-start;padding:20px 0";
+  back.innerHTML = `
+    <div class="modal" style="max-width:680px;width:100%">
+      <div class="modal-header" style="position:sticky;top:0;background:var(--bg-card,#fff);z-index:1;border-bottom:1px solid var(--c-line,#e3e7ef)">
+        <h2>🔍 발행 미리보기 — ${blobs.length}장</h2>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:12px;color:var(--text-faint)">실제 발행 결과와 동일하게 html2canvas로 렌더한 이미지입니다</span>
+          <button class="close">×</button>
+        </div>
+      </div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:16px;padding:16px" id="preview-grid"></div>
+    </div>`;
+  document.body.appendChild(back);
+  back.querySelector(".close").onclick = () => back.remove();
+  back.onclick = e => { if (e.target === back) back.remove(); };
+
+  const grid = back.querySelector("#preview-grid");
+  blobs.forEach(({ canvas, card, num }) => {
+    const wrapper = document.createElement("div");
+    wrapper.style.cssText = "display:flex;flex-direction:column;gap:6px";
+    const label = document.createElement("div");
+    label.style.cssText = "font-size:11px;color:var(--text-faint);font-weight:600";
+    label.textContent = `${String(num).padStart(2, "0")} / ${blobs.length} — ${card.type}/${card.layout}`;
+    const img = document.createElement("img");
+    img.src = canvas.toDataURL("image/png");
+    img.style.cssText = "width:100%;border-radius:8px;border:1px solid var(--c-line,#e3e7ef);display:block";
+    img.alt = `카드 ${num}`;
+    wrapper.appendChild(label);
+    wrapper.appendChild(img);
+    grid.appendChild(wrapper);
+  });
 }
 
 // ====================================================================
@@ -5075,6 +5230,7 @@ function init() {
   document.querySelectorAll("[data-add]").forEach(b => b.onclick = () => addCard(b.dataset.add));
   document.getElementById("btn-one-shot").onclick = openOneShotModal;
   document.getElementById("btn-export").onclick = exportAll;
+  document.getElementById("btn-preview-publish").onclick = openPublishPreview;
   document.getElementById("btn-save").onclick = manualSave;
   document.getElementById("btn-load").onclick = loadSession;
   document.getElementById("btn-reset").onclick = resetAll;
