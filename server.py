@@ -33,9 +33,12 @@ import sqlite3
 import time
 from pathlib import Path
 from datetime import datetime, date
+from urllib.parse import urljoin, urlparse
 from dotenv import load_dotenv
 
 import anthropic
+import requests
+from bs4 import BeautifulSoup
 from flask import Flask, jsonify, abort, request, Response, send_from_directory
 
 load_dotenv()
@@ -1374,8 +1377,98 @@ _IMAGE_MIME = {
     "webp": "image/webp", "gif": "image/gif",
 }
 
+_URL_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
+_URL_TIMEOUT = 10
+_URL_MAX_BYTES = 3_000_000
+
+
+def _fetch_url_text(url: str) -> str:
+    """URL에서 제목·설명·본문 텍스트를 추출해 Claude 분석용 문자열로 반환.
+
+    SNS(Instagram, Facebook 등)는 로그인 없이 OG 메타만 얻을 수 있고, 뉴스·블로그는
+    본문 전체를 가져온다. 어느 쪽이든 Claude에게 줄 텍스트 블록을 만든다.
+    """
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            raise ValueError("http 또는 https URL만 지원합니다")
+        r = requests.get(
+            url, timeout=_URL_TIMEOUT,
+            headers={"User-Agent": _URL_UA},
+            allow_redirects=True,
+        )
+        r.raise_for_status()
+    except requests.RequestException as e:
+        raise ValueError(f"URL 접근 실패: {e}")
+
+    ct = r.headers.get("Content-Type", "")
+    if "html" not in ct.lower():
+        raise ValueError("HTML 페이지만 지원합니다 (이미지·PDF URL은 위 파일 첨부로 올려주세요)")
+
+    html = r.text[:_URL_MAX_BYTES]
+    soup = BeautifulSoup(html, "html.parser")
+
+    # OG / 메타 정보
+    def _meta(prop=None, name=None):
+        tag = (soup.find("meta", property=prop) if prop else None) or \
+              (soup.find("meta", attrs={"name": name}) if name else None)
+        return (tag.get("content") or "").strip() if tag else ""
+
+    title = _meta("og:title") or _meta(name="title")
+    if not title:
+        t = soup.find("title")
+        title = t.get_text(strip=True) if t else ""
+
+    description = _meta("og:description") or _meta(name="description")
+    site_name = _meta("og:site_name")
+
+    # 본문 텍스트 — 스크립트·스타일·네비 제거 후 추출
+    for tag in soup(["script", "style", "nav", "header", "footer", "aside", "iframe", "noscript"]):
+        tag.decompose()
+
+    main = (
+        soup.find("article") or
+        soup.find("main") or
+        soup.find(attrs={"role": "main"}) or
+        soup.find("body")
+    )
+    raw_text = main.get_text(separator="\n", strip=True) if main else soup.get_text("\n", strip=True)
+
+    # 짧은 줄(메뉴 항목 등)과 중복 제거, 최대 300줄
+    seen_lines: set[str] = set()
+    body_lines = []
+    for line in raw_text.split("\n"):
+        line = line.strip()
+        if len(line) < 15 or line in seen_lines:
+            continue
+        seen_lines.add(line)
+        body_lines.append(line)
+        if len(body_lines) >= 300:
+            break
+    body_text = "\n".join(body_lines)
+
+    parts = []
+    parts.append(f"[출처 URL] {url}")
+    if site_name:
+        parts.append(f"[사이트] {site_name}")
+    if title:
+        parts.append(f"[제목] {title}")
+    if description:
+        parts.append(f"[요약/설명] {description}")
+    if body_text:
+        parts.append(f"[본문]\n{body_text}")
+
+    result = "\n\n".join(parts)
+    if len(result) < 50:
+        raise ValueError("URL에서 충분한 내용을 가져오지 못했어요. 로그인이 필요한 페이지이거나 접근이 제한된 URL일 수 있습니다.")
+    return result
+
+
 _MATERIAL_SYS = (
-    "당신은 한국어 카드뉴스 기획자입니다. 주어진 자료(공모전 포스터·홍보물·문서·메모 등)에서 "
+    "당신은 한국어 카드뉴스 기획자입니다. 주어진 자료(웹 페이지·SNS 링크·공모전 포스터·홍보물·문서·메모 등)에서 "
     "카드뉴스로 만들 핵심 정보를 빠짐없이 추출해 정리합니다. 자료에 적힌 사실만 사용하고 절대 "
     "지어내지 마세요. 공모전·모집 자료라면 다음을 꼭 포함하세요: 명칭, 주최/주관, 참가 대상, "
     "주제·분야, 접수 기간·마감일, 진행 일정, 시상/혜택, 참가 방법·제출물, 문의처. "
@@ -1388,17 +1481,20 @@ _MATERIAL_USER = (
 )
 
 
-def _analyze_material(file_storage, extra_text: str) -> str:
-    """이미지/PDF/텍스트를 카드뉴스용 요약 텍스트로 변환.
+def _analyze_material(file_storages, extra_text: str) -> str:
+    """이미지/PDF(여러 장)/텍스트를 카드뉴스용 요약 텍스트로 변환.
 
+    file_storages: FileStorage 객체 리스트 (빈 리스트도 허용).
     Claude 가 PDF·이미지를 네이티브로 읽으므로 별도 OCR/PDF 라이브러리 불필요.
     """
     blocks: list[dict] = []
-    if file_storage and file_storage.filename:
-        raw = file_storage.read()
+    for fs in (file_storages or []):
+        if not fs or not fs.filename:
+            continue
+        raw = fs.read()
         if len(raw) > _MATERIAL_MAX_BYTES:
-            raise ValueError(f"파일이 너무 큼 (최대 {_MATERIAL_MAX_BYTES // (1024 * 1024)}MB)")
-        ext = (file_storage.filename.rsplit(".", 1)[-1] if "." in file_storage.filename else "").lower()
+            raise ValueError(f"파일이 너무 큼: {fs.filename} (최대 {_MATERIAL_MAX_BYTES // (1024 * 1024)}MB)")
+        ext = (fs.filename.rsplit(".", 1)[-1] if "." in fs.filename else "").lower()
         b64 = base64.b64encode(raw).decode()
         if ext == "pdf":
             blocks.append({"type": "document", "source": {
@@ -1411,7 +1507,8 @@ def _analyze_material(file_storage, extra_text: str) -> str:
 
     extra_text = (extra_text or "").strip()
     if extra_text:
-        blocks.append({"type": "text", "text": f"[참고 텍스트]\n{extra_text}"})
+        # 사용자가 "문장을 다르게 써줘" 같은 요청을 여기에 넣을 수 있음
+        blocks.append({"type": "text", "text": f"[참고 텍스트·요청사항]\n{extra_text}"})
     if not blocks:
         raise ValueError("분석할 자료가 없습니다 (파일 또는 텍스트 필요)")
     blocks.append({"type": "text", "text": _MATERIAL_USER})
@@ -1427,17 +1524,38 @@ def _analyze_material(file_storage, extra_text: str) -> str:
 
 @app.route("/api/auto/material/analyze", methods=["POST"])
 def api_auto_material_analyze():
-    """자료(이미지/PDF/텍스트)를 분석·요약만 해서 반환 (카드 생성·큐 적재는 안 함).
+    """자료(이미지/PDF/텍스트/URL)를 분석·요약만 해서 반환 (카드 생성·큐 적재는 안 함).
 
     검수 단계용: 사용자가 요약을 확인·수정한 뒤 /api/auto/generate(freeform)로 생성.
-    multipart/form-data: file(선택), text(선택). 응답: { ok, summary }
+    multipart/form-data: file(선택), text(선택), url(선택). 응답: { ok, summary }
+    url 이 있으면 해당 페이지를 크롤링해 text에 합산한 뒤 분석.
     """
     if not claude:
         return jsonify({"error": "ANTHROPIC_API_KEY 미설정 (.env 확인)"}), 500
-    file_storage = request.files.get("file")
-    text = request.form.get("text", "")
+
+    # files[] (다중) 우선, 없으면 file (단일, 하위 호환) 폴백
+    file_storages = request.files.getlist("files[]")
+    if not file_storages or not any(f.filename for f in file_storages):
+        single = request.files.get("file")
+        file_storages = [single] if (single and single.filename) else []
+    if len(file_storages) > 10:
+        return jsonify({"error": "파일은 최대 10개까지 첨부 가능합니다"}), 400
+
+    text = request.form.get("text", "").strip()
+    url = request.form.get("url", "").strip()
+
+    # URL 크롤링 → extra_text에 합산
+    if url:
+        try:
+            url_text = _fetch_url_text(url)
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        except Exception as e:
+            return jsonify({"error": f"URL 크롤링 실패: {e}"}), 500
+        text = (url_text + ("\n\n[추가 메모]\n" + text if text else "")).strip()
+
     try:
-        summary = _analyze_material(file_storage, text)
+        summary = _analyze_material(file_storages, text)
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
     except anthropic.APIStatusError as e:

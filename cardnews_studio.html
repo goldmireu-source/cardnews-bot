@@ -4758,7 +4758,7 @@ function openOneShotModal() {
           <input type="file" id="image-input" accept="image/*" multiple style="display:none">
           <div class="upload-prompt">
             📎 이미지를 끌어다 놓기 또는 <button class="link-btn" id="upload-btn">파일 선택</button>
-            <div class="hint">스크린샷·노트 사진·문서·도식 모두 가능 (여러 장 OK · 자동 압축)</div>
+            <div class="hint">스크린샷·노트 사진·문서·도식 모두 가능 (최대 10장 · 자동 압축)</div>
           </div>
           <div class="upload-list" id="upload-list"></div>
         </div>
@@ -4882,7 +4882,17 @@ function setupImageUpload(modalEl, imagesRef) {
 }
 
 async function handleFiles(fileList, imagesRef, listEl) {
-  for (const file of Array.from(fileList)) {
+  const MAX_IMAGES = 10;
+  const arr = Array.from(fileList);
+  const remaining = MAX_IMAGES - imagesRef.length;
+  if (remaining <= 0) {
+    toast(`이미지는 최대 ${MAX_IMAGES}장까지 첨부할 수 있어요`, "error");
+    return;
+  }
+  if (arr.length > remaining) {
+    toast(`${MAX_IMAGES}장 한도로 처음 ${remaining}장만 추가됩니다`, "error");
+  }
+  for (const file of arr.slice(0, remaining)) {
     if (!file.type.startsWith("image/")) {
       toast(`${file.name}: 이미지 파일이 아니에요`, "error");
       continue;

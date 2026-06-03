@@ -607,12 +607,14 @@ nav.tabs button.active {
           자료가 있으면 그 내용을 반영해 사관학교 홍보 카드뉴스를 만들고, 없으면 위에서 고른 템플릿으로 기본 생성합니다.
           예: 사관학교 행사 사진/포스터, 강의 자료, 후기 글, 공지문 등.
         </p>
-        <div id="ac-drop" style="border:2px dashed var(--line);border-radius:12px;padding:22px 18px;text-align:center;cursor:pointer;background:rgba(110,231,255,0.03);transition:border-color .15s">
-          <input type="file" id="ac-file" accept="image/png,image/jpeg,image/webp,image/gif,application/pdf" hidden>
-          <div style="font-size:26px;line-height:1">📎</div>
-          <p style="margin:6px 0 2px"><b>이미지·PDF를 끌어다 놓거나 클릭</b>해서 업로드</p>
-          <p style="margin:0;font-size:11px;color:var(--text-faint)">아래 텍스트칸에 붙여넣기(Ctrl+V)도 가능 · png·jpg·webp·gif·pdf, 최대 12MB</p>
-          <p id="ac-file-name" style="margin:6px 0 0;font-size:12px;color:var(--accent)"></p>
+        <div id="ac-drop" style="border:2px dashed var(--line);border-radius:12px;padding:16px;background:rgba(110,231,255,0.03);transition:border-color .15s">
+          <input type="file" id="ac-file" accept="image/png,image/jpeg,image/webp,image/gif,application/pdf" multiple hidden>
+          <div id="ac-drop-prompt" style="text-align:center;cursor:pointer;padding:6px 0">
+            <div style="font-size:24px;line-height:1">📎</div>
+            <p style="margin:6px 0 2px"><b>이미지·PDF를 끌어다 놓거나 클릭</b>해서 업로드 <span style="color:var(--text-faint)">(최대 10개)</span></p>
+            <p style="margin:0;font-size:11px;color:var(--text-faint)">아래 텍스트칸에 붙여넣기(Ctrl+V)도 가능 · png·jpg·webp·gif·pdf · 파일당 최대 12MB</p>
+          </div>
+          <div id="ac-file-list" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px"></div>
         </div>
         <textarea id="ac-text" rows="5" placeholder="또는 자료 텍스트를 여기에 직접 입력 (모집 안내문, 후기 등). 파일과 함께 넣으면 보조 설명으로 사용됩니다." style="width:100%;margin-top:10px;resize:vertical"></textarea>
       </div>
@@ -635,15 +637,27 @@ nav.tabs button.active {
       </div>
     </div>
 
-    <div id="material-drop" style="border:2px dashed var(--line);border-radius:12px;padding:26px 18px;text-align:center;cursor:pointer;background:rgba(110,231,255,0.03);transition:border-color .15s">
-      <input type="file" id="material-file" accept="image/png,image/jpeg,image/webp,image/gif,application/pdf" hidden>
-      <div style="font-size:30px;line-height:1">📎</div>
-      <p style="margin:8px 0 2px"><b>이미지·PDF를 끌어다 놓거나 클릭</b>해서 업로드</p>
-      <p style="margin:0;font-size:12px;color:var(--text-faint)">이미지는 아래 칸에 붙여넣기(Ctrl+V)도 가능 · png·jpg·webp·gif·pdf, 최대 12MB</p>
-      <p id="material-file-name" style="margin:8px 0 0;font-size:12px;color:var(--accent)"></p>
+    <!-- 파일 첨부 (다중, 최대 10개) -->
+    <div id="material-drop" style="border:2px dashed var(--line);border-radius:12px;padding:18px;background:rgba(110,231,255,0.03);transition:border-color .15s">
+      <input type="file" id="material-file" accept="image/png,image/jpeg,image/webp,image/gif,application/pdf" multiple hidden>
+      <div id="material-drop-prompt" style="text-align:center;cursor:pointer;padding:6px 0">
+        <div style="font-size:28px;line-height:1">📎</div>
+        <p style="margin:8px 0 2px"><b>이미지·PDF를 끌어다 놓거나 클릭</b>해서 업로드 <span style="color:var(--text-faint)">(최대 10개)</span></p>
+        <p style="margin:0;font-size:12px;color:var(--text-faint)">아래 텍스트칸에 붙여넣기(Ctrl+V)도 가능 · png·jpg·webp·gif·pdf · 파일당 최대 12MB</p>
+      </div>
+      <div id="material-file-list" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px"></div>
     </div>
 
-    <textarea id="material-text" rows="6" placeholder="또는 여기에 텍스트를 붙여넣으세요 (공모전 안내문, 기사 본문 등). 파일과 함께 넣으면 보조 설명으로 사용됩니다." style="width:100%;margin-top:12px;resize:vertical"></textarea>
+    <!-- URL 입력 -->
+    <div style="margin-top:12px;display:flex;align-items:center;gap:8px">
+      <span style="font-size:18px;flex-shrink:0">🔗</span>
+      <input id="material-url" type="url" placeholder="또는 웹 주소(URL)를 붙여넣으세요 — 뉴스 기사, 블로그, 공식 페이지, SNS 링크 등"
+        style="flex:1;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:var(--panel-2);color:var(--text);font-size:13px;outline:none;transition:border-color .15s"
+        onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--line)'">
+    </div>
+    <p style="margin:4px 0 0 30px;font-size:11px;color:var(--text-faint)">파일·URL·텍스트는 함께 쓸 수 있어요. Instagram 등 로그인 필요 페이지는 제목·설명만 가져올 수 있습니다.</p>
+
+    <textarea id="material-text" rows="5" placeholder="또는 텍스트를 붙여넣으세요. 요청사항(예: '문장을 원문과 다르게 써줘', '핵심만 3줄로 요약해줘')도 여기 입력하면 반영됩니다." style="width:100%;margin-top:12px;resize:vertical"></textarea>
 
     <div style="display:flex;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap">
       <button class="btn ai" id="btn-material-analyze">🔍 내용 분석하기</button>
@@ -994,37 +1008,82 @@ document.querySelectorAll("#academy-tpl .tpl").forEach(b => {
 
 // 사관학교 — 자료 첨부(이미지/PDF + 텍스트) 처리. 소재 분석 탭과 같은 패턴.
 const __acMaterial = (function () {
+  const MAX_AC_FILES = 10;
   const drop = document.getElementById("ac-drop");
+  const dropPrompt = document.getElementById("ac-drop-prompt");
   const fileInput = document.getElementById("ac-file");
-  const nameEl = document.getElementById("ac-file-name");
+  const fileListEl = document.getElementById("ac-file-list");
   const textEl = document.getElementById("ac-text");
-  if (!drop) return { getFile: () => null, getText: () => "", reset: () => {} };
-  let pickedFile = null;
-  function setFile(f) {
-    pickedFile = f || null;
-    nameEl.textContent = f ? `첨부됨: ${f.name} (${Math.round(f.size / 1024)}KB)` : "";
+  if (!drop) return { getFiles: () => [], getText: () => "", reset: () => {} };
+  let pickedFiles = [];
+
+  function renderAcFileList() {
+    if (!fileListEl) return;
+    fileListEl.innerHTML = "";
+    pickedFiles.forEach((f, i) => {
+      const isPdf = f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
+      const wrap = document.createElement("div");
+      wrap.style.cssText = "position:relative;width:68px;flex-shrink:0;text-align:center";
+      if (isPdf) {
+        const box = document.createElement("div");
+        box.style.cssText = "width:68px;height:68px;border-radius:8px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:22px;background:var(--panel-2)";
+        box.textContent = "📄";
+        wrap.appendChild(box);
+      } else {
+        const imgEl = document.createElement("img");
+        imgEl.src = URL.createObjectURL(f);
+        imgEl.style.cssText = "width:68px;height:68px;object-fit:cover;border-radius:8px;border:1px solid var(--line);display:block";
+        wrap.appendChild(imgEl);
+      }
+      const name = document.createElement("div");
+      name.style.cssText = "font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;max-width:68px;color:var(--text-faint)";
+      name.textContent = f.name;
+      wrap.appendChild(name);
+      const del = document.createElement("button");
+      del.textContent = "×";
+      del.style.cssText = "position:absolute;top:-5px;right:-5px;width:17px;height:17px;border-radius:50%;border:none;background:#ef4444;color:white;cursor:pointer;font-size:12px;padding:0;line-height:1;display:flex;align-items:center;justify-content:center";
+      del.onclick = () => { pickedFiles.splice(i, 1); renderAcFileList(); };
+      wrap.appendChild(del);
+      fileListEl.appendChild(wrap);
+    });
+    if (dropPrompt) dropPrompt.style.display = pickedFiles.length >= MAX_AC_FILES ? "none" : "";
+    fileListEl.style.marginTop = pickedFiles.length ? "8px" : "0";
   }
-  drop.addEventListener("click", () => fileInput.click());
-  fileInput.addEventListener("change", () => setFile(fileInput.files[0] || null));
+
+  function addAcFiles(fileList) {
+    const arr = Array.from(fileList);
+    const remaining = MAX_AC_FILES - pickedFiles.length;
+    if (remaining <= 0) { toast(`파일은 최대 ${MAX_AC_FILES}개까지 첨부 가능합니다`, "warning"); return; }
+    if (arr.length > remaining) toast(`${MAX_AC_FILES}개 한도로 처음 ${remaining}개만 추가됩니다`, "warning");
+    for (const f of arr.slice(0, remaining)) {
+      const ok = f.type.startsWith("image/") || f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
+      if (!ok) { toast(`${f.name}: 이미지 또는 PDF만 지원합니다`, "warning"); continue; }
+      if (f.size > 12 * 1024 * 1024) { toast(`${f.name}: 12MB 초과 파일은 첨부할 수 없어요`, "warning"); continue; }
+      pickedFiles.push(f);
+    }
+    renderAcFileList();
+  }
+
+  if (dropPrompt) dropPrompt.addEventListener("click", () => fileInput.click());
   drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.style.borderColor = "var(--accent)"; });
   drop.addEventListener("dragleave", () => { drop.style.borderColor = ""; });
   drop.addEventListener("drop", (e) => {
     e.preventDefault(); drop.style.borderColor = "";
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+    addAcFiles(e.dataTransfer.files);
   });
-  // 텍스트칸에 이미지 붙여넣기 → 자동 첨부
+  fileInput.addEventListener("change", () => { addAcFiles(fileInput.files); fileInput.value = ""; });
   textEl.addEventListener("paste", (e) => {
     const items = (e.clipboardData && e.clipboardData.items) || [];
     const img = [...items].find((i) => i.type && i.type.startsWith("image/"));
     if (img) {
       const f = img.getAsFile();
-      if (f) { setFile(f); toast("붙여넣은 이미지를 첨부했어요", "success"); }
+      if (f) { addAcFiles([f]); toast("붙여넣은 이미지를 첨부했어요", "success"); }
     }
   });
   return {
-    getFile: () => pickedFile,
+    getFiles: () => pickedFiles,
     getText: () => (textEl.value || "").trim(),
-    reset: () => { setFile(null); fileInput.value = ""; textEl.value = ""; },
+    reset: () => { pickedFiles = []; fileInput.value = ""; renderAcFileList(); textEl.value = ""; },
   };
 })();
 
@@ -1032,15 +1091,15 @@ document.getElementById("btn-ac-generate").addEventListener("click", async (e) =
   if (!selectedTemplate) return;
   const btn = e.currentTarget;
   const note = document.getElementById("ac-note").value.trim();
-  const file = __acMaterial.getFile();
+  const files = __acMaterial.getFiles();
   const text = __acMaterial.getText();
-  const hasMaterial = !!file || text.length >= 20;
+  const hasMaterial = files.length > 0 || text.length >= 20;
 
   let material = "";
   if (hasMaterial) {
     // 자료가 있으면 먼저 분석해서 텍스트 요약을 얻고 generate 에 넘긴다.
     const fd = new FormData();
-    if (file) fd.append("file", file);
+    files.forEach(f => fd.append("files[]", f));
     if (text) fd.append("text", text);
     const orig = btn.textContent;
     btn.disabled = true;
@@ -1070,35 +1129,93 @@ document.getElementById("btn-ac-generate").addEventListener("click", async (e) =
 });
 
 // ==================================================================
-// 소재 분석 (공모전 이미지 / PDF / 텍스트 → 분석·요약 → 발행 큐)
+// 소재 분석 (공모전 이미지 / PDF / 텍스트·URL → 분석·요약 → 발행 큐)
+// 파일 최대 10개 지원
 // ==================================================================
 (function () {
+  const MAX_FILES = 10;
   const drop = document.getElementById("material-drop");
+  const dropPrompt = document.getElementById("material-drop-prompt");
   const fileInput = document.getElementById("material-file");
-  const nameEl = document.getElementById("material-file-name");
+  const fileListEl = document.getElementById("material-file-list");
   const textEl = document.getElementById("material-text");
+  const urlEl = document.getElementById("material-url");
   if (!drop) return;
-  let pickedFile = null;
+  let pickedFiles = [];
 
-  function setFile(f) {
-    pickedFile = f || null;
-    nameEl.textContent = f ? `첨부됨: ${f.name} (${Math.round(f.size / 1024)}KB)` : "";
+  function _safeText(s) {
+    return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   }
-  drop.addEventListener("click", () => fileInput.click());
-  fileInput.addEventListener("change", () => setFile(fileInput.files[0] || null));
+
+  function renderFileList() {
+    fileListEl.innerHTML = "";
+    pickedFiles.forEach((f, i) => {
+      const isPdf = f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
+      const wrap = document.createElement("div");
+      wrap.style.cssText = "position:relative;width:76px;flex-shrink:0;text-align:center";
+
+      if (isPdf) {
+        const box = document.createElement("div");
+        box.style.cssText = "width:76px;height:76px;border-radius:8px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:26px;background:var(--panel-2)";
+        box.textContent = "📄";
+        wrap.appendChild(box);
+      } else {
+        const imgEl = document.createElement("img");
+        imgEl.src = URL.createObjectURL(f);
+        imgEl.style.cssText = "width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line);display:block";
+        wrap.appendChild(imgEl);
+      }
+
+      const name = document.createElement("div");
+      name.style.cssText = "font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px;max-width:76px;color:var(--text-faint)";
+      name.textContent = f.name;
+      wrap.appendChild(name);
+
+      const del = document.createElement("button");
+      del.textContent = "×";
+      del.style.cssText = "position:absolute;top:-5px;right:-5px;width:18px;height:18px;border-radius:50%;border:none;background:#ef4444;color:white;cursor:pointer;font-size:13px;padding:0;line-height:1;display:flex;align-items:center;justify-content:center";
+      del.onclick = () => { pickedFiles.splice(i, 1); renderFileList(); };
+      wrap.appendChild(del);
+
+      fileListEl.appendChild(wrap);
+    });
+
+    // 10개 채우면 드롭 프롬프트 숨김
+    if (dropPrompt) dropPrompt.style.display = pickedFiles.length >= MAX_FILES ? "none" : "";
+    // 파일 있을 때만 파일 리스트 영역 위 여백 추가
+    fileListEl.style.marginTop = pickedFiles.length ? "10px" : "0";
+  }
+
+  function addFiles(fileList) {
+    const arr = Array.from(fileList);
+    const remaining = MAX_FILES - pickedFiles.length;
+    if (remaining <= 0) { toast(`파일은 최대 ${MAX_FILES}개까지 첨부 가능합니다`, "warning"); return; }
+    if (arr.length > remaining) toast(`${MAX_FILES}개 한도로 처음 ${remaining}개만 추가됩니다`, "warning");
+    for (const f of arr.slice(0, remaining)) {
+      const ok = f.type.startsWith("image/") || f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
+      if (!ok) { toast(`${f.name}: 이미지 또는 PDF만 지원합니다`, "warning"); continue; }
+      if (f.size > 12 * 1024 * 1024) { toast(`${f.name}: 12MB 초과 파일은 첨부할 수 없어요`, "warning"); continue; }
+      pickedFiles.push(f);
+    }
+    renderFileList();
+  }
+
+  if (dropPrompt) dropPrompt.addEventListener("click", () => fileInput.click());
   drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.style.borderColor = "var(--accent)"; });
   drop.addEventListener("dragleave", () => { drop.style.borderColor = ""; });
   drop.addEventListener("drop", (e) => {
     e.preventDefault(); drop.style.borderColor = "";
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+    addFiles(e.dataTransfer.files);
   });
+  fileInput.addEventListener("change", () => { addFiles(fileInput.files); fileInput.value = ""; });
+
   // 텍스트칸에 이미지 붙여넣기 → 첨부로
   textEl.addEventListener("paste", (e) => {
     const items = (e.clipboardData && e.clipboardData.items) || [];
     const img = [...items].find((i) => i.type && i.type.startsWith("image/"));
     if (img) {
       const f = img.getAsFile();
-      if (f) { setFile(f); toast("붙여넣은 이미지를 첨부했어요", "success"); }
+      if (f) { addFiles([f]); toast("붙여넣은 이미지를 첨부했어요", "success"); }
     }
   });
 
@@ -1108,19 +1225,34 @@ document.getElementById("btn-ac-generate").addEventListener("click", async (e) =
   // 1단계: 분석 → 요약을 검수 영역에 표시
   document.getElementById("btn-material-analyze").addEventListener("click", async (e) => {
     const text = textEl.value.trim();
-    if (!pickedFile && text.length < 20) {
-      toast("파일을 올리거나 20자 이상 텍스트를 넣어주세요", "warning");
+    const url = urlEl ? urlEl.value.trim() : "";
+    if (pickedFiles.length === 0 && text.length < 20 && !url) {
+      toast("파일을 올리거나, URL을 입력하거나, 20자 이상 텍스트를 넣어주세요", "warning");
+      return;
+    }
+    if (url && !/^https?:\/\//i.test(url)) {
+      toast("올바른 URL을 입력해주세요 (http:// 또는 https://로 시작)", "warning");
+      if (urlEl) urlEl.focus();
       return;
     }
     const fd = new FormData();
-    if (pickedFile) fd.append("file", pickedFile);
+    pickedFiles.forEach(f => fd.append("files[]", f));
+    if (url) fd.append("url", url);
     if (text) fd.append("text", text);
 
     const btn = e.currentTarget;
     const orig = btn.textContent;
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span> 분석 중… (최대 30초)';
-    const pt = persistentToast("⏳ 자료를 분석·요약하는 중… (보통 10~30초)", "info");
+    const isUrl = !!url && pickedFiles.length === 0;
+    btn.innerHTML = '<span class="spinner"></span> ' + (isUrl ? "페이지 분석 중… (최대 40초)" : "분석 중… (최대 30초)");
+    const pt = persistentToast(
+      pickedFiles.length > 1
+        ? `⏳ 파일 ${pickedFiles.length}개를 분석·요약하는 중… (시간이 좀 걸려요)`
+        : isUrl
+          ? "⏳ URL 페이지를 가져와 분석·요약하는 중…"
+          : "⏳ 자료를 분석·요약하는 중… (보통 10~30초)",
+      "info"
+    );
     try {
       const r = await fetch("/api/auto/material/analyze", { method: "POST", body: fd });
       const j = await r.json();
@@ -1151,8 +1283,10 @@ document.getElementById("btn-ac-generate").addEventListener("click", async (e) =
 
   // 새 자료로 다시 — 입력·결과 초기화
   document.getElementById("btn-material-reset").addEventListener("click", () => {
-    setFile(null);
+    pickedFiles = [];
     fileInput.value = "";
+    renderFileList();
+    if (urlEl) urlEl.value = "";
     textEl.value = "";
     summaryEl.value = "";
     resultBox.style.display = "none";
