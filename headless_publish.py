@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 
 LOCAL_BASE = os.getenv("LOCAL_BASE_URL", f"http://localhost:{os.getenv('PORT', '5050')}")
 
-# html2canvas 렌더 타임아웃 (카드 5-7장 × ~1초 + 여유)
-RENDER_TIMEOUT_MS = 60_000
+# html2canvas 렌더 타임아웃 (카드 최대 15장 × ~1초 + 여유)
+RENDER_TIMEOUT_MS = 120_000
 
 
 def render_session_to_pngs(session_id: str) -> int:
