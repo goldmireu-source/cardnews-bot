@@ -18,6 +18,7 @@ env/
 sessions/
 uploads/
 cache/
+data/
 *.db
 *.sqlite
 *.sqlite3
