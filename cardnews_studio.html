@@ -3441,18 +3441,33 @@ function bindEditorEvents(card) {
       const key = btn.dataset.key;
       const ta = body.querySelector(`textarea[data-key="${key}"]`);
       if (!ta || !ta.value.trim()) { toast("내용을 먼저 입력하세요", "warn"); return; }
-      const sty = (card.fieldStyles && card.fieldStyles[key]) || {};
+
+      // 프리뷰 DOM에서 실제 렌더링된 크기·색상 읽기
+      const scaler = document.getElementById("preview-scaler");
+      const cardEl = scaler && scaler.querySelector(".card");
+      const fldEl = scaler && scaler.querySelector(`[data-fld="${key}"]`);
+      let sizePx = 56, colorHex = "", weightVal = 700, alignVal = "left";
+      if (fldEl && cardEl) {
+        const cs = getComputedStyle(fldEl);
+        const cardScale = cardEl.getBoundingClientRect().width / 1080;
+        // 화면 픽셀 → 카드 픽셀(1080 기준)로 역산
+        sizePx = Math.round(parseFloat(cs.fontSize) / cardScale);
+        // rgb(r,g,b) → #rrggbb
+        const rgb = cs.color.match(/\d+/g);
+        if (rgb) colorHex = "#" + rgb.slice(0,3).map(n => (+n).toString(16).padStart(2,"0")).join("");
+        weightVal = parseInt(cs.fontWeight) || 700;
+        alignVal = cs.textAlign || "left";
+      }
+
       const ov = {
         id: "ov" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
         type: "text",
         text: ta.value,
-        x: 10,
-        y: 10,
-        w: 80,
-        size: Math.round(56 * (sty.scale || 1)),
-        ...(sty.color ? { color: sty.color } : {}),
-        ...(sty.weight ? { weight: sty.weight } : { weight: 700 }),
-        ...(sty.align ? { align: sty.align } : {}),
+        x: 10, y: 10, w: 80,
+        size: sizePx,
+        color: colorHex,
+        weight: weightVal,
+        align: alignVal,
       };
       card.overlays = card.overlays || [];
       card.overlays.push(ov);
