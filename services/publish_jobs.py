@@ -16,6 +16,8 @@ import uuid
 from pathlib import Path
 from typing import Callable
 
+import requests
+
 logger = logging.getLogger(__name__)
 
 # 발행 '실패'만 영구 기록 (성공 이력은 저장 안 함) — 나중에 오류코드 보고 고치기 위함.
@@ -113,6 +115,34 @@ def _make_progress_cb(job_id: str, platform: str) -> Callable[[str, dict], None]
     return cb
 
 
+def _check_image_urls(image_urls: list[str]) -> str | None:
+    """첫 번째 이미지 URL에 HEAD 요청으로 접근 가능 여부 확인.
+
+    접근 불가면 에러 메시지 반환, 정상이면 None.
+    외부 CDN(Instagram 등)이 이미지를 가져올 수 없는 상황을 발행 전에 감지.
+    """
+    if not image_urls:
+        return None
+    url = image_urls[0]
+    try:
+        r = requests.head(url, timeout=10, allow_redirects=True)
+        if r.status_code == 200:
+            return None
+        return (
+            f"이미지 URL 접근 실패 (HTTP {r.status_code}). "
+            f"터널이 살아있는지 확인하세요: {url}"
+        )
+    except requests.ConnectionError as e:
+        return (
+            f"이미지 URL에 연결할 수 없습니다 (DNS/연결 오류). "
+            f"터널을 재시작하거나 SERVER_URL을 확인하세요.\n원인: {e}"
+        )
+    except requests.Timeout:
+        return f"이미지 URL 응답 타임아웃 (10s). 터널 상태 확인: {url}"
+    except Exception as e:
+        return f"이미지 URL 확인 중 오류: {e}"
+
+
 def _run(job_id: str, image_urls: list[str], caption: str) -> None:
     """워커 본체 — 등록된 플랫폼들을 순차 발행."""
     from services import instagram as ig_svc
@@ -133,6 +163,23 @@ def _run(job_id: str, image_urls: list[str], caption: str) -> None:
             return
         platforms = list(job["platforms"].keys())
         session_id = job.get("session_id", "")
+
+    # 발행 전 URL 접근 가능 여부 사전 검증
+    url_err = _check_image_urls(image_urls)
+    if url_err:
+        logger.error(f"publish URL check failed: {url_err}")
+        with _lock:
+            j = _jobs.get(job_id)
+            if j:
+                for p in j["platforms"].values():
+                    p["status"] = "error"
+                    p["step_label"] = _STEP_LABEL["error"]
+                    p["error"] = url_err
+                j["status"] = "done"
+                j["finished_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                _recalc_overall(j)
+        _log_publish_error(session_id, "url_check", caption, image_urls, url_err)
+        return
 
     for platform in platforms:
         is_cfg, publish_fn = svc[platform]
