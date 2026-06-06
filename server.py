@@ -978,28 +978,49 @@ def _parse_json_field(v, default):
 # 라우트 — 스튜디오
 # ============================================================
 def _nav_bar(active: str) -> str:
-    def _link(href, label):
+    def _nav_link(href, label):
         if href == active:
-            s = "font-weight:600;color:#111;background:#e8e8e2;"
+            pill = (
+                "color:#ebeef5;background:rgba(110,231,255,0.12);"
+                "border:1px solid rgba(110,231,255,0.25);"
+            )
         else:
-            s = "color:#555;"
+            pill = "color:#8b91a6;border:1px solid transparent;"
         return (
-            f'<a href="{href}" style="font-family:Pretendard,sans-serif;font-size:14px;'
-            f'padding:6px 14px;border-radius:6px;text-decoration:none;{s}">{label}</a>'
+            f'<a href="{href}" style="font-family:Pretendard,sans-serif;font-size:13.5px;'
+            f'font-weight:500;padding:5px 14px;border-radius:6px;text-decoration:none;'
+            f'transition:all .15s;{pill}">{label}</a>'
         )
+
+    hide_auto_header = (
+        '<style>header.top{display:none!important}'
+        '.shell{padding-top:0!important}</style>'
+        if active == "/auto" else ""
+    )
+
     return (
-        '<style>body{padding-top:48px!important}</style>'
-        '<div style="position:fixed;top:0;left:0;right:0;height:48px;background:#f8f8f4;'
-        'border-bottom:1px solid #e0e0d8;display:flex;align-items:center;'
-        'padding:0 20px;z-index:99999;gap:4px">'
+        f'<style>body{{padding-top:52px!important}}</style>'
+        f'{hide_auto_header}'
+        '<div style="position:fixed;top:0;left:0;right:0;height:52px;'
+        'background:rgba(12,13,18,0.96);backdrop-filter:blur(12px);'
+        '-webkit-backdrop-filter:blur(12px);'
+        'border-bottom:1px solid #2a2e3e;display:flex;align-items:center;'
+        'padding:0 20px;z-index:99999;gap:6px">'
+        # brand
+        '<div style="display:flex;align-items:center;gap:8px;margin-right:20px">'
+        '<div style="width:5px;height:18px;background:linear-gradient(180deg,#6ee7ff,#c89bff);'
+        'border-radius:2px"></div>'
         '<span style="font-family:Pretendard,sans-serif;font-weight:700;font-size:15px;'
-        'color:#222;letter-spacing:-0.3px;margin-right:16px">카드뉴스</span>'
-        + _link("/", "스튜디오")
-        + _link("/auto", "오토")
+        'color:#ebeef5;letter-spacing:-0.3px">카드뉴스</span>'
+        '</div>'
+        + _nav_link("/", "스튜디오")
+        + _nav_link("/auto", "오토")
         + '<div style="flex:1"></div>'
-        '<a href="/logout" style="font-family:Pretendard,sans-serif;font-size:13px;'
-        'color:#666;background:#f0f0ea;border:1px solid #ddd;border-radius:6px;'
-        'padding:5px 12px;text-decoration:none">로그아웃</a>'
+        '<a href="/logout" style="font-family:Pretendard,sans-serif;font-size:12.5px;'
+        'color:#5a607a;padding:5px 12px;border-radius:6px;text-decoration:none;'
+        'border:1px solid #2a2e3e;transition:all .15s" '
+        'onmouseover="this.style.color=\'#8b91a6\';this.style.borderColor=\'#3d4258\'" '
+        'onmouseout="this.style.color=\'#5a607a\';this.style.borderColor=\'#2a2e3e\'">로그아웃</a>'
         '</div>'
     )
 
