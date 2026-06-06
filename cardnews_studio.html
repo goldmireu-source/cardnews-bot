@@ -1588,8 +1588,6 @@ input, textarea, select { font-family: inherit; }
       <div class="layout-chips" id="layout-chips"></div>
       <div class="card-action-row" id="card-actions" style="display:none">
         <button class="btn btn-ai" id="btn-polish">✨ AI로 다듬기</button>
-        <button class="btn btn-ghost" id="btn-dup-card" title="이 카드를 복사해서 바로 아래에 추가">복사생성</button>
-        <button class="btn btn-ghost" id="btn-del-card" title="이 카드 삭제" style="color:var(--danger);border-color:rgba(255,107,134,0.3)">삭제</button>
       </div>
     </div>
     <div class="editor-body" id="editor-body">
@@ -3187,10 +3185,13 @@ function fieldStyleCtrl(fieldKey) {
 
 function field({key, label, type="input", placeholder="", limit=null, value=""}) {
   const counter = limit ? `<span class="counter" data-counter="${key}" data-limit="${limit}">0 / ${limit}</span>` : "";
-  // 모든 텍스트 박스를 textarea 로 — Enter 로 줄바꿈 입력 지원. 짧은 필드는 compact 클래스로 한 줄 높이.
   const cls = type === "textarea" ? "" : " ta-compact";
   const input = `<textarea class="ta-auto${cls}" rows="1" data-key="${key}" placeholder="${esc(placeholder)}">${esc(value)}</textarea>`;
-  return `<div class="field"><div class="field-label-row"><label>${label}</label>${counter}</div>${input}${fieldStyleCtrl(key)}</div>`;
+  const btns = `<div style="display:flex;gap:2px;margin-left:4px">
+    <button type="button" class="fld-copy-btn" data-key="${key}" title="내용 복사" style="font-size:10px;padding:1px 5px;border:1px solid var(--line);border-radius:3px;background:none;color:var(--text-faint);cursor:pointer;line-height:1.4">복사</button>
+    <button type="button" class="fld-clear-btn" data-key="${key}" title="내용 지우기" style="font-size:10px;padding:1px 5px;border:1px solid var(--line);border-radius:3px;background:none;color:var(--text-faint);cursor:pointer;line-height:1.4">지우기</button>
+  </div>`;
+  return `<div class="field"><div class="field-label-row"><label>${label}</label><div style="display:flex;align-items:center;gap:0">${counter}${btns}</div></div>${input}${fieldStyleCtrl(key)}</div>`;
 }
 
 function renderFields(card) {
@@ -3433,6 +3434,36 @@ async function uploadBgFile(file, card) {
 
 function bindEditorEvents(card) {
   const body = document.getElementById("editor-body");
+
+  // 필드 복사 버튼
+  body.querySelectorAll(".fld-copy-btn").forEach(btn => {
+    btn.onclick = () => {
+      const ta = body.querySelector(`textarea[data-key="${btn.dataset.key}"]`);
+      if (!ta) return;
+      navigator.clipboard.writeText(ta.value).then(() => toast("클립보드에 복사됐어요", "success")).catch(() => {
+        const tmp = document.createElement("textarea");
+        tmp.value = ta.value; document.body.appendChild(tmp); tmp.select();
+        document.execCommand("copy"); tmp.remove(); toast("클립보드에 복사됐어요", "success");
+      });
+    };
+  });
+
+  // 필드 지우기 버튼
+  body.querySelectorAll(".fld-clear-btn").forEach(btn => {
+    btn.onclick = () => {
+      const key = btn.dataset.key;
+      const ta = body.querySelector(`textarea[data-key="${key}"]`);
+      if (!ta) return;
+      ta.value = "";
+      const dotted = key.split(".");
+      let target = card.data;
+      dotted.slice(0, -1).forEach(k => { target = target && target[k]; });
+      if (target) target[dotted[dotted.length - 1]] = "";
+      ta.dispatchEvent(new Event("input", { bubbles: true }));
+      renderPreview(); autoSave();
+    };
+  });
+
   // 배경 이미지 컨트롤
   const btnPick = body.querySelector("#btn-bg-pick");
   if (btnPick) btnPick.onclick = () => openBgImagePicker(card);
@@ -5265,8 +5296,6 @@ function init() {
   document.getElementById("btn-caption").onclick = openCaptionModal;
   document.getElementById("btn-story").onclick = openStorySummaryModal;
   document.getElementById("btn-polish").onclick = openPolishModal;
-  document.getElementById("btn-dup-card").onclick = () => { if (STATE.activeId) duplicateCard(STATE.activeId); };
-  document.getElementById("btn-del-card").onclick = () => { if (STATE.activeId) deleteCard(STATE.activeId); };
 
   tryRestore();
   ensureAtLeastOneProject();
