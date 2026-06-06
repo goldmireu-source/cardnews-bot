@@ -3449,11 +3449,15 @@ function bindEditorEvents(card) {
       const scaler = document.getElementById("preview-scaler");
       const cardEl = scaler && scaler.querySelector(".card");
       const fldEl = scaler && scaler.querySelector(`[data-fld="${key}"]`);
-      let sizePx = 56, colorHex = "", weightVal = 700, alignVal = "left", lh = 0, ls = null, opacity = 1;
+      let sizePx = 56, colorHex = "", weightVal = 700, alignVal = "left", lh = 0, ls = null, opacity = 1, wPct = 80;
       if (fldEl && cardEl) {
         const cs = getComputedStyle(fldEl);
         // transform: scale() 은 자식 computed style에 영향 없음 — 값 그대로가 카드 픽셀
         sizePx = Math.round(parseFloat(cs.fontSize));
+        // 필드 실제 폭을 카드 폭 대비 % 로 — 줄바꿈 동일하게 재현
+        const fldRect = fldEl.getBoundingClientRect();
+        const cardRect = cardEl.getBoundingClientRect();
+        wPct = Math.min(100, Math.round(fldRect.width / cardRect.width * 100));
         // rgb(r,g,b) → #rrggbb
         const rgb = cs.color.match(/\d+/g);
         if (rgb) colorHex = "#" + rgb.slice(0,3).map(n => (+n).toString(16).padStart(2,"0")).join("");
@@ -3473,7 +3477,7 @@ function bindEditorEvents(card) {
         id: "ov" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
         type: "text",
         text: ta.value,
-        x: 10, y: 10, w: 80,
+        x: 10, y: 10, w: wPct,
         size: sizePx,
         color: colorHex,
         weight: weightVal,
