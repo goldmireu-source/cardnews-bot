@@ -3449,9 +3449,8 @@ function bindEditorEvents(card) {
       let sizePx = 56, colorHex = "", weightVal = 700, alignVal = "left";
       if (fldEl && cardEl) {
         const cs = getComputedStyle(fldEl);
-        const cardScale = cardEl.getBoundingClientRect().width / 1080;
-        // 화면 픽셀 → 카드 픽셀(1080 기준)로 역산
-        sizePx = Math.round(parseFloat(cs.fontSize) / cardScale);
+        // transform: scale() 은 자식 computed style에 영향 없음 — 값 그대로가 카드 픽셀
+        sizePx = Math.round(parseFloat(cs.fontSize));
         // rgb(r,g,b) → #rrggbb
         const rgb = cs.color.match(/\d+/g);
         if (rgb) colorHex = "#" + rgb.slice(0,3).map(n => (+n).toString(16).padStart(2,"0")).join("");
