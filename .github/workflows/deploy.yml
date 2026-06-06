@@ -8,26 +8,33 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+
       - name: Deploy to server
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ubuntu
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: WEB_USERNAME,WEB_PASSWORD,SECRET_KEY
-          script: |
-            cd ~/cardnews_bot
-            for VAR in WEB_USERNAME WEB_PASSWORD SECRET_KEY; do
-              VALUE=$(eval echo \$$VAR)
-              if grep -q "^${VAR}=" .env 2>/dev/null; then
-                sed -i "s|^${VAR}=.*|${VAR}=${VALUE}|" .env
-              else
-                echo "${VAR}=${VALUE}" >> .env
-              fi
-            done
-            GIT_TERMINAL_PROMPT=0 timeout 30 git pull origin main
-            sudo systemctl restart cardnews-bot
-        env:
-          WEB_USERNAME: ${{ secrets.WEB_USERNAME }}
-          WEB_PASSWORD: ${{ secrets.WEB_PASSWORD }}
-          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+              -o StrictHostKeyChecking=no \
+              -o ServerAliveInterval=30 \
+              ubuntu@${{ secrets.DEPLOY_HOST }} << 'ENDSSH'
+          set -e
+          cd ~/cardnews_bot
+          WEB_USERNAME="${{ secrets.WEB_USERNAME }}"
+          WEB_PASSWORD="${{ secrets.WEB_PASSWORD }}"
+          SECRET_KEY="${{ secrets.SECRET_KEY }}"
+          for VAR in WEB_USERNAME WEB_PASSWORD SECRET_KEY; do
+            VALUE="${!VAR}"
+            if grep -q "^${VAR}=" .env 2>/dev/null; then
+              sed -i "s|^${VAR}=.*|${VAR}=${VALUE}|" .env
+            else
+              echo "${VAR}=${VALUE}" >> .env
+            fi
+          done
+          GIT_TERMINAL_PROMPT=0 timeout 30 git pull origin main
+          sudo systemctl restart cardnews-bot
+          echo "Deploy OK"
+          ENDSSH
