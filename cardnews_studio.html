@@ -1957,8 +1957,11 @@ function renderOverlayEl(o) {
     return `<div class="ov-el ov-badge" data-ov="${o.id}" style="${pos}font-size:${o.size ?? 40}px;`
       + `${o.bg ? `background:${o.bg};` : ""}${o.color ? `color:${o.color};` : ""}">${nl(o.text || "")}</div>`;
   }
+  const lhStyle = (typeof o.lh === "number" && o.lh > 0) ? `line-height:${o.lh};` : "";
+  const lsStyle = (typeof o.ls === "number") ? `letter-spacing:${o.ls}em;` : "";
+  const opStyle = (typeof o.opacity === "number" && o.opacity < 1) ? `opacity:${o.opacity};` : "";
   return `<div class="ov-el ov-text" data-ov="${o.id}" style="${pos}width:${o.w ?? 40}%;font-size:${o.size ?? 56}px;`
-    + `text-align:${o.align || "left"};font-weight:${o.weight || 700};${o.color ? `color:${o.color};` : ""}${o.bg ? `background:${o.bg};padding:0.08em 0.3em;border-radius:0.12em;` : ""}">${nl(o.text || "")}</div>`;
+    + `text-align:${o.align || "left"};font-weight:${o.weight || 700};${lhStyle}${lsStyle}${opStyle}${o.color ? `color:${o.color};` : ""}${o.bg ? `background:${o.bg};padding:0.08em 0.3em;border-radius:0.12em;` : ""}">${nl(o.text || "")}</div>`;
 }
 
 function renderOverlays(card) {
@@ -3446,7 +3449,7 @@ function bindEditorEvents(card) {
       const scaler = document.getElementById("preview-scaler");
       const cardEl = scaler && scaler.querySelector(".card");
       const fldEl = scaler && scaler.querySelector(`[data-fld="${key}"]`);
-      let sizePx = 56, colorHex = "", weightVal = 700, alignVal = "left";
+      let sizePx = 56, colorHex = "", weightVal = 700, alignVal = "left", lh = 0, ls = null, opacity = 1;
       if (fldEl && cardEl) {
         const cs = getComputedStyle(fldEl);
         // transform: scale() 은 자식 computed style에 영향 없음 — 값 그대로가 카드 픽셀
@@ -3456,6 +3459,14 @@ function bindEditorEvents(card) {
         if (rgb) colorHex = "#" + rgb.slice(0,3).map(n => (+n).toString(16).padStart(2,"0")).join("");
         weightVal = parseInt(cs.fontWeight) || 700;
         alignVal = cs.textAlign || "left";
+        // 행간: "normal" 이면 0(기본), px값이면 fontSize로 나눠 배수로
+        const lhRaw = cs.lineHeight;
+        lh = (lhRaw && lhRaw !== "normal") ? +(parseFloat(lhRaw) / parseFloat(cs.fontSize)).toFixed(3) : 0;
+        // 자간: px → em 변환
+        const lsRaw = cs.letterSpacing;
+        ls = (lsRaw && lsRaw !== "normal") ? +(parseFloat(lsRaw) / parseFloat(cs.fontSize)).toFixed(4) : null;
+        // 투명도
+        opacity = parseFloat(cs.opacity) ?? 1;
       }
 
       const ov = {
@@ -3467,6 +3478,9 @@ function bindEditorEvents(card) {
         color: colorHex,
         weight: weightVal,
         align: alignVal,
+        ...(lh > 0 ? { lh } : {}),
+        ...(ls !== null ? { ls } : {}),
+        ...(opacity < 1 ? { opacity } : {}),
       };
       card.overlays = card.overlays || [];
       card.overlays.push(ov);
