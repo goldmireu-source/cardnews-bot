@@ -977,14 +977,32 @@ def _parse_json_field(v, default):
 # ============================================================
 # 라우트 — 스튜디오
 # ============================================================
-_LOGOUT_BTN = (
-    '<div style="position:fixed;top:14px;right:18px;z-index:99999">'
-    '<a href="/logout" style="font-family:Pretendard,sans-serif;font-size:13px;'
-    'color:#666;background:#f5f5f0;border:1px solid #ddd;border-radius:6px;'
-    'padding:5px 12px;text-decoration:none;transition:background .15s"'
-    ' onmouseover="this.style.background=\'#eee\'" onmouseout="this.style.background=\'#f5f5f0\'">'
-    '로그아웃</a></div>'
-)
+def _nav_bar(active: str) -> str:
+    def _link(href, label):
+        if href == active:
+            s = "font-weight:600;color:#111;background:#e8e8e2;"
+        else:
+            s = "color:#555;"
+        return (
+            f'<a href="{href}" style="font-family:Pretendard,sans-serif;font-size:14px;'
+            f'padding:6px 14px;border-radius:6px;text-decoration:none;{s}">{label}</a>'
+        )
+    return (
+        '<style>body{padding-top:48px!important}</style>'
+        '<div style="position:fixed;top:0;left:0;right:0;height:48px;background:#f8f8f4;'
+        'border-bottom:1px solid #e0e0d8;display:flex;align-items:center;'
+        'padding:0 20px;z-index:99999;gap:4px">'
+        '<span style="font-family:Pretendard,sans-serif;font-weight:700;font-size:15px;'
+        'color:#222;letter-spacing:-0.3px;margin-right:16px">카드뉴스</span>'
+        + _link("/", "스튜디오")
+        + _link("/auto", "오토")
+        + '<div style="flex:1"></div>'
+        '<a href="/logout" style="font-family:Pretendard,sans-serif;font-size:13px;'
+        'color:#666;background:#f0f0ea;border:1px solid #ddd;border-radius:6px;'
+        'padding:5px 12px;text-decoration:none">로그아웃</a>'
+        '</div>'
+    )
+
 
 @app.route("/")
 def index():
@@ -995,7 +1013,7 @@ def index():
         "</body>",
         '<script src="/static/publish_progress.js"></script>\n'
         + BOT_INTEGRATION_SCRIPT + "\n"
-        + _LOGOUT_BTN + "\n</body>"
+        + _nav_bar("/") + "\n</body>"
     )
     resp = Response(html, mimetype="text/html")
     # HTML 은 매 요청마다 새로 읽으므로 캐시 금지 (브라우저/터널 CDN 캐시로 변경 안 보이는 문제 방지)
@@ -1008,7 +1026,7 @@ def index():
 def auto_index():
     if not AUTO_HTML.exists():
         return f"auto_studio.html 파일이 없어요. {AUTO_HTML} 위치에 두세요.", 500
-    html = AUTO_HTML.read_text(encoding="utf-8").replace("</body>", _LOGOUT_BTN + "\n</body>")
+    html = AUTO_HTML.read_text(encoding="utf-8").replace("</body>", _nav_bar("/auto") + "\n</body>")
     return Response(html, mimetype="text/html")
 
 
