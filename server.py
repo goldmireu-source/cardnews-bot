@@ -65,11 +65,15 @@ MODEL_FAST = os.getenv("MODEL_FAST", "claude-haiku-4-5-20251001")
 SERVER_URL = os.getenv("SERVER_URL", "http://localhost:5050").rstrip("/")
 claude = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
 
-# 데일리싱크 SQLite DB 경로 (기본: 사용자 환경)
+# 데일리싱크 SQLite DB 경로 (기본: 로컬 Windows 경로)
 DAILYSYNC_DB_PATH = os.getenv(
     "DAILYSYNC_DB_PATH",
     r"F:\ai-news-digest\ai-news-digest\data\app.db",
 )
+# 데일리싱크 HTTP API (로컬 DB 없을 때 폴백). 예: https://yourdomain.com
+# .env 에 DAILYSYNC_API_URL=https://... 설정하면 로컬 DB 없어도 동작.
+DAILYSYNC_API_URL = os.getenv("DAILYSYNC_API_URL", "").rstrip("/")
+DAILYSYNC_API_KEY = os.getenv("DAILYSYNC_API_KEY", "")
 
 # Instagram Graph API (없으면 발행 기능 비활성)
 IG_ACCESS_TOKEN = os.getenv("IG_ACCESS_TOKEN", "").strip()
@@ -1316,38 +1320,65 @@ def api_dailysync_categories():
 # ============================================================
 # 라우트 — 자동 생성
 # ============================================================
+def _fetch_cluster_via_api(cluster_id: int) -> dict:
+    """데일리싱크 HTTP API 로 클러스터 데이터 가져오기."""
+    import requests as _req
+    url = f"{DAILYSYNC_API_URL}/api/cluster/{cluster_id}"
+    headers = {"X-Api-Key": DAILYSYNC_API_KEY} if DAILYSYNC_API_KEY else {}
+    resp = _req.get(url, headers=headers, timeout=10)
+    resp.raise_for_status()
+    return resp.json()
+
+
 def _compose_source_text(source_type: str, body: dict) -> tuple[str, dict]:
     """source_type 별로 Claude 에 줄 입력 텍스트 생성. (text, meta) 반환."""
     if source_type == "cluster":
         cluster_id = body.get("cluster_id")
         if not cluster_id:
             raise ValueError("cluster_id 필요")
-        con = dailysync_conn()
-        try:
-            c = con.execute(
-                "SELECT topic, summary_ko, agreed_facts, divergences, categories FROM clusters WHERE id = ?",
-                (int(cluster_id),),
-            ).fetchone()
-            if not c:
-                raise ValueError("클러스터를 찾을 수 없음")
-            arts = con.execute(
-                "SELECT title, description, url FROM articles WHERE cluster_id = ? "
-                "ORDER BY published_at DESC LIMIT 5",
-                (int(cluster_id),),
-            ).fetchall()
-        finally:
-            con.close()
 
-        facts = _parse_json_field(c["agreed_facts"], [])
-        divs = _parse_json_field(c["divergences"], [])
-        cats = _parse_json_field(c["categories"], [])
+        # 로컬 DB 없으면 HTTP API 폴백
+        if not Path(DAILYSYNC_DB_PATH).exists():
+            if not DAILYSYNC_API_URL:
+                raise RuntimeError(
+                    "데일리싱크 로컬 DB 없음. .env 에 DAILYSYNC_API_URL=https://... 설정 필요."
+                )
+            data = _fetch_cluster_via_api(int(cluster_id))
+            facts = data.get("agreed_facts") or []
+            divs  = data.get("divergences") or []
+            cats  = data.get("categories") or []
+            arts  = data.get("articles") or []
+            topic = data.get("topic", "")
+            summary_ko = data.get("summary_ko", "")
+        else:
+            con = dailysync_conn()
+            try:
+                c = con.execute(
+                    "SELECT topic, summary_ko, agreed_facts, divergences, categories FROM clusters WHERE id = ?",
+                    (int(cluster_id),),
+                ).fetchone()
+                if not c:
+                    raise ValueError("클러스터를 찾을 수 없음")
+                arts_rows = con.execute(
+                    "SELECT title, description, url FROM articles WHERE cluster_id = ? "
+                    "ORDER BY published_at DESC LIMIT 5",
+                    (int(cluster_id),),
+                ).fetchall()
+            finally:
+                con.close()
+            facts = _parse_json_field(c["agreed_facts"], [])
+            divs  = _parse_json_field(c["divergences"], [])
+            cats  = _parse_json_field(c["categories"], [])
+            arts  = [{"title": a["title"]} for a in arts_rows]
+            topic = c["topic"]
+            summary_ko = c["summary_ko"]
 
         parts = [
             f"[오늘의 AI 뉴스]",
-            f"주제: {c['topic']}",
+            f"주제: {topic}",
             f"카테고리: {', '.join(cats) if cats else 'AI'}",
             "",
-            f"요약:\n{c['summary_ko']}",
+            f"요약:\n{summary_ko}",
         ]
         if facts:
             parts.append("\n핵심 사실:")
@@ -1363,7 +1394,7 @@ def _compose_source_text(source_type: str, body: dict) -> tuple[str, dict]:
         meta = {
             "source": "dailysync",
             "cluster_id": int(cluster_id),
-            "topic": c["topic"],
+            "topic": topic,
             "kind": "daily_news",
         }
         return text, meta

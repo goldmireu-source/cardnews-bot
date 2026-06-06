@@ -117,17 +117,42 @@ def pick_top_cluster() -> int | None:
     """오늘 카드뉴스로 만들 톱 클러스터 ID 반환.
 
     정렬: importance DESC, saved 우선, recent.
-    이미 사용된 클러스터는 제외. 데일리싱크 DB 없으면 None.
+    이미 사용된 클러스터는 제외.
+    로컬 DB 없으면 DAILYSYNC_API_URL 로 HTTP 폴백.
     """
-    from server import dailysync_conn  # lazy import (순환 회피)
+    from pathlib import Path
+    from server import DAILYSYNC_DB_PATH, DAILYSYNC_API_URL, DAILYSYNC_API_KEY  # lazy import
+
+    used = _used_cluster_ids()
+
+    # ---- HTTP 폴백 ----
+    if not Path(DAILYSYNC_DB_PATH).exists():
+        if not DAILYSYNC_API_URL:
+            logger.warning("데일리싱크 로컬 DB 없음. DAILYSYNC_API_URL 미설정 → 클러스터 선택 불가")
+            return None
+        try:
+            import requests as _req
+            url = f"{DAILYSYNC_API_URL.rstrip('/')}/api/clusters/recent"
+            headers = {"X-Api-Key": DAILYSYNC_API_KEY} if DAILYSYNC_API_KEY else {}
+            resp = _req.get(url, headers=headers, timeout=10)
+            resp.raise_for_status()
+            rows = resp.json()
+        except Exception as e:
+            logger.warning(f"데일리싱크 API 접근 실패: {e}")
+            return None
+        for r in rows:
+            if r["id"] not in used:
+                return int(r["id"])
+        return None
+
+    # ---- 로컬 DB ----
+    from server import dailysync_conn
     try:
         con = dailysync_conn()
     except Exception as e:
         logger.warning(f"데일리싱크 DB 접근 실패: {e}")
         return None
 
-    used = _used_cluster_ids()
-    # 최근 2일치 + summary 있는 것 + hidden 제외
     today_kst = datetime.now(KST).date()
     since_kst = today_kst - timedelta(days=1)
     try:
