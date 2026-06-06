@@ -122,32 +122,37 @@ input, textarea, select { font-family: inherit; }
 
 .app {
   display: grid;
-  grid-template-columns: 280px 380px 480px;
+  /* 카드 목록(좌) | 프리뷰 중앙(가변) | 에디터(우) */
+  grid-template-columns: 260px 1fr 420px;
   flex: 1;
   min-height: 0;
 }
-.sidebar, .editor {
+.sidebar {
+  order: 1;
   background: var(--panel);
   border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
+}
+.preview-pane {
+  order: 2;
+  background: #06070b;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
-/* 세로 폭이 부족하면 사이드바 전체가 스크롤되도록 (카드 목록이 0으로 찌그러지는 것 방지) */
-.sidebar { overflow-y: auto; }
-.preview-pane {
-  background: #08090d;
+.editor {
+  order: 3;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
 .brand {
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--line);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: none;
 }
 .brand h1 {
   font-size: 14px;
@@ -1603,8 +1608,8 @@ input, textarea, select { font-family: inherit; }
       <div class="meta">1080 × 1350 · 4:5 · Pretendard</div>
       <div class="preview-zoom" style="display:flex;align-items:center;gap:6px;margin-left:auto;font-size:11px;color:var(--text-faint)">
         <span>🔍 줌</span>
-        <input type="range" id="preview-zoom" min="0.2" max="1" step="0.05" value="0.4" oninput="setPreviewZoom(this.value)" style="width:96px;accent-color:var(--accent);cursor:pointer">
-        <span id="preview-zoom-val" style="min-width:34px;text-align:right;font-variant-numeric:tabular-nums">40%</span>
+        <input type="range" id="preview-zoom" min="0.2" max="1" step="0.05" value="0.42" oninput="setPreviewZoom(this.value)" style="width:96px;accent-color:var(--accent);cursor:pointer">
+        <span id="preview-zoom-val" style="min-width:34px;text-align:right;font-variant-numeric:tabular-nums">42%</span>
       </div>
     </div>
     <div class="preview-stage" id="preview-stage">
@@ -5254,6 +5259,7 @@ function init() {
   setTheme(STATE.theme);
   renderTabs();
   renderAll();
+  setPreviewZoom(0.42);
 
   // 봇 연동 스크립트(server.py 인젝션)가 init 완료 후 세션을 새 탭으로 열 수 있도록 신호
   window.__studioReady = true;
