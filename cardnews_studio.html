@@ -3297,15 +3297,19 @@ function fieldStyleCtrl(fieldKey) {
     </div>`;
 }
 
+const _BTN_S = "font-size:10px;padding:1px 5px;border:1px solid var(--line);border-radius:3px;background:none;color:var(--text-faint);cursor:pointer;line-height:1.4";
+function _fldBtns(key) {
+  return `<div style="display:flex;gap:2px;margin-left:4px">
+    <button type="button" class="fld-copy-btn" data-key="${key}" title="내용 복사" style="${_BTN_S}">복사</button>
+    <button type="button" class="fld-clear-btn" data-key="${key}" title="내용 지우기" style="${_BTN_S}">지우기</button>
+  </div>`;
+}
+
 function field({key, label, type="input", placeholder="", limit=null, value=""}) {
   const counter = limit ? `<span class="counter" data-counter="${key}" data-limit="${limit}">0 / ${limit}</span>` : "";
   const cls = type === "textarea" ? "" : " ta-compact";
   const input = `<textarea class="ta-auto${cls}" rows="1" data-key="${key}" placeholder="${esc(placeholder)}">${esc(value)}</textarea>`;
-  const btns = `<div style="display:flex;gap:2px;margin-left:4px">
-    <button type="button" class="fld-copy-btn" data-key="${key}" title="내용 복사" style="font-size:10px;padding:1px 5px;border:1px solid var(--line);border-radius:3px;background:none;color:var(--text-faint);cursor:pointer;line-height:1.4">복사</button>
-    <button type="button" class="fld-clear-btn" data-key="${key}" title="내용 지우기" style="font-size:10px;padding:1px 5px;border:1px solid var(--line);border-radius:3px;background:none;color:var(--text-faint);cursor:pointer;line-height:1.4">지우기</button>
-  </div>`;
-  return `<div class="field"><div class="field-label-row"><label>${label}</label><div style="display:flex;align-items:center;gap:0">${counter}${btns}</div></div>${input}${fieldStyleCtrl(key)}</div>`;
+  return `<div class="field"><div class="field-label-row"><label>${label}</label><div style="display:flex;align-items:center;gap:0">${counter}${_fldBtns(key)}</div></div>${input}${fieldStyleCtrl(key)}</div>`;
 }
 
 function renderFields(card) {
@@ -3349,9 +3353,11 @@ function renderFields(card) {
       html += `<div class="field"><div class="field-label-row"><label>타임라인 항목 (3-5개)</label></div><div class="list-items" id="tl-items">${(d.timelineItems||[]).map((it,i)=>`
         <div style="border-bottom:1px dashed var(--line);padding-bottom:8px;margin-bottom:8px">
           <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-faint);margin-bottom:4px">항목 ${i+1}<button class="icon-btn" data-del-tl="${i}" style="margin-left:auto">×</button></div>
-          <textarea class="ta-auto ta-compact" rows="1" data-tl="${i}.label" placeholder="단계 (예: 1주차)" style="width:100%">${esc(it.label)}</textarea>
+          <div style="display:flex;align-items:center;gap:4px;margin-bottom:2px"><span style="font-size:10px;color:var(--text-faint);flex:1">단계</span>${_fldBtns(`timelineItems.${i}.label`)}</div>
+          <textarea class="ta-auto ta-compact" rows="1" data-tl="${i}.label" data-key="timelineItems.${i}.label" placeholder="단계 (예: 1주차)" style="width:100%">${esc(it.label)}</textarea>
           ${fieldStyleCtrl(`timelineItems.${i}.label`)}
-          <textarea class="ta-auto" rows="1" data-tl="${i}.content" placeholder="내용" style="width:100%;margin-top:6px">${esc(it.content)}</textarea>
+          <div style="display:flex;align-items:center;gap:4px;margin-top:6px;margin-bottom:2px"><span style="font-size:10px;color:var(--text-faint);flex:1">내용</span>${_fldBtns(`timelineItems.${i}.content`)}</div>
+          <textarea class="ta-auto" rows="1" data-tl="${i}.content" data-key="timelineItems.${i}.content" placeholder="내용" style="width:100%">${esc(it.content)}</textarea>
           ${fieldStyleCtrl(`timelineItems.${i}.content`)}
         </div>
       `).join("")}</div><button class="add-item-btn" id="add-tl">+ 항목 추가</button></div>`;
@@ -3360,9 +3366,11 @@ function renderFields(card) {
       html += `<div class="field"><div class="field-label-row"><label>항목 (제목+설명)</label></div><div class="list-items" id="desc-items">${(d.descItems||[]).map((it,i)=>`
         <div style="border-bottom:1px dashed var(--line);padding-bottom:8px;margin-bottom:8px">
           <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-faint);margin-bottom:4px">항목 ${i+1}<button class="icon-btn" data-del-desc="${i}" style="margin-left:auto">×</button></div>
-          <textarea class="ta-auto ta-compact" rows="1" data-desc="${i}.title" placeholder="제목" style="width:100%">${esc(it.title)}</textarea>
+          <div style="display:flex;align-items:center;gap:4px;margin-bottom:2px"><span style="font-size:10px;color:var(--text-faint);flex:1">제목</span>${_fldBtns(`descItems.${i}.title`)}</div>
+          <textarea class="ta-auto ta-compact" rows="1" data-desc="${i}.title" data-key="descItems.${i}.title" placeholder="제목" style="width:100%">${esc(it.title)}</textarea>
           ${fieldStyleCtrl(`descItems.${i}.title`)}
-          <textarea class="ta-auto" rows="1" data-desc="${i}.desc" placeholder="설명" style="width:100%;margin-top:6px">${esc(it.desc)}</textarea>
+          <div style="display:flex;align-items:center;gap:4px;margin-top:6px;margin-bottom:2px"><span style="font-size:10px;color:var(--text-faint);flex:1">설명</span>${_fldBtns(`descItems.${i}.desc`)}</div>
+          <textarea class="ta-auto" rows="1" data-desc="${i}.desc" data-key="descItems.${i}.desc" placeholder="설명" style="width:100%">${esc(it.desc)}</textarea>
           ${fieldStyleCtrl(`descItems.${i}.desc`)}
         </div>
       `).join("")}</div><button class="add-item-btn" id="add-desc">+ 항목 추가</button></div>`;
@@ -3371,9 +3379,11 @@ function renderFields(card) {
       html += field({key:"sub", label:"서브타이틀", value:d.sub, limit:30});
       html += `<div class="field"><div class="field-label-row"><label>항목 (3-5개) · 각 항목 아래 세부내용(선택)</label></div><div class="list-items" id="list-items">${(d.items||[]).map((it,i)=>`
         <div style="border-bottom:1px dashed var(--line);padding-bottom:8px;margin-bottom:8px">
-          <div class="list-item-row"><textarea class="ta-auto ta-compact" rows="1" data-list-idx="${i}" placeholder="항목 ${i+1}">${esc(it)}</textarea><button class="icon-btn" data-del-item="${i}">×</button></div>
+          <div class="list-item-row"><textarea class="ta-auto ta-compact" rows="1" data-list-idx="${i}" data-key="items.${i}" placeholder="항목 ${i+1}">${esc(it)}</textarea><button class="icon-btn" data-del-item="${i}">×</button></div>
+          <div style="display:flex;justify-content:flex-end;gap:2px;margin-top:2px">${_fldBtns(`items.${i}`)}</div>
           ${fieldStyleCtrl(`items.${i}`)}
-          <textarea class="ta-auto ta-sub" rows="1" data-list-sub="${i}" placeholder="↳ 세부내용 (선택)" style="width:100%;margin-top:4px">${esc((d.itemDescs && d.itemDescs[i]) || "")}</textarea>
+          <div style="display:flex;align-items:center;gap:4px;margin-top:4px;margin-bottom:2px"><span style="font-size:10px;color:var(--text-faint);flex:1">↳ 세부내용</span>${_fldBtns(`itemDescs.${i}`)}</div>
+          <textarea class="ta-auto ta-sub" rows="1" data-list-sub="${i}" data-key="itemDescs.${i}" placeholder="세부내용 (선택)" style="width:100%">${esc((d.itemDescs && d.itemDescs[i]) || "")}</textarea>
         </div>`).join("")}</div><button class="add-item-btn" id="add-list-item">+ 항목 추가</button></div>`;
     }
   }
@@ -3879,7 +3889,9 @@ function bindEditorEvents(card) {
 
   body.querySelectorAll("[data-key]").forEach(el => {
     el.addEventListener("input", e => {
-      card.data[e.target.dataset.key] = e.target.value;
+      const key = e.target.dataset.key;
+      if (key.includes(".")) return; // 점 경로(중첩)는 각 전용 핸들러가 처리
+      card.data[key] = e.target.value;
       renderPreview(); renderCardList(); updateAllCounters(); autoSave();
     });
   });
