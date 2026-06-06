@@ -977,6 +977,15 @@ def _parse_json_field(v, default):
 # ============================================================
 # 라우트 — 스튜디오
 # ============================================================
+_LOGOUT_BTN = (
+    '<div style="position:fixed;top:14px;right:18px;z-index:99999">'
+    '<a href="/logout" style="font-family:Pretendard,sans-serif;font-size:13px;'
+    'color:#666;background:#f5f5f0;border:1px solid #ddd;border-radius:6px;'
+    'padding:5px 12px;text-decoration:none;transition:background .15s"'
+    ' onmouseover="this.style.background=\'#eee\'" onmouseout="this.style.background=\'#f5f5f0\'">'
+    '로그아웃</a></div>'
+)
+
 @app.route("/")
 def index():
     if not STUDIO_HTML.exists():
@@ -986,12 +995,7 @@ def index():
         "</body>",
         '<script src="/static/publish_progress.js"></script>\n'
         + BOT_INTEGRATION_SCRIPT + "\n"
-        + '<div style="position:fixed;top:14px;right:18px;z-index:99999">'
-          '<a href="/logout" style="font-family:Pretendard,sans-serif;font-size:13px;'
-          'color:#666;background:#f5f5f0;border:1px solid #ddd;border-radius:6px;'
-          'padding:5px 12px;text-decoration:none;transition:background .15s"'
-          ' onmouseover="this.style.background=\'#eee\'" onmouseout="this.style.background=\'#f5f5f0\'">'
-          '로그아웃</a></div>\n</body>'
+        + _LOGOUT_BTN + "\n</body>"
     )
     resp = Response(html, mimetype="text/html")
     # HTML 은 매 요청마다 새로 읽으므로 캐시 금지 (브라우저/터널 CDN 캐시로 변경 안 보이는 문제 방지)
@@ -1004,7 +1008,8 @@ def index():
 def auto_index():
     if not AUTO_HTML.exists():
         return f"auto_studio.html 파일이 없어요. {AUTO_HTML} 위치에 두세요.", 500
-    return Response(AUTO_HTML.read_text(encoding="utf-8"), mimetype="text/html")
+    html = AUTO_HTML.read_text(encoding="utf-8").replace("</body>", _LOGOUT_BTN + "\n</body>")
+    return Response(html, mimetype="text/html")
 
 
 # ============================================================
