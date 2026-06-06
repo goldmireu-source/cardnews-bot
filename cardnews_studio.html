@@ -3435,16 +3435,30 @@ async function uploadBgFile(file, card) {
 function bindEditorEvents(card) {
   const body = document.getElementById("editor-body");
 
-  // 필드 복사 버튼
+  // 필드 복사 버튼 — 해당 필드 내용을 프리뷰에 자유 배치 텍스트 오버레이로 추가
   body.querySelectorAll(".fld-copy-btn").forEach(btn => {
     btn.onclick = () => {
-      const ta = body.querySelector(`textarea[data-key="${btn.dataset.key}"]`);
-      if (!ta) return;
-      navigator.clipboard.writeText(ta.value).then(() => toast("클립보드에 복사됐어요", "success")).catch(() => {
-        const tmp = document.createElement("textarea");
-        tmp.value = ta.value; document.body.appendChild(tmp); tmp.select();
-        document.execCommand("copy"); tmp.remove(); toast("클립보드에 복사됐어요", "success");
-      });
+      const key = btn.dataset.key;
+      const ta = body.querySelector(`textarea[data-key="${key}"]`);
+      if (!ta || !ta.value.trim()) { toast("내용을 먼저 입력하세요", "warn"); return; }
+      const sty = (card.fieldStyles && card.fieldStyles[key]) || {};
+      const ov = {
+        id: "ov" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+        type: "text",
+        text: ta.value,
+        x: 10,
+        y: 10,
+        w: 80,
+        size: Math.round(56 * (sty.scale || 1)),
+        ...(sty.color ? { color: sty.color } : {}),
+        ...(sty.weight ? { weight: sty.weight } : { weight: 700 }),
+        ...(sty.align ? { align: sty.align } : {}),
+      };
+      card.overlays = card.overlays || [];
+      card.overlays.push(ov);
+      SEL = { kind: "ov", key: ov.id };
+      renderEditor(); renderPreview(); autoSave();
+      toast("프리뷰에 텍스트 요소가 추가됐어요", "success");
     };
   });
 
