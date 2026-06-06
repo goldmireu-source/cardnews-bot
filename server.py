@@ -31,15 +31,20 @@ import json
 import re
 import sqlite3
 import time
+import hmac
+import secrets as _secrets
 from pathlib import Path
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from urllib.parse import urljoin, urlparse
 from dotenv import load_dotenv
 
 import anthropic
 import requests
 from bs4 import BeautifulSoup
-from flask import Flask, jsonify, abort, request, Response, send_from_directory
+from flask import (
+    Flask, jsonify, abort, request, Response, send_from_directory,
+    session, redirect, url_for, render_template_string,
+)
 
 load_dotenv()
 
@@ -79,6 +84,96 @@ DEFAULT_BRAND = {
 DEFAULT_TONE = "친근한 정보 전달"
 
 app = Flask(__name__)
+
+# ── 웹 로그인 인증 ───────────────────────────────────────────────────────────
+app.secret_key = os.getenv("SECRET_KEY") or _secrets.token_hex(32)
+app.permanent_session_lifetime = timedelta(days=30)
+
+_WEB_USERNAME = os.getenv("WEB_USERNAME", "admin")
+_WEB_PASSWORD = os.getenv("WEB_PASSWORD", "")
+
+_LOGIN_HTML = """<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CardNews Studio</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#f5f4f0;font-family:'Pretendard',-apple-system,sans-serif;
+  min-height:100vh;display:flex;align-items:center;justify-content:center}
+.card{background:#fff;border-radius:16px;padding:48px 40px;width:360px;
+  box-shadow:0 4px 32px rgba(0,0,0,.08)}
+.brand{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:#aaa;margin-bottom:10px}
+h1{font-size:22px;font-weight:700;color:#111;margin-bottom:32px}
+label{display:block;font-size:13px;font-weight:600;color:#555;margin-bottom:6px}
+input{width:100%;padding:11px 14px;border:1.5px solid #e4e4e4;border-radius:8px;
+  font-size:15px;font-family:inherit;outline:none;transition:border-color .15s;
+  margin-bottom:18px;color:#111;background:#fff}
+input:focus{border-color:#111}
+.error{background:#fff2f2;border:1px solid #ffc0c0;color:#c00;font-size:13px;
+  padding:10px 14px;border-radius:8px;margin-bottom:18px}
+button{width:100%;padding:13px;background:#111;color:#fff;border:none;
+  border-radius:8px;font-size:15px;font-weight:700;font-family:inherit;
+  cursor:pointer;letter-spacing:.02em;transition:background .15s}
+button:hover{background:#333}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="brand">CardNews Studio</div>
+  <h1>로그인</h1>
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  <form method="post">
+    <label for="u">아이디</label>
+    <input id="u" type="text" name="username" autocomplete="username" autofocus>
+    <label for="p">비밀번호</label>
+    <input id="p" type="password" name="password" autocomplete="current-password">
+    <button type="submit">로그인</button>
+  </form>
+</div>
+</body>
+</html>"""
+
+
+@app.before_request
+def _require_login():
+    if request.path in ("/login", "/logout", "/health"):
+        return
+    if not session.get("logged_in"):
+        next_url = request.full_path if request.method == "GET" else "/"
+        return redirect(url_for("login", next=next_url))
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if session.get("logged_in"):
+        return redirect("/")
+    error = None
+    if request.method == "POST":
+        u = request.form.get("username", "")
+        p = request.form.get("password", "")
+        ok = (
+            _WEB_PASSWORD
+            and hmac.compare_digest(u, _WEB_USERNAME)
+            and hmac.compare_digest(p, _WEB_PASSWORD)
+        )
+        if ok:
+            session.permanent = True
+            session["logged_in"] = True
+            return redirect(request.args.get("next") or "/")
+        error = "아이디 또는 비밀번호가 올바르지 않습니다."
+    return render_template_string(_LOGIN_HTML, error=error)
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect("/login")
+# ── End Auth ────────────────────────────────────────────────────────────────
 
 
 @app.after_request
