@@ -8,30 +8,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
-
-      - name: Sync code to server
-        run: |
-          rsync -az \
-            --exclude='.git' \
-            --exclude='.env' \
-            --exclude='sessions/' \
-            --exclude='uploads/' \
-            --exclude='cache/' \
-            --exclude='data/' \
-            --exclude='__pycache__/' \
-            --exclude='*.pyc' \
-            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
-            ./ ubuntu@${{ secrets.DEPLOY_HOST }}:~/cardnews_bot/
-
-      - name: Update .env and restart
+      - name: Deploy to server
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEPLOY_HOST }}
@@ -48,6 +25,7 @@ jobs:
                 echo "${VAR}=${VALUE}" >> .env
               fi
             done
+            GIT_TERMINAL_PROMPT=0 timeout 30 git pull origin main
             sudo systemctl restart cardnews-bot
         env:
           WEB_USERNAME: ${{ secrets.WEB_USERNAME }}
