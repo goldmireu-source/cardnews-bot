@@ -2224,6 +2224,93 @@ function _applyImgContainerDom(el, ov) {
   img.style.display = "block";
 }
 
+// ---- 스냅 가이드라인 (드래그 정렬선) ----
+const _SNAP_THR = 10; // 카드 픽셀 기준 스냅 임계값
+
+function _snapRefs(scaler, excludeEl) {
+  const cardEl = scaler.querySelector(".card");
+  if (!cardEl) return [];
+  const cR = cardEl.getBoundingClientRect();
+  const sc = cR.width / 1080;
+  const refs = [{ left:0, right:1080, top:0, bottom:1350, cx:540, cy:675 }];
+  scaler.querySelectorAll(".ov-el, .fld-target").forEach(el => {
+    if (el === excludeEl) return;
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0) return;
+    refs.push({
+      left:   (r.left   - cR.left) / sc,
+      right:  (r.right  - cR.left) / sc,
+      top:    (r.top    - cR.top)  / sc,
+      bottom: (r.bottom - cR.top)  / sc,
+      cx: ((r.left + r.right)  / 2 - cR.left) / sc,
+      cy: ((r.top  + r.bottom) / 2 - cR.top)  / sc,
+    });
+  });
+  return refs;
+}
+
+function _checkSnap(el, scaler) {
+  const cardEl = scaler.querySelector(".card");
+  if (!cardEl) return { lines:[], snapDX:0, snapDY:0 };
+  const cR = cardEl.getBoundingClientRect();
+  const sc = cR.width / 1080;
+  const r = el.getBoundingClientRect();
+  const L  = (r.left   - cR.left) / sc;
+  const R  = (r.right  - cR.left) / sc;
+  const T  = (r.top    - cR.top)  / sc;
+  const B  = (r.bottom - cR.top)  / sc;
+  const CX = (L + R) / 2;
+  const CY = (T + B) / 2;
+  const refs = _snapRefs(scaler, el);
+  let bestX = _SNAP_THR + 1, bestY = _SNAP_THR + 1;
+  let vPos = null, hPos = null;
+  refs.forEach(ref => {
+    [[ref.left,L],[ref.left,CX],[ref.left,R],
+     [ref.cx,  L],[ref.cx,  CX],[ref.cx,  R],
+     [ref.right,L],[ref.right,CX],[ref.right,R]].forEach(([rp, ep]) => {
+      const d = rp - ep;
+      if (Math.abs(d) < Math.abs(bestX)) { bestX = d; vPos = rp; }
+    });
+    [[ref.top,   T],[ref.top,   CY],[ref.top,   B],
+     [ref.cy,    T],[ref.cy,    CY],[ref.cy,    B],
+     [ref.bottom,T],[ref.bottom,CY],[ref.bottom,B]].forEach(([rp, ep]) => {
+      const d = rp - ep;
+      if (Math.abs(d) < Math.abs(bestY)) { bestY = d; hPos = rp; }
+    });
+  });
+  const result = { lines:[], snapDX:0, snapDY:0 };
+  if (Math.abs(bestX) <= _SNAP_THR && vPos !== null) { result.lines.push({ axis:"v", pos:vPos }); result.snapDX = bestX; }
+  if (Math.abs(bestY) <= _SNAP_THR && hPos !== null) { result.lines.push({ axis:"h", pos:hPos }); result.snapDY = bestY; }
+  return result;
+}
+
+function _showGuides(scaler, lines) {
+  let layer = scaler.querySelector(".__snapL");
+  if (!layer) {
+    layer = document.createElement("div");
+    layer.className = "__snapL";
+    layer.style.cssText = "position:absolute;inset:0;pointer-events:none;z-index:500;overflow:visible";
+    scaler.appendChild(layer);
+  }
+  layer.innerHTML = "";
+  lines.forEach(({ axis, pos }) => {
+    const d = document.createElement("div");
+    if (axis === "v") {
+      d.style.cssText = `position:absolute;top:-5%;height:110%;left:${pos}px;margin-left:-0.5px;width:1px;pointer-events:none`;
+      d.style.background = "repeating-linear-gradient(to bottom,#6ee7ff 0,#6ee7ff 7px,transparent 7px,transparent 14px)";
+    } else {
+      d.style.cssText = `position:absolute;left:-5%;width:110%;top:${pos}px;margin-top:-0.5px;height:1px;pointer-events:none`;
+      d.style.background = "repeating-linear-gradient(to right,#6ee7ff 0,#6ee7ff 7px,transparent 7px,transparent 14px)";
+    }
+    layer.appendChild(d);
+  });
+}
+
+function _hideGuides(scaler) {
+  const l = scaler.querySelector(".__snapL");
+  if (l) l.innerHTML = "";
+}
+
 // 본체 드래그 → 이동. 오버레이=x/y, 필드=fieldStyles.dx/dy(상대 오프셋).
 function startMove(e, el, scaler, card) {
   const cardEl = scaler.querySelector(".card"); if (!cardEl) return;
@@ -2234,16 +2321,23 @@ function startMove(e, el, scaler, card) {
   if (isOv) { ov = (card.overlays || []).find(o => o.id === el.dataset.ov); if (!ov) return; ox = ov.x ?? 30; oy = ov.y ?? 30; }
   else { st = ensureFieldStyle(card, el.dataset.fld); ox = st.dx || 0; oy = st.dy || 0; }
   let moved = false;
+  let lastSnap = { snapDX: 0, snapDY: 0 };
   try { el.setPointerCapture(e.pointerId); } catch (e2) {}
-  const cardScale = rect.width / 1080; // CSS transform scale (~0.42)
+  const cardScale = rect.width / 1080;
   const move = ev => {
     moved = true;
     if (isOv) {
-      // 오버레이: 카드 % 기준 (0-100)
-      const nx = ox + (ev.clientX - sx) / rect.width * 100;
-      const ny = oy + (ev.clientY - sy) / rect.height * 100;
-      ov.x = Math.max(0, Math.min(100, nx)); ov.y = Math.max(0, Math.min(100, ny));
-      el.style.left = ov.x + "%"; el.style.top = ov.y + "%";
+      const nx = Math.max(0, Math.min(100, ox + (ev.clientX - sx) / rect.width * 100));
+      const ny = Math.max(0, Math.min(100, oy + (ev.clientY - sy) / rect.height * 100));
+      ov.x = nx; ov.y = ny;
+      el.style.left = nx + "%"; el.style.top = ny + "%";
+      const snap = _checkSnap(el, scaler);
+      lastSnap = snap;
+      if (snap.snapDX || snap.snapDY) {
+        el.style.left = Math.max(0, Math.min(100, nx + snap.snapDX / 1080 * 100)) + "%";
+        el.style.top  = Math.max(0, Math.min(100, ny + snap.snapDY / 1350 * 100)) + "%";
+      }
+      _showGuides(scaler, snap.lines);
     } else {
       // 템플릿 필드: 카드 픽셀(1080 기준) — 부모 컨테이너 폭과 무관하게 1:1 이동
       const dxPx = (ev.clientX - sx) / cardScale;
@@ -2251,12 +2345,29 @@ function startMove(e, el, scaler, card) {
       st.dx = +(ox + dxPx).toFixed(1); st.dy = +(oy + dyPx).toFixed(1);
       el.style.position = "relative";
       el.style.transform = `translate(${st.dx}px, ${st.dy}px)`;
+      const snap = _checkSnap(el, scaler);
+      lastSnap = snap;
+      if (snap.snapDX || snap.snapDY) {
+        el.style.transform = `translate(${st.dx + snap.snapDX}px, ${st.dy + snap.snapDY}px)`;
+      }
+      _showGuides(scaler, snap.lines);
     }
   };
   const up = () => {
     el.removeEventListener("pointermove", move);
     el.removeEventListener("pointerup", up);
-    if (moved) { if (isOv && ov) _ovPosLabelUpdate(ov); autoSave(); }
+    _hideGuides(scaler);
+    if (moved) {
+      if (isOv && ov) {
+        ov.x = Math.max(0, Math.min(100, ov.x + lastSnap.snapDX / 1080 * 100));
+        ov.y = Math.max(0, Math.min(100, ov.y + lastSnap.snapDY / 1350 * 100));
+        _ovPosLabelUpdate(ov);
+      } else if (st) {
+        st.dx = +(st.dx + lastSnap.snapDX).toFixed(1);
+        st.dy = +(st.dy + lastSnap.snapDY).toFixed(1);
+      }
+      autoSave();
+    }
   };
   el.addEventListener("pointermove", move);
   el.addEventListener("pointerup", up);
