@@ -14,9 +14,21 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ubuntu
           key: ${{ secrets.DEPLOY_SSH_KEY }}
+          envs: WEB_USERNAME,WEB_PASSWORD,SECRET_KEY
           script: |
             set -e
             cd ~/cardnews_bot
+
+            # .env에 인증 변수 없으면 추가, 있으면 덮어쓰기
+            for VAR in WEB_USERNAME WEB_PASSWORD SECRET_KEY; do
+              VALUE=$(eval echo \$$VAR)
+              if grep -q "^${VAR}=" .env 2>/dev/null; then
+                sed -i "s|^${VAR}=.*|${VAR}=${VALUE}|" .env
+              else
+                echo "${VAR}=${VALUE}" >> .env
+              fi
+            done
+
             git pull origin main
             pip install -r requirements.txt -q
             sudo systemctl restart cardnews-bot
