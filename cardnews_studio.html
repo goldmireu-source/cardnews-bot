@@ -1588,6 +1588,8 @@ input, textarea, select { font-family: inherit; }
       <div class="layout-chips" id="layout-chips"></div>
       <div class="card-action-row" id="card-actions" style="display:none">
         <button class="btn btn-ai" id="btn-polish">✨ AI로 다듬기</button>
+        <button class="btn btn-ghost" id="btn-dup-card" title="이 카드를 복사해서 바로 아래에 추가">복사생성</button>
+        <button class="btn btn-ghost" id="btn-del-card" title="이 카드 삭제" style="color:var(--danger);border-color:rgba(255,107,134,0.3)">삭제</button>
       </div>
     </div>
     <div class="editor-body" id="editor-body">
@@ -1898,11 +1900,10 @@ function applyFieldStyles(card, rootEl) {
     if (typeof sty.opacity === "number" && sty.opacity >= 0 && sty.opacity < 1) {
       el.style.setProperty("opacity", sty.opacity);
     }
-    // 이동 — 흐름을 깨지 않는 상대 위치 오프셋 (카드 % 기준). 프리뷰 드래그·내보내기 공통.
+    // 이동 — transform으로 적용해야 부모 컨테이너 폭과 무관하게 1:1 이동
     if ((typeof sty.dx === "number" && sty.dx) || (typeof sty.dy === "number" && sty.dy)) {
       el.style.setProperty("position", "relative");
-      el.style.setProperty("left", (sty.dx || 0) + "%");
-      el.style.setProperty("top", (sty.dy || 0) + "%");
+      el.style.setProperty("transform", `translate(${sty.dx || 0}px, ${sty.dy || 0}px)`);
     }
     // 레이어 순서 — z-index (positioned 여야 적용되므로 relative 보장)
     if (typeof sty.z === "number") {
@@ -2233,12 +2234,23 @@ function startMove(e, el, scaler, card) {
   else { st = ensureFieldStyle(card, el.dataset.fld); ox = st.dx || 0; oy = st.dy || 0; }
   let moved = false;
   try { el.setPointerCapture(e.pointerId); } catch (e2) {}
+  const cardScale = rect.width / 1080; // CSS transform scale (~0.42)
   const move = ev => {
     moved = true;
-    const nx = ox + (ev.clientX - sx) / rect.width * 100;
-    const ny = oy + (ev.clientY - sy) / rect.height * 100;
-    if (isOv) { ov.x = Math.max(0, Math.min(100, nx)); ov.y = Math.max(0, Math.min(100, ny)); el.style.left = ov.x + "%"; el.style.top = ov.y + "%"; }
-    else { st.dx = +nx.toFixed(2); st.dy = +ny.toFixed(2); el.style.position = "relative"; el.style.left = st.dx + "%"; el.style.top = st.dy + "%"; }
+    if (isOv) {
+      // 오버레이: 카드 % 기준 (0-100)
+      const nx = ox + (ev.clientX - sx) / rect.width * 100;
+      const ny = oy + (ev.clientY - sy) / rect.height * 100;
+      ov.x = Math.max(0, Math.min(100, nx)); ov.y = Math.max(0, Math.min(100, ny));
+      el.style.left = ov.x + "%"; el.style.top = ov.y + "%";
+    } else {
+      // 템플릿 필드: 카드 픽셀(1080 기준) — 부모 컨테이너 폭과 무관하게 1:1 이동
+      const dxPx = (ev.clientX - sx) / cardScale;
+      const dyPx = (ev.clientY - sy) / cardScale;
+      st.dx = +(ox + dxPx).toFixed(1); st.dy = +(oy + dyPx).toFixed(1);
+      el.style.position = "relative";
+      el.style.transform = `translate(${st.dx}px, ${st.dy}px)`;
+    }
   };
   const up = () => {
     el.removeEventListener("pointermove", move);
@@ -5253,6 +5265,8 @@ function init() {
   document.getElementById("btn-caption").onclick = openCaptionModal;
   document.getElementById("btn-story").onclick = openStorySummaryModal;
   document.getElementById("btn-polish").onclick = openPolishModal;
+  document.getElementById("btn-dup-card").onclick = () => { if (STATE.activeId) duplicateCard(STATE.activeId); };
+  document.getElementById("btn-del-card").onclick = () => { if (STATE.activeId) deleteCard(STATE.activeId); };
 
   tryRestore();
   ensureAtLeastOneProject();
