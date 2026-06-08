@@ -51,10 +51,12 @@ load_dotenv()
 ROOT = Path(__file__).parent
 SESSIONS_DIR = ROOT / "sessions"
 UPLOADS_DIR = ROOT / "uploads"
+DIRECT_UPLOADS_DIR = UPLOADS_DIR / "_direct"   # 직접 업로드 캐러셀 임시 저장소
 STUDIO_HTML = ROOT / "cardnews_studio.html"
 AUTO_HTML = ROOT / "auto_studio.html"
 SESSIONS_DIR.mkdir(exist_ok=True)
 UPLOADS_DIR.mkdir(exist_ok=True)
+DIRECT_UPLOADS_DIR.mkdir(exist_ok=True)
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 # 모델 분기 — 품질이 결과물에 직결되는 호출은 MODEL(Sonnet) 유지,
@@ -148,6 +150,8 @@ def _require_login():
     if request.path in ("/login", "/logout", "/health"):
         return
     # 외부 서비스(Instagram/Facebook/Threads)가 이미지 URL을 직접 fetch하므로 인증 불필요
+    if request.path.startswith("/direct-uploads/"):
+        return
     if request.path.startswith("/uploads/"):
         return
     if not session.get("logged_in"):
@@ -2299,6 +2303,285 @@ def api_publish_job_status(job_id: str):
         return jsonify({"error": "not_found"}), 404
     j.pop("created_at_ts", None)
     return jsonify(j)
+
+
+# ============================================================
+# 라우트 — 직접 파일 업로드 캐러셀 발행
+# ============================================================
+import uuid as _uuid_mod
+import shutil as _shutil
+
+_DIRECT_ALLOWED_EXT = {"png", "jpg", "jpeg", "mp4"}
+_DIRECT_MIME_MAP = {
+    "png": "image/png", "jpg": "image/jpeg",
+    "jpeg": "image/jpeg", "mp4": "video/mp4",
+}
+_DIRECT_MAX_FILES = 10
+_DIRECT_MAX_IMAGE_MB = 8
+_DIRECT_MAX_VIDEO_MB = 300
+
+
+def _dc_session_dir(dc_sid: str) -> Path:
+    return DIRECT_UPLOADS_DIR / dc_sid
+
+
+def _dc_meta_path(dc_sid: str) -> Path:
+    return _dc_session_dir(dc_sid) / "_meta.json"
+
+
+def _dc_load_meta(dc_sid: str) -> list:
+    p = _dc_meta_path(dc_sid)
+    if p.exists():
+        try:
+            return json.loads(p.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return []
+
+
+def _dc_save_meta(dc_sid: str, items: list) -> None:
+    _dc_meta_path(dc_sid).write_text(
+        json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+
+@app.route("/api/direct-carousel/upload", methods=["POST"])
+def api_direct_carousel_upload():
+    """PNG/JPG/MP4 파일을 임시 저장소에 업로드. 새 세션 생성 또는 기존 세션에 추가.
+
+    form-data:
+      - files[]: 1개 이상의 파일
+      - session_id: 기존 세션에 추가할 때 전달 (생략 시 새 세션 생성)
+    """
+    files = request.files.getlist("files")
+    if not files:
+        return jsonify({"error": "파일 없음"}), 400
+
+    dc_sid = (request.form.get("session_id") or "").strip()
+    if dc_sid and not SAFE_ID_RE.match(dc_sid):
+        return jsonify({"error": "잘못된 session_id"}), 400
+    if not dc_sid:
+        dc_sid = "dc_" + _uuid_mod.uuid4().hex[:16]
+
+    sess_dir = _dc_session_dir(dc_sid)
+    sess_dir.mkdir(parents=True, exist_ok=True)
+    existing = _dc_load_meta(dc_sid)
+
+    if len(existing) + len(files) > _DIRECT_MAX_FILES:
+        return jsonify({"error": f"슬라이드 최대 {_DIRECT_MAX_FILES}개 (현재 {len(existing)}개 + {len(files)}개)"}), 400
+
+    added = []
+    for f in files:
+        orig_name = f.filename or "file"
+        ext = orig_name.rsplit(".", 1)[-1].lower() if "." in orig_name else ""
+        if ext not in _DIRECT_ALLOWED_EXT:
+            return jsonify({"error": f"지원하지 않는 파일 형식: {orig_name} (PNG/JPG/MP4만 가능)"}), 400
+
+        is_video = ext == "mp4"
+        max_mb = _DIRECT_MAX_VIDEO_MB if is_video else _DIRECT_MAX_IMAGE_MB
+        f.seek(0, 2); fsize = f.tell(); f.seek(0)
+        if fsize > max_mb * 1024 * 1024:
+            return jsonify({"error": f"{orig_name}: 파일 크기 초과 (최대 {max_mb}MB)"}), 400
+
+        file_id = _uuid_mod.uuid4().hex[:10]
+        save_name = f"{file_id}.{ext}"
+        f.save(sess_dir / save_name)
+
+        item = {
+            "id": file_id,
+            "name": orig_name,
+            "save_name": save_name,
+            "media_type": "VIDEO" if is_video else "IMAGE",
+            "size": fsize,
+            "url": f"{SERVER_URL}/direct-uploads/{dc_sid}/{save_name}",
+        }
+        existing.append(item)
+        added.append(item)
+
+    _dc_save_meta(dc_sid, existing)
+    return jsonify({"ok": True, "session_id": dc_sid, "files": existing, "added": len(added)})
+
+
+@app.route("/api/direct-carousel/<dc_sid>/files")
+def api_direct_carousel_files(dc_sid):
+    """세션 내 파일 목록 조회."""
+    if not SAFE_ID_RE.match(dc_sid):
+        abort(400, "잘못된 session_id")
+    return jsonify({"session_id": dc_sid, "files": _dc_load_meta(dc_sid)})
+
+
+@app.route("/api/direct-carousel/<dc_sid>/file/<file_id>", methods=["DELETE"])
+def api_direct_carousel_delete_file(dc_sid, file_id):
+    """특정 파일 삭제."""
+    if not SAFE_ID_RE.match(dc_sid):
+        abort(400, "잘못된 session_id")
+    if not re.match(r"^[a-f0-9]{10}$", file_id):
+        abort(400, "잘못된 file_id")
+    items = _dc_load_meta(dc_sid)
+    item = next((x for x in items if x["id"] == file_id), None)
+    if not item:
+        return jsonify({"error": "파일 없음"}), 404
+    try:
+        ((_dc_session_dir(dc_sid)) / item["save_name"]).unlink(missing_ok=True)
+    except Exception:
+        pass
+    items = [x for x in items if x["id"] != file_id]
+    _dc_save_meta(dc_sid, items)
+    return jsonify({"ok": True, "files": items})
+
+
+@app.route("/api/direct-carousel/<dc_sid>/reorder", methods=["POST"])
+def api_direct_carousel_reorder(dc_sid):
+    """파일 순서 변경.
+
+    body: {"order": ["file_id_1", "file_id_2", ...]}
+    """
+    if not SAFE_ID_RE.match(dc_sid):
+        abort(400, "잘못된 session_id")
+    body = request.get_json(silent=True) or {}
+    order = body.get("order") or []
+    items = _dc_load_meta(dc_sid)
+    id_map = {x["id"]: x for x in items}
+    reordered = [id_map[oid] for oid in order if oid in id_map]
+    # 혹시 order에 없는 항목은 끝에 추가
+    reordered_ids = {x["id"] for x in reordered}
+    for x in items:
+        if x["id"] not in reordered_ids:
+            reordered.append(x)
+    _dc_save_meta(dc_sid, reordered)
+    return jsonify({"ok": True, "files": reordered})
+
+
+@app.route("/direct-uploads/<dc_sid>/<filename>")
+def serve_direct_upload(dc_sid, filename):
+    """직접 업로드 파일 공개 서빙 (인증 불필요 — Instagram/Threads 서버가 직접 fetch)."""
+    if not SAFE_ID_RE.match(dc_sid):
+        abort(400, "잘못된 session_id")
+    if not re.match(r"^[a-zA-Z0-9_\-.]{1,64}$", filename):
+        abort(400, "잘못된 파일명")
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    mime = _DIRECT_MIME_MAP.get(ext, "application/octet-stream")
+    resp = send_from_directory(_dc_session_dir(dc_sid), filename, mimetype=mime)
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    resp.headers["Cache-Control"] = "public, max-age=3600"
+    return resp
+
+
+@app.route("/api/direct-carousel/<dc_sid>/caption", methods=["POST"])
+def api_direct_carousel_caption(dc_sid):
+    """업로드된 파일에 대한 캡션 AI 생성.
+
+    body: {"prompt": "이미지/영상 내용 설명 (선택)"}
+    """
+    if not SAFE_ID_RE.match(dc_sid):
+        abort(400, "잘못된 session_id")
+    body = request.get_json(silent=True) or {}
+    user_prompt = (body.get("prompt") or "").strip()
+    items = _dc_load_meta(dc_sid)
+
+    if not claude:
+        return jsonify({"error": "Claude API 미설정"}), 503
+
+    file_info = ", ".join(
+        f"{x['name']} ({x['media_type']})" for x in items[:5]
+    )
+    sys_msg = (
+        "당신은 인스타그램·스레드 바이럴 카피라이터입니다. "
+        "업로드된 미디어 파일들에 대한 캡션을 작성합니다.\n"
+        "형식: 후크 1문장 → 이모지 불릿 3~5개 본문 → CTA 1줄 → 구분선(━) → 해시태그 20~30개\n"
+        "총 2100자 이내. 해시태그 포함. 한국어."
+    )
+    user_msg = f"업로드 파일: {file_info}"
+    if user_prompt:
+        user_msg += f"\n내용 설명: {user_prompt}"
+
+    try:
+        resp = claude.messages.create(
+            model=MODEL_FAST,
+            max_tokens=1024,
+            messages=[
+                {"role": "user", "content": [
+                    {"type": "text", "text": sys_msg + "\n\n" + user_msg}
+                ]}
+            ],
+        )
+        caption = resp.content[0].text.strip() if resp.content else ""
+        return jsonify({"caption": caption})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/direct-carousel/<dc_sid>/publish", methods=["POST"])
+def api_direct_carousel_publish(dc_sid):
+    """직접 업로드 미디어 캐러셀 발행 시작.
+
+    body: {
+      "platforms": ["instagram", "threads", "facebook"],
+      "caption": "...",
+      "scheduled_at": 1234567890   # Unix 타임스탬프(초), 생략 시 즉시 발행
+    }
+    """
+    if not SAFE_ID_RE.match(dc_sid):
+        abort(400, "잘못된 session_id")
+
+    body = request.get_json(silent=True) or {}
+    requested = body.get("platforms") or ["instagram"]
+    if isinstance(requested, str):
+        requested = [requested]
+    requested = [p.lower() for p in requested
+                 if p.lower() in ("instagram", "facebook", "threads")]
+    if not requested:
+        return jsonify({"error": "platforms 비어있음 (instagram/threads/facebook)"}), 400
+
+    items = _dc_load_meta(dc_sid)
+    if not items:
+        return jsonify({"error": "업로드된 파일 없음"}), 400
+
+    if not SERVER_URL.startswith("https://"):
+        return jsonify({"error": "SERVER_URL 이 https 가 아님. 터널 확인 필요"}), 400
+
+    caption = (body.get("caption") or "").strip()
+
+    scheduled_at = None
+    raw_sched = body.get("scheduled_at")
+    if raw_sched:
+        try:
+            scheduled_at = float(raw_sched)
+            if scheduled_at <= time.time():
+                scheduled_at = None  # 과거 시각이면 즉시 발행
+        except (TypeError, ValueError):
+            pass
+
+    from services.publish_jobs import start_direct_publish_job
+    job_id = start_direct_publish_job(
+        session_id=dc_sid,
+        platforms=requested,
+        items=items,
+        caption=caption,
+        scheduled_at=scheduled_at,
+    )
+    return jsonify({
+        "ok": True,
+        "job_id": job_id,
+        "item_count": len(items),
+        "platforms": requested,
+        "scheduled": scheduled_at is not None,
+        "scheduled_at": scheduled_at,
+    }), 202
+
+
+@app.route("/api/direct-carousel/<dc_sid>", methods=["DELETE"])
+def api_direct_carousel_cleanup(dc_sid):
+    """세션 디렉터리 전체 삭제 (발행 완료 후 정리)."""
+    if not SAFE_ID_RE.match(dc_sid):
+        abort(400, "잘못된 session_id")
+    sess_dir = _dc_session_dir(dc_sid)
+    if sess_dir.exists():
+        try:
+            _shutil.rmtree(sess_dir)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    return jsonify({"ok": True})
 
 
 # ============================================================

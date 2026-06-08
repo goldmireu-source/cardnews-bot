@@ -1575,6 +1575,7 @@ input, textarea, select { font-family: inherit; }
       <button class="btn btn-primary" id="btn-export">📥 전체 PNG 다운로드 (ZIP)</button>
       <button class="btn btn-primary" id="btn-preview-publish" style="background:linear-gradient(135deg,#0ea5e9,#6366f1);color:#fff;border:none">🔍 발행 미리보기</button>
       <button class="btn btn-primary" id="btn-publish" style="background:linear-gradient(135deg,#e1306c,#833ab4);color:#fff;border:none">📲 인스타·스레드 발행</button>
+      <button class="btn btn-primary" id="btn-direct-publish" style="background:linear-gradient(135deg,#f59e0b,#ef4444);color:#fff;border:none">📁 파일 직접 발행</button>
     </div>
   </aside>
 
@@ -4640,6 +4641,472 @@ async function openPublishPreview() {
 }
 
 // ====================================================================
+// 직접 파일 업로드 캐러셀 발행 모달
+// ====================================================================
+async function openDirectPublishModal() {
+  // ── 상태 ──────────────────────────────────────────────────
+  let dcSid = null;           // 서버에서 받은 세션 ID
+  let slideFiles = [];        // [{id, name, save_name, media_type, url, size}]
+  let dragSrcIdx = null;
+
+  // ── 모달 생성 ──────────────────────────────────────────────
+  const back = document.createElement("div");
+  back.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.78);z-index:9500;display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto";
+
+  back.innerHTML = `
+    <div id="dcp-modal" style="background:#1a1a1a;color:#fff;max-width:680px;width:100%;max-height:92vh;overflow-y:auto;border-radius:14px;padding:24px;font-family:'Pretendard Variable',Pretendard,sans-serif;box-shadow:0 24px 80px rgba(0,0,0,0.6)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+        <h2 style="margin:0;font-size:18px;font-weight:700">📁 파일 직접 발행</h2>
+        <button id="dcp-close" style="background:none;border:none;color:#aaa;font-size:26px;cursor:pointer;line-height:1">×</button>
+      </div>
+
+      <!-- 업로드 영역 -->
+      <div id="dcp-dropzone" style="border:2px dashed #444;border-radius:10px;padding:32px 20px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;margin-bottom:16px">
+        <div style="font-size:36px;margin-bottom:10px">📂</div>
+        <div style="font-weight:600;margin-bottom:6px">파일을 드래그하거나 클릭해서 선택</div>
+        <div style="font-size:12px;color:#888">PNG · JPG · MP4 / 최대 ${10}개 / 이미지 8MB · 영상 300MB</div>
+        <input id="dcp-file-input" type="file" multiple accept=".png,.jpg,.jpeg,.mp4" style="display:none">
+      </div>
+
+      <!-- 슬라이드 목록 -->
+      <div id="dcp-slides" style="display:none;margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-size:13px;font-weight:600" id="dcp-slide-count">0개 슬라이드</span>
+          <button id="dcp-add-more" style="font-size:12px;padding:4px 10px;background:#2a2a2a;color:#ccc;border:1px solid #444;border-radius:5px;cursor:pointer">+ 추가</button>
+        </div>
+        <ul id="dcp-slide-list" style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px"></ul>
+        <div style="margin-top:8px;font-size:11px;color:#666">⣿ 핸들을 드래그하면 순서를 바꿀 수 있어요</div>
+      </div>
+
+      <!-- 캡션 -->
+      <div id="dcp-caption-area" style="display:none;margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <label style="font-size:13px;font-weight:600">캡션 · 해시태그</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input id="dcp-caption-hint" type="text" placeholder="내용 설명 (AI 생성에 사용)" style="font-size:11px;padding:3px 8px;background:#222;color:#ccc;border:1px solid #444;border-radius:4px;width:180px">
+            <button id="dcp-caption-ai" style="font-size:11px;padding:4px 10px;background:#2a2a2a;color:#ccc;border:1px solid #444;border-radius:4px;cursor:pointer">✨ AI 생성</button>
+          </div>
+        </div>
+        <textarea id="dcp-caption" rows="7" style="width:100%;background:#0c0d12;color:#fff;border:1px solid #444;border-radius:6px;padding:10px;font-family:inherit;font-size:13px;line-height:1.5;resize:vertical;box-sizing:border-box" placeholder="캡션을 입력하거나 AI 생성 버튼을 누르세요"></textarea>
+        <div style="display:flex;gap:12px;margin-top:4px;font-size:11px;color:#888">
+          <span id="dcp-cap-ig">📷 0 / 2200</span>
+          <span id="dcp-cap-th">🧵 0 / 500</span>
+        </div>
+      </div>
+
+      <!-- 플랫폼 선택 -->
+      <div id="dcp-platform-area" style="display:none;margin-bottom:14px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px">발행 플랫폼</div>
+        <div id="dcp-platform-rows"></div>
+        <div style="margin-top:8px;padding:8px 12px;background:rgba(110,231,255,0.06);border:1px dashed rgba(110,231,255,0.18);border-radius:6px;font-size:11.5px;color:#888">
+          💡 Facebook 은 이미지 슬라이드만 발행 · 영상 슬라이드는 자동으로 건너뜁니다
+        </div>
+      </div>
+
+      <!-- 예약 발행 -->
+      <div id="dcp-schedule-area" style="display:none;margin-bottom:16px">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:8px">
+          <input type="checkbox" id="dcp-sched-toggle" style="width:15px;height:15px">
+          <span style="font-weight:600">예약 발행</span>
+        </label>
+        <div id="dcp-sched-picker" style="display:none">
+          <input type="datetime-local" id="dcp-sched-dt" style="padding:6px 10px;background:#222;color:#fff;border:1px solid #444;border-radius:6px;font-size:13px;font-family:inherit">
+          <div style="font-size:11px;color:#888;margin-top:4px">※ 서버가 가동 중이어야 합니다. 최대 24시간 이내</div>
+        </div>
+      </div>
+
+      <!-- 액션 버튼 -->
+      <div id="dcp-actions" style="display:none;justify-content:flex-end;gap:8px">
+        <button id="dcp-cancel" style="padding:8px 16px;background:#333;color:#fff;border:none;border-radius:6px;cursor:pointer">취소</button>
+        <button id="dcp-publish-btn" style="padding:8px 20px;background:linear-gradient(135deg,#f59e0b,#ef4444);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:14px">📲 발행</button>
+      </div>
+
+      <!-- 진행 패널 (발행 중에 표시) -->
+      <div id="dcp-progress" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span id="dcp-prog-title" style="font-weight:700;font-size:15px">📤 발행 중…</span>
+          <span id="dcp-prog-pct" style="font-size:13px;color:#aaa">0%</span>
+        </div>
+        <div style="height:8px;background:#2a2a2a;border-radius:4px;overflow:hidden;margin-bottom:14px">
+          <div id="dcp-prog-fill" style="height:100%;width:0%;background:linear-gradient(90deg,#f59e0b,#ef4444);transition:width .4s"></div>
+        </div>
+        <ul id="dcp-prog-list" style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px"></ul>
+        <div id="dcp-prog-final" style="display:none;margin-top:14px;padding-top:12px;border-top:1px solid #333;font-size:14px;font-weight:600"></div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
+          <button id="dcp-prog-close" style="padding:8px 18px;background:#444;color:#fff;border:none;border-radius:6px;cursor:not-allowed;opacity:.5" disabled>닫기</button>
+        </div>
+      </div>
+    </div>`;
+
+  document.body.appendChild(back);
+
+  const modal = back.querySelector("#dcp-modal");
+  const closeModal = () => back.remove();
+  back.querySelector("#dcp-close").onclick = closeModal;
+  back.addEventListener("click", e => { if (e.target === back) closeModal(); });
+
+  // ── helpers ───────────────────────────────────────────────
+  const $ = id => back.querySelector(`#${id}`);
+
+  function showSections(show) {
+    ["dcp-slides","dcp-caption-area","dcp-platform-area","dcp-schedule-area","dcp-actions"].forEach(id => {
+      $(id).style.display = show ? (id === "dcp-actions" ? "flex" : "block") : "none";
+    });
+  }
+
+  function updateCaptionCounter() {
+    const ta = $("dcp-caption");
+    const n = ta.value.length;
+    $("dcp-cap-ig").textContent = `📷 ${n} / 2200`;
+    $("dcp-cap-th").textContent = `🧵 ${n} / 500`;
+    $("dcp-cap-ig").style.color = n > 2200 ? "#ff6b86" : (n > 2000 ? "#ffd166" : "#888");
+    $("dcp-cap-th").style.color = n > 500  ? "#ff6b86" : (n > 450  ? "#ffd166" : "#888");
+  }
+  $("dcp-caption").addEventListener("input", updateCaptionCounter);
+
+  function formatBytes(b) {
+    if (b >= 1024*1024) return (b/1024/1024).toFixed(1) + "MB";
+    if (b >= 1024) return (b/1024).toFixed(0) + "KB";
+    return b + "B";
+  }
+
+  // ── 슬라이드 목록 렌더 ────────────────────────────────────
+  function renderSlides() {
+    const list = $("dcp-slide-list");
+    const cnt = $("dcp-slide-count");
+    cnt.textContent = `${slideFiles.length}개 슬라이드`;
+    list.innerHTML = "";
+
+    slideFiles.forEach((f, idx) => {
+      const li = document.createElement("li");
+      li.draggable = true;
+      li.dataset.idx = idx;
+      li.style.cssText = "display:flex;align-items:center;gap:10px;background:#111;border:1px solid #2a2a2a;border-radius:8px;padding:8px 10px;cursor:default;user-select:none";
+
+      const thumbSrc = f.media_type === "VIDEO"
+        ? `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='54' height='54'%3E%3Crect width='54' height='54' rx='4' fill='%23222'/%3E%3Ctext x='27' y='34' text-anchor='middle' font-size='22'%3E🎬%3C/text%3E%3C/svg%3E`
+        : f.url;
+      const badge = f.media_type === "VIDEO"
+        ? `<span style="font-size:9px;background:#ef4444;color:#fff;padding:1px 5px;border-radius:3px;font-weight:700">VIDEO</span>`
+        : `<span style="font-size:9px;background:#3b82f6;color:#fff;padding:1px 5px;border-radius:3px;font-weight:700">IMG</span>`;
+
+      li.innerHTML = `
+        <span class="dc-handle" style="font-size:18px;color:#555;cursor:grab;padding:0 2px" title="드래그로 순서 변경">⣿</span>
+        <img src="${esc(thumbSrc)}" style="width:46px;height:46px;object-fit:cover;border-radius:5px;background:#222;flex-shrink:0" onerror="this.style.opacity=0.2">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(f.name)}</div>
+          <div style="display:flex;gap:6px;align-items:center;margin-top:3px">${badge} <span style="font-size:11px;color:#666">${formatBytes(f.size || 0)}</span></div>
+        </div>
+        <span style="font-size:12px;color:#555;flex-shrink:0">${idx + 1}</span>
+        <button class="dc-del" data-id="${esc(f.id)}" style="background:none;border:none;color:#666;font-size:18px;cursor:pointer;padding:0 2px;flex-shrink:0" title="삭제">🗑</button>`;
+
+      // drag & drop 순서 변경
+      li.addEventListener("dragstart", e => {
+        dragSrcIdx = idx;
+        e.dataTransfer.effectAllowed = "move";
+        li.style.opacity = "0.5";
+      });
+      li.addEventListener("dragend", () => { li.style.opacity = "1"; });
+      li.addEventListener("dragover", e => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        li.style.borderColor = "#f59e0b";
+      });
+      li.addEventListener("dragleave", () => { li.style.borderColor = "#2a2a2a"; });
+      li.addEventListener("drop", async e => {
+        e.preventDefault();
+        li.style.borderColor = "#2a2a2a";
+        if (dragSrcIdx === null || dragSrcIdx === idx) return;
+        const moved = slideFiles.splice(dragSrcIdx, 1)[0];
+        slideFiles.splice(idx, 0, moved);
+        dragSrcIdx = null;
+        renderSlides();
+        // 서버에 순서 반영
+        if (dcSid) {
+          await fetch(`/api/direct-carousel/${dcSid}/reorder`, {
+            method: "POST",
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({order: slideFiles.map(x=>x.id)}),
+          }).catch(() => {});
+        }
+      });
+
+      // 삭제 버튼
+      li.querySelector(".dc-del").onclick = async () => {
+        const fid = f.id;
+        if (dcSid) {
+          const r = await fetch(`/api/direct-carousel/${dcSid}/file/${fid}`, {method:"DELETE"});
+          const j = await r.json();
+          if (r.ok && j.files) {
+            slideFiles = j.files;
+          } else {
+            toast("삭제 실패", "error"); return;
+          }
+        } else {
+          slideFiles = slideFiles.filter(x => x.id !== fid);
+        }
+        renderSlides();
+        if (slideFiles.length === 0) { showSections(false); }
+      };
+
+      list.appendChild(li);
+    });
+  }
+
+  // ── 플랫폼 선택 렌더 ─────────────────────────────────────
+  let platformStatus = null;
+  async function renderPlatforms() {
+    if (!platformStatus) {
+      try {
+        platformStatus = await fetch("/api/publish/status").then(r => r.json());
+      } catch { platformStatus = {platforms:{}}; }
+    }
+    const P = platformStatus.platforms || {};
+    const rows = $("dcp-platform-rows");
+    const list = [
+      {id:"instagram", label:"Instagram", emoji:"📷"},
+      {id:"threads",   label:"Threads",   emoji:"🧵"},
+      {id:"facebook",  label:"Facebook",  emoji:"📘"},
+    ];
+    rows.innerHTML = list.map(({id, label, emoji}) => {
+      const cfg = P[id]?.configured;
+      return `<label style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid #444;border-radius:8px;cursor:${cfg?'pointer':'not-allowed'};opacity:${cfg?1:0.4};margin-bottom:6px">
+        <input type="checkbox" class="dcp-plat-cb" data-plat="${id}" ${cfg?'checked':''} ${cfg?'':'disabled'} style="width:15px;height:15px">
+        <span style="font-size:17px">${emoji}</span>
+        <div style="flex:1"><div style="font-weight:600;font-size:13px">${label}</div>
+        <div style="font-size:11px;color:#999">${cfg?'✓ 토큰 설정됨':'토큰 미설정'}</div></div>
+      </label>`;
+    }).join("");
+  }
+
+  // ── 파일 업로드 처리 ─────────────────────────────────────
+  async function uploadFiles(fileList) {
+    if (!fileList.length) return;
+    const btn = $("dcp-publish-btn");
+    const dropzone = $("dcp-dropzone");
+    dropzone.style.borderColor = "#f59e0b";
+    dropzone.querySelector("div:nth-child(2)").textContent = "⏳ 업로드 중…";
+
+    const formData = new FormData();
+    for (const f of fileList) formData.append("files", f);
+    if (dcSid) formData.append("session_id", dcSid);
+
+    try {
+      const r = await fetch("/api/direct-carousel/upload", {method:"POST", body: formData});
+      if (r.status === 401) { window.location.href = "/login"; return; }
+      const j = await r.json();
+      if (!r.ok || !j.ok) { toast("업로드 실패: " + (j.error || r.status), "error"); return; }
+      dcSid = j.session_id;
+      slideFiles = j.files;
+      showSections(true);
+      renderSlides();
+      renderPlatforms();
+      dropzone.style.borderColor = "#444";
+      dropzone.querySelector("div:nth-child(2)").textContent = "+ 파일 추가";
+    } catch (e) {
+      toast("업로드 오류: " + e.message, "error");
+    } finally {
+      dropzone.style.borderColor = "#444";
+      if (!slideFiles.length) dropzone.querySelector("div:nth-child(2)").textContent = "파일을 드래그하거나 클릭해서 선택";
+    }
+  }
+
+  // dropzone 클릭 / 드래그 이벤트
+  const dz = $("dcp-dropzone");
+  const fi = $("dcp-file-input");
+  dz.onclick = () => fi.click();
+  fi.onchange = () => uploadFiles(Array.from(fi.files));
+  dz.addEventListener("dragover", e => { e.preventDefault(); dz.style.background="#1e1e00"; dz.style.borderColor="#f59e0b"; });
+  dz.addEventListener("dragleave", () => { dz.style.background=""; dz.style.borderColor="#444"; });
+  dz.addEventListener("drop", e => {
+    e.preventDefault(); dz.style.background=""; dz.style.borderColor="#444";
+    uploadFiles(Array.from(e.dataTransfer.files));
+  });
+
+  // 추가 버튼
+  $("dcp-add-more").onclick = () => fi.click();
+
+  // ── AI 캡션 ──────────────────────────────────────────────
+  $("dcp-caption-ai").onclick = async () => {
+    if (!dcSid) { toast("먼저 파일을 업로드하세요", "error"); return; }
+    const hint = $("dcp-caption-hint").value;
+    const btn = $("dcp-caption-ai");
+    btn.disabled = true; btn.textContent = "⏳ 생성 중…";
+    try {
+      const r = await fetch(`/api/direct-carousel/${dcSid}/caption`, {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({prompt: hint}),
+      });
+      const j = await r.json();
+      if (r.ok && j.caption) {
+        $("dcp-caption").value = j.caption;
+        updateCaptionCounter();
+        toast("✨ 캡션 생성 완료", "success");
+      } else {
+        toast("캡션 생성 실패: " + (j.error || r.status), "error");
+      }
+    } catch (e) {
+      toast("캡션 생성 오류: " + e.message, "error");
+    } finally {
+      btn.disabled = false; btn.textContent = "✨ AI 생성";
+    }
+  };
+
+  // ── 예약 발행 토글 ────────────────────────────────────────
+  $("dcp-sched-toggle").onchange = e => {
+    $("dcp-sched-picker").style.display = e.target.checked ? "block" : "none";
+  };
+  // 현재 시각 + 1시간을 기본값으로
+  const dtInput = $("dcp-sched-dt");
+  const nowP1h = new Date(Date.now() + 3600000);
+  nowP1h.setSeconds(0, 0);
+  dtInput.value = nowP1h.toISOString().slice(0, 16);
+
+  // ── 취소 버튼 ────────────────────────────────────────────
+  $("dcp-cancel").onclick = closeModal;
+
+  // ── 발행 버튼 ────────────────────────────────────────────
+  $("dcp-publish-btn").onclick = async () => {
+    if (!dcSid || !slideFiles.length) { toast("파일을 먼저 업로드하세요", "error"); return; }
+    const platforms = Array.from(back.querySelectorAll(".dcp-plat-cb"))
+      .filter(cb => cb.checked).map(cb => cb.dataset.plat);
+    if (!platforms.length) { toast("플랫폼을 1개 이상 선택하세요", "error"); return; }
+
+    const caption = $("dcp-caption").value.trim();
+    let scheduled_at = null;
+    if ($("dcp-sched-toggle").checked) {
+      const dtVal = $("dcp-sched-dt").value;
+      if (dtVal) {
+        const ts = new Date(dtVal).getTime() / 1000;
+        if (ts <= Date.now() / 1000) { toast("예약 시각이 현재보다 과거입니다", "error"); return; }
+        scheduled_at = ts;
+      }
+    }
+
+    // 발행 UI로 전환
+    ["dcp-slides","dcp-caption-area","dcp-platform-area","dcp-schedule-area","dcp-actions","dcp-dropzone"].forEach(id => {
+      const el = $(id);
+      if (el) el.style.display = "none";
+    });
+    $("dcp-progress").style.display = "block";
+
+    // 진행 패널 초기화
+    const progList = $("dcp-prog-list");
+    const PLAT_META = {instagram:{label:"Instagram",emoji:"📷"}, threads:{label:"Threads",emoji:"🧵"}, facebook:{label:"Facebook",emoji:"📘"}};
+    const STATUS_ICON = {pending:"⌛",uploading:"📤",finalizing:"🧩",publishing:"🚀",done:"✓",error:"✕",skipped:"⊘",scheduled:"🕐"};
+    const PHASE_BASE = {pending:0,uploading:10,finalizing:80,publishing:92,done:100,skipped:100,error:100,scheduled:5};
+    const rows = {};
+    platforms.forEach(p => {
+      const m = PLAT_META[p] || {label:p, emoji:"•"};
+      const li = document.createElement("li");
+      li.style.cssText = "border:1px solid #2a2a2a;border-radius:8px;padding:10px 12px;background:#111";
+      li.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;margin-bottom:6px">
+          <span style="font-weight:600">${m.emoji} ${m.label}</span>
+          <span class="dp-status" style="color:#aaa;font-size:12px">⌛ 대기</span>
+        </div>
+        <div style="height:5px;background:#222;border-radius:3px;overflow:hidden">
+          <div class="dp-fill" style="height:100%;width:0%;background:#666;transition:width .4s,background .4s"></div>
+        </div>
+        <div class="dp-err" hidden style="margin-top:6px;font-size:11px;color:#ff6b86;background:rgba(255,107,134,0.08);padding:6px;border-radius:4px;word-break:break-all"></div>
+        <a class="dp-link" hidden target="_blank" rel="noopener" style="display:inline-block;margin-top:6px;font-size:11.5px;color:#6ee7ff;text-decoration:none">↗ 게시물 보기</a>`;
+      progList.appendChild(li);
+      rows[p] = li;
+    });
+
+    // 발행 시작
+    let job_id;
+    try {
+      const r = await fetch(`/api/direct-carousel/${dcSid}/publish`, {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({platforms, caption, scheduled_at}),
+      });
+      if (r.status === 401) { window.location.href = "/login"; return; }
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+      job_id = j.job_id;
+      if (j.scheduled) {
+        const dt = new Date(j.scheduled_at * 1000).toLocaleString("ko-KR");
+        $("dcp-prog-title").textContent = `🕐 예약됨 — ${dt}`;
+      }
+    } catch (e) {
+      $("dcp-prog-title").textContent = "✕ 발행 시작 실패";
+      $("dcp-prog-final").style.display = "block";
+      $("dcp-prog-final").textContent = e.message;
+      $("dcp-prog-final").style.color = "#ff6b86";
+      $("dcp-prog-close").disabled = false;
+      $("dcp-prog-close").style.cssText = "padding:8px 18px;background:#5a3a3a;color:#fff;border:none;border-radius:6px;cursor:pointer";
+      $("dcp-prog-close").onclick = closeModal;
+      return;
+    }
+
+    // 폴링
+    let stopped = false;
+    const applySnap = j => {
+      const pct = j.overall_percent || 0;
+      $("dcp-prog-pct").textContent = `${pct}%`;
+      $("dcp-prog-fill").style.width = `${pct}%`;
+      for (const [p, info] of Object.entries(j.platforms || {})) {
+        const row = rows[p]; if (!row) continue;
+        const s = info.status || "pending";
+        const icon = STATUS_ICON[s] || "?";
+        let lbl = info.step_label || s;
+        if (s === "uploading" && info.total) lbl = `${info.current||0}/${info.total} 업로드`;
+        row.querySelector(".dp-status").textContent = `${icon} ${lbl}`;
+        const base = PHASE_BASE[s] || 0;
+        const pctP = s === "uploading" && info.total ? base + Math.floor(60*(info.current||0)/info.total) : base;
+        const fill = row.querySelector(".dp-fill");
+        fill.style.width = `${pctP}%`;
+        fill.style.background = s==="done"?"#3fc17a":s==="error"?"#ff6b86":s==="skipped"?"#666":"linear-gradient(90deg,#f59e0b,#ef4444)";
+        row.querySelector(".dp-status").style.color = s==="done"?"#3fc17a":s==="error"?"#ff6b86":s==="skipped"?"#999":"#aaa";
+        if (info.error) { const e=row.querySelector(".dp-err"); e.hidden=false; e.textContent=info.error; }
+        if (info.permalink) { const a=row.querySelector(".dp-link"); a.hidden=false; a.href=info.permalink; }
+      }
+    };
+    const finalize = j => {
+      const all = Object.values(j.platforms || {});
+      const ok = all.filter(x=>x.status==="done").length;
+      const fail = all.filter(x=>x.status==="error").length;
+      const skip = all.filter(x=>x.status==="skipped").length;
+      const color = fail?(ok?"#ffb86b":"#ff6b86"):"#3fc17a";
+      $("dcp-prog-title").textContent = fail?(ok?"⚠ 일부 실패":"✕ 모두 실패"):"✓ 전체 완료";
+      let line = `완료 ${ok}`;
+      if (fail) line += ` · 실패 ${fail}`;
+      if (skip) line += ` · 스킵 ${skip}`;
+      const fin = $("dcp-prog-final");
+      fin.style.display = "block";
+      fin.style.color = color;
+      fin.textContent = `${$("dcp-prog-title").textContent} (${line})`;
+      const closeBtn = $("dcp-prog-close");
+      closeBtn.disabled = false;
+      closeBtn.style.cssText = `padding:8px 18px;background:${fail?"#5a3a3a":"#2a5a3a"};color:#fff;border:none;border-radius:6px;cursor:pointer`;
+      closeBtn.onclick = async () => {
+        // 완료 후 임시 파일 정리
+        if (!fail) {
+          await fetch(`/api/direct-carousel/${dcSid}`, {method:"DELETE"}).catch(()=>{});
+        }
+        closeModal();
+      };
+    };
+    const tick = async () => {
+      if (stopped) return;
+      try {
+        const r = await fetch(`/api/publish/jobs/${job_id}`);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const j = await r.json();
+        applySnap(j);
+        if (j.status === "done") { stopped = true; finalize(j); return; }
+        setTimeout(tick, 1500);
+      } catch { setTimeout(tick, 3000); }
+    };
+    $("dcp-prog-close").onclick = () => { stopped = true; closeModal(); };
+    tick();
+  };
+}
+
+// ====================================================================
 // 인스타 스토리 요약 카드 (여러 카드 → 1장, 하이라이트 보관용)
 // ====================================================================
 function cardPlainText(card) {
@@ -5471,6 +5938,7 @@ function init() {
   document.getElementById("btn-one-shot").onclick = openOneShotModal;
   document.getElementById("btn-export").onclick = exportAll;
   document.getElementById("btn-preview-publish").onclick = openPublishPreview;
+  document.getElementById("btn-direct-publish").onclick = openDirectPublishModal;
   document.getElementById("btn-save").onclick = manualSave;
   document.getElementById("btn-load").onclick = loadSession;
   document.getElementById("btn-reset").onclick = resetAll;

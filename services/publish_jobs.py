@@ -239,3 +239,123 @@ def start_publish_job(session_id: str, platforms: list[str],
     )
     t.start()
     return job_id
+
+
+# ──────────────────────────────────────────────────────────────
+# 직접 업로드 발행 (IMAGE + VIDEO 혼합 캐러셀)
+# ──────────────────────────────────────────────────────────────
+
+def _run_direct(job_id: str, items: list[dict], caption: str) -> None:
+    """직접 업로드 미디어(혼합) 발행 워커."""
+    from services import instagram as ig_svc
+    from services import facebook as fb_svc
+    from services import threads as th_svc
+
+    with _lock:
+        job = _jobs.get(job_id)
+        if not job:
+            return
+        platforms = list(job["platforms"].keys())
+        scheduled_at = job.get("scheduled_at")
+        session_id = job.get("session_id", "")
+
+    # 예약 발행 — 지정 시각까지 대기 (최대 24시간)
+    if scheduled_at:
+        wait_sec = scheduled_at - time.time()
+        if wait_sec > 0:
+            with _lock:
+                j = _jobs.get(job_id)
+                if j:
+                    for p in j["platforms"].values():
+                        p["status"] = "scheduled"
+                        p["step_label"] = "예약됨"
+                    _recalc_overall(j)
+            sleep_until = min(wait_sec, 86400)
+            logger.info(f"direct job {job_id}: 예약 대기 {sleep_until:.0f}초")
+            time.sleep(sleep_until)
+
+    # Facebook 은 이미지만 지원
+    image_items = [it for it in items if it.get("media_type", "IMAGE").upper() == "IMAGE"]
+
+    for platform in platforms:
+        cb = _make_progress_cb(job_id, platform)
+
+        if platform == "instagram":
+            is_cfg = ig_svc.is_configured
+            publish_fn = lambda cap, pcb: ig_svc.publish_mixed_carousel(items, cap, progress_cb=pcb)
+        elif platform == "threads":
+            is_cfg = th_svc.is_configured
+            publish_fn = lambda cap, pcb: th_svc.publish_mixed_carousel(items, cap, progress_cb=pcb)
+        elif platform == "facebook":
+            is_cfg = fb_svc.is_configured
+            if not image_items:
+                cb("skipped", {"error": "영상 전용 캐러셀은 Facebook 미지원 (이미지 없음)"})
+                continue
+            fb_urls = [it["url"] for it in image_items]
+            publish_fn = lambda cap, pcb: fb_svc.publish_carousel(fb_urls, cap, progress_cb=pcb)
+        else:
+            cb("skipped", {"error": f"미지원 플랫폼: {platform}"})
+            continue
+
+        if not is_cfg():
+            cb("skipped", {"error": "토큰 미설정"})
+            continue
+
+        try:
+            result = publish_fn(caption, cb)
+            cb("done", {
+                "media_id": result.get("media_id") or result.get("post_id"),
+                "permalink": result.get("permalink"),
+            })
+        except Exception as e:
+            logger.exception(f"direct publish {platform} failed")
+            err = str(e)[:500]
+            cb("error", {"error": err})
+            _log_publish_error(session_id, platform, caption,
+                               [it["url"] for it in items], err)
+
+    with _lock:
+        j = _jobs.get(job_id)
+        if j:
+            j["status"] = "done"
+            j["finished_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            _recalc_overall(j)
+
+
+def start_direct_publish_job(session_id: str, platforms: list[str],
+                             items: list[dict], caption: str,
+                             scheduled_at: float | None = None) -> str:
+    """직접 업로드 미디어 발행 잡 시작. 즉시 job_id 반환.
+
+    items: [{"url": str, "media_type": "IMAGE"|"VIDEO"}, ...]
+    scheduled_at: Unix 타임스탬프(초) — None 이면 즉시 발행.
+    """
+    job_id = uuid.uuid4().hex[:12]
+    now = time.time()
+
+    job = {
+        "job_id": job_id,
+        "session_id": session_id,
+        "status": "running",
+        "card_count": len(items),
+        "caption": caption,
+        "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now)),
+        "created_at_ts": now,
+        "is_direct": True,
+        "scheduled_at": scheduled_at,
+        "platforms": {p: {"status": "pending", "step_label": _STEP_LABEL["pending"]}
+                      for p in platforms},
+        "overall_percent": 0,
+    }
+    with _lock:
+        _gc()
+        _jobs[job_id] = job
+
+    t = threading.Thread(
+        target=_run_direct,
+        args=(job_id, items, caption),
+        name=f"direct-{job_id}",
+        daemon=True,
+    )
+    t.start()
+    return job_id
