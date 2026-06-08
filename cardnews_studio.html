@@ -1951,7 +1951,7 @@ function renderOverlayEl(o) {
       ? `position:absolute;left:${imgL}%;top:${imgT}%;width:${imgW}%;height:auto;display:block;`
       : `width:100%;height:auto;display:block;`;
     return `<div class="ov-el ov-image" data-ov="${o.id}" style="${boxStyle}">`
-      + `<img src="${esc(o.url || "")}" style="${imgStyle}" onerror="this.style.opacity=0.2"></div>`;
+      + `<img src="${esc(o.url || "")}" crossorigin="anonymous" style="${imgStyle}" onerror="this.style.opacity=0.2"></div>`;
   }
   if (o.type === "badge") {
     return `<div class="ov-el ov-badge" data-ov="${o.id}" style="${pos}font-size:${o.size ?? 40}px;`
@@ -4090,9 +4090,11 @@ async function _waitForImagesLoaded(root) {
     const src = img.getAttribute("src") || "";
     if (!src) return;
     if (/^https?:\/\//i.test(src)) {
+      img.setAttribute("crossOrigin", "anonymous");
       img.src = `/img-proxy?url=${encodeURIComponent(src)}`;
       waitFor.push(new Promise(r => { img.onload = img.onerror = r; }));
-    } else if (!img.complete) {
+    } else if (!img.complete || img.naturalWidth === 0) {
+      // naturalWidth=0 은 complete이어도 아직 실제 픽셀 없음 (로드 실패 포함)
       waitFor.push(new Promise(r => { img.onload = img.onerror = r; }));
     }
   });
