@@ -26,8 +26,7 @@ jobs:
           WEB_USERNAME="${{ secrets.WEB_USERNAME }}"
           WEB_PASSWORD="${{ secrets.WEB_PASSWORD }}"
           SECRET_KEY="${{ secrets.SECRET_KEY }}"
-          SERVER_URL="${{ secrets.SERVER_URL }}"
-          for VAR in WEB_USERNAME WEB_PASSWORD SECRET_KEY SERVER_URL; do
+          for VAR in WEB_USERNAME WEB_PASSWORD SECRET_KEY; do
             VALUE="${!VAR}"
             if [ -z "$VALUE" ]; then continue; fi
             if grep -q "^${VAR}=" .env 2>/dev/null; then
@@ -36,10 +35,18 @@ jobs:
               echo "${VAR}=${VALUE}" >> .env
             fi
           done
+
+          # SERVER_URL 은 항상 https 공개 URL 로 고정
+          if grep -q "^SERVER_URL=" .env 2>/dev/null; then
+            sed -i "s|^SERVER_URL=.*|SERVER_URL=https://newscard.kro.kr|" .env
+          else
+            echo "SERVER_URL=https://newscard.kro.kr" >> .env
+          fi
+
           GIT_TERMINAL_PROMPT=0 timeout 30 git pull origin main
           sudo systemctl restart cardnews-bot
 
-          # nginx 업로드 크기 제한 50MB로 설정
+          # nginx 업로드 크기 제한 50MB
           if command -v nginx >/dev/null 2>&1; then
             echo "client_max_body_size 50m;" | sudo tee /etc/nginx/conf.d/cardnews_upload.conf > /dev/null
             sudo nginx -t && sudo systemctl reload nginx && echo "nginx reloaded" || echo "nginx reload failed (non-fatal)"
