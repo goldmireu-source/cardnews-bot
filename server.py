@@ -147,6 +147,9 @@ button:hover{background:#333}
 def _require_login():
     if request.path in ("/login", "/logout", "/health"):
         return
+    # 외부 서비스(Instagram/Facebook/Threads)가 이미지 URL을 직접 fetch하므로 인증 불필요
+    if request.path.startswith("/uploads/"):
+        return
     if not session.get("logged_in"):
         # API 요청은 HTML 리다이렉트 대신 JSON 401 반환 (JS가 HTML을 JSON으로 파싱하려다 실패하는 버그 방지)
         if request.path.startswith("/api/"):
