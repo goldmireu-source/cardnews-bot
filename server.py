@@ -183,6 +183,19 @@ def logout():
 # ── End Auth ────────────────────────────────────────────────────────────────
 
 
+# ── API 전용 에러 핸들러 (HTML 대신 JSON 반환) ──────────────────────────────
+from werkzeug.exceptions import HTTPException
+
+@app.errorhandler(Exception)
+def handle_any_exception(e):
+    if not request.path.startswith("/api/"):
+        raise e  # 비-API 경로는 기본 Flask 처리
+    if isinstance(e, HTTPException):
+        return jsonify({"error": e.description, "status": e.code}), e.code
+    import traceback
+    return jsonify({"error": str(e), "status": 500, "trace": traceback.format_exc()[-500:]}), 500
+
+
 @app.after_request
 def add_cors_for_uploads(resp):
     """/uploads/* 응답에 CORS 헤더 — html2canvas useCORS:true 가 cloudflare 도메인
@@ -463,7 +476,8 @@ BOT_INTEGRATION_SCRIPT = r"""
       if (btn) btn.textContent = "📤 업로드 중…";
       const r = await fetch(`/api/uploads/${sid}`, { method: "POST", body: formData });
       if (r.status === 401) { window.location.href = "/login"; throw new Error("로그인 세션 만료 — 로그인 페이지로 이동합니다"); }
-      const j = await r.json();
+      let j;
+      try { j = await r.json(); } catch (_) { throw new Error(`서버 오류 (HTTP ${r.status}) — 서버 로그를 확인하세요`); }
       if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
       if (typeof toast === 'function') toast(`✓ ${j.files.length}장 준비 완료`, "success");
     } catch (e) {
