@@ -4664,7 +4664,7 @@ async function openDirectPublishModal() {
       <div id="dcp-dropzone" style="border:2px dashed #444;border-radius:10px;padding:32px 20px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;margin-bottom:16px">
         <div style="font-size:36px;margin-bottom:10px">📂</div>
         <div style="font-weight:600;margin-bottom:6px">파일을 드래그하거나 클릭해서 선택</div>
-        <div style="font-size:12px;color:#888">PNG · JPG · MP4 / 최대 ${10}개 / 이미지 8MB · 영상 300MB</div>
+        <div style="font-size:12px;color:#888">PNG · JPG · MP4 / 최대 15개 / 이미지 8MB · 영상 300MB</div>
         <input id="dcp-file-input" type="file" multiple accept=".png,.jpg,.jpeg,.mp4" style="display:none">
       </div>
 
@@ -4672,7 +4672,10 @@ async function openDirectPublishModal() {
       <div id="dcp-slides" style="display:none;margin-bottom:16px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
           <span style="font-size:13px;font-weight:600" id="dcp-slide-count">0개 슬라이드</span>
-          <button id="dcp-add-more" style="font-size:12px;padding:4px 10px;background:#2a2a2a;color:#ccc;border:1px solid #444;border-radius:5px;cursor:pointer">+ 추가</button>
+          <div style="display:flex;gap:6px">
+            <button id="dcp-preview-btn" style="font-size:12px;padding:4px 10px;background:#1a3a4a;color:#6ee7ff;border:1px solid #2a5a6a;border-radius:5px;cursor:pointer">🔍 미리보기</button>
+            <button id="dcp-add-more" style="font-size:12px;padding:4px 10px;background:#2a2a2a;color:#ccc;border:1px solid #444;border-radius:5px;cursor:pointer">+ 추가</button>
+          </div>
         </div>
         <ul id="dcp-slide-list" style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px"></ul>
         <div style="margin-top:8px;font-size:11px;color:#666">⣿ 핸들을 드래그하면 순서를 바꿀 수 있어요</div>
@@ -4853,6 +4856,63 @@ async function openDirectPublishModal() {
     });
   }
 
+  // ── 미리보기 모달 ─────────────────────────────────────────
+  function openDcPreview() {
+    if (!slideFiles.length) { toast("미리볼 파일이 없습니다", "error"); return; }
+    const preBack = document.createElement("div");
+    preBack.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:10000;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto";
+    const PLAT_LIMITS = {instagram:10, threads:20, facebook:10};
+    const platformNotes = Object.entries(PLAT_LIMITS).map(([p, lim]) => {
+      if (slideFiles.length > lim) return `${p}: 앞 ${lim}장만`;
+      return `${p}: 전체 ${slideFiles.length}장`;
+    }).join(" · ");
+    preBack.innerHTML = `
+      <div style="background:#1a1a1a;color:#fff;max-width:760px;width:100%;border-radius:14px;padding:24px;font-family:'Pretendard Variable',Pretendard,sans-serif">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <h2 style="margin:0;font-size:17px;font-weight:700">🔍 발행 미리보기 — ${slideFiles.length}장</h2>
+          <button id="dcprev-close" style="background:none;border:none;color:#aaa;font-size:26px;cursor:pointer;line-height:1">×</button>
+        </div>
+        <div style="font-size:11.5px;color:#888;margin-bottom:16px">${platformNotes}</div>
+        <div id="dcprev-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px"></div>
+      </div>`;
+    document.body.appendChild(preBack);
+    preBack.querySelector("#dcprev-close").onclick = () => preBack.remove();
+    preBack.addEventListener("click", e => { if (e.target === preBack) preBack.remove(); });
+
+    const grid = preBack.querySelector("#dcprev-grid");
+    slideFiles.forEach((f, idx) => {
+      const wrap = document.createElement("div");
+      wrap.style.cssText = "display:flex;flex-direction:column;gap:6px";
+      const label = document.createElement("div");
+      label.style.cssText = "font-size:11px;color:#888;font-weight:600;display:flex;justify-content:space-between";
+      const PLAT_LIMITS_IG = 10, PLAT_LIMITS_TH = 20;
+      const overIG = idx >= PLAT_LIMITS_IG;
+      const overTH = idx >= PLAT_LIMITS_TH;
+      let note = "";
+      if (overIG && !overTH) note = `<span style="color:#ffd166">📷 IG 초과</span>`;
+      else if (overIG && overTH) note = `<span style="color:#ff6b86">📷🧵 범위 초과</span>`;
+      label.innerHTML = `<span>${String(idx+1).padStart(2,"0")} / ${slideFiles.length}</span>${note}`;
+      let media;
+      if (f.media_type === "VIDEO") {
+        media = document.createElement("video");
+        media.src = f.url;
+        media.controls = true;
+        media.muted = true;
+        media.style.cssText = "width:100%;border-radius:8px;border:1px solid #333;background:#000;display:block";
+        media.setAttribute("preload", "metadata");
+      } else {
+        media = document.createElement("img");
+        media.src = f.url;
+        media.style.cssText = "width:100%;border-radius:8px;border:1px solid #333;display:block;background:#111";
+        media.alt = f.name;
+      }
+      if (overIG) { media.style.opacity = "0.5"; media.style.filter = "grayscale(60%)"; }
+      wrap.appendChild(label);
+      wrap.appendChild(media);
+      grid.appendChild(wrap);
+    });
+  }
+
   // ── 플랫폼 선택 렌더 ─────────────────────────────────────
   let platformStatus = null;
   async function renderPlatforms() {
@@ -4923,8 +4983,9 @@ async function openDirectPublishModal() {
     uploadFiles(Array.from(e.dataTransfer.files));
   });
 
-  // 추가 버튼
+  // 추가 버튼 / 미리보기 버튼
   $("dcp-add-more").onclick = () => fi.click();
+  $("dcp-preview-btn").onclick = openDcPreview;
 
   // ── AI 캡션 ──────────────────────────────────────────────
   $("dcp-caption-ai").onclick = async () => {

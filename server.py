@@ -2316,7 +2316,7 @@ _DIRECT_MIME_MAP = {
     "png": "image/png", "jpg": "image/jpeg",
     "jpeg": "image/jpeg", "mp4": "video/mp4",
 }
-_DIRECT_MAX_FILES = 10
+_DIRECT_MAX_FILES = 15
 _DIRECT_MAX_IMAGE_MB = 8
 _DIRECT_MAX_VIDEO_MB = 300
 
