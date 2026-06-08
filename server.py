@@ -388,10 +388,9 @@ BOT_INTEGRATION_SCRIPT = r"""
       await new Promise(r => setTimeout(r, 150));
       // 큰 숫자 자동 피팅
       if (typeof window.autofitStat === "function") window.autofitStat(renderArea);
-      // 배경 이미지 휘도 분석 (밝은 배경 자동 감지)
-      if (typeof window.applyBgLuminance === "function") await window.applyBgLuminance(renderArea);
-      // 이미지 로드 완료 대기 + CSS var() gradient 인라인 치환 (html2canvas 대응)
+      // 이미지 먼저 로드 완료 → 그 후 밝기 분석 (순서 중요: CORS 캐시 오염 방지)
       if (typeof window._waitForImagesLoaded === "function") await window._waitForImagesLoaded(renderArea);
+      if (typeof window.applyBgLuminance === "function") await window.applyBgLuminance(renderArea);
       const el = renderArea.querySelector(".card");
       if (!el) continue;
       if (typeof window._inlineBgOverlayForExport === "function") window._inlineBgOverlayForExport(el);
@@ -466,9 +465,9 @@ BOT_INTEGRATION_SCRIPT = r"""
         renderArea.innerHTML = renderCard(STATE.cards[i], i + 1, STATE.cards.length);
         await new Promise(r => setTimeout(r, 150));
         if (typeof window.autofitStat === "function") window.autofitStat(renderArea);
-        if (typeof window.applyBgLuminance === "function") await window.applyBgLuminance(renderArea);
-        // 이미지 로드 완료 대기 + CSS var() gradient 인라인 치환 (html2canvas 대응)
+        // 이미지 먼저 로드 완료 → 그 후 밝기 분석
         if (typeof window._waitForImagesLoaded === "function") await window._waitForImagesLoaded(renderArea);
+        if (typeof window.applyBgLuminance === "function") await window.applyBgLuminance(renderArea);
         const el = renderArea.querySelector(".card");
         if (!el) continue;
         if (typeof window._inlineBgOverlayForExport === "function") window._inlineBgOverlayForExport(el);
@@ -1977,7 +1976,9 @@ def serve_upload(session_id, filename):
         abort(400, "잘못된 세션 ID")
     if not re.match(r"^[a-zA-Z0-9_\-.]{1,64}$", filename):
         abort(400, "잘못된 파일명")
-    return send_from_directory(UPLOADS_DIR / session_id, filename)
+    resp = send_from_directory(UPLOADS_DIR / session_id, filename)
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    return resp
 
 
 @app.route("/api/uploads/bg/<session_id>", methods=["POST"])
@@ -2014,7 +2015,9 @@ def serve_upload_bg(session_id, filename):
         abort(400, "잘못된 세션 ID")
     if not re.match(r"^[a-zA-Z0-9_\-.]{1,64}$", filename):
         abort(400, "잘못된 파일명")
-    return send_from_directory(UPLOADS_DIR / session_id / "bg", filename)
+    resp = send_from_directory(UPLOADS_DIR / session_id / "bg", filename)
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    return resp
 
 
 # ============================================================
