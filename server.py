@@ -493,11 +493,12 @@ BOT_INTEGRATION_SCRIPT = r"""
     }
 
     // 발행 모달 표시
-    await openPublishModal(sid);
+    await openPublishModal(sid, STATE.cards.length);
   }
 
-  // === 자체 발행 모달 (cardnews_studio.html 에 modal 함수 없으므로 인라인) ===
-  async function openPublishModal(sid) {
+  // === 자체 발행 모달 (cardnews_studio.html 에 modal 없으므로 인라인) ===
+  async function openPublishModal(sid, totalCards) {
+    totalCards = totalCards || 0;
     const status = await fetch("/api/publish/status").then(r => r.json()).catch(() => null);
     if (!status) { alert("서버 응답 없음"); return; }
     const P = status.platforms || {};
@@ -509,15 +510,21 @@ BOT_INTEGRATION_SCRIPT = r"""
 
     const back = document.createElement("div");
     back.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px";
-    const platRow = (id, label, emoji, cfg) =>
-      `<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #444;border-radius:8px;cursor:${cfg?'pointer':'not-allowed'};opacity:${cfg?1:0.4};margin-bottom:6px">
+    const _LIMITS = {instagram:10, facebook:10, threads:20, tiktok:35};
+    const platRow = (id, label, emoji, cfg) => {
+      const lim = _LIMITS[id] || 99;
+      const cardNote = (totalCards > 0 && totalCards > lim)
+        ? `<span style="color:#ffd166"> · 최대 ${lim}장 (${totalCards}장 중 앞 ${lim}장)</span>`
+        : (totalCards > 0 ? `<span style="color:#6ee7b7"> · ${totalCards}장 전체 발행</span>` : "");
+      return `<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #444;border-radius:8px;cursor:${cfg?'pointer':'not-allowed'};opacity:${cfg?1:0.4};margin-bottom:6px">
         <input type="checkbox" id="pub-${id}" ${cfg?'checked':'disabled'} style="width:16px;height:16px">
         <span style="font-size:18px">${emoji}</span>
         <div style="flex:1">
-          <div style="font-weight:600">${label}</div>
+          <div style="font-weight:600">${label}${cfg ? cardNote : ''}</div>
           <div style="font-size:11px;color:#999">${cfg?'✓ 토큰 설정됨':'토큰 미설정'}</div>
         </div>
       </label>`;
+    };
 
     back.innerHTML = `
       <div style="background:#1a1a1a;color:#fff;max-width:560px;width:100%;max-height:90vh;overflow:auto;border-radius:12px;padding:24px;font-family:'Pretendard Variable',Pretendard,sans-serif">
@@ -2232,8 +2239,13 @@ def api_publish_unified(session_id):
     pngs = sorted(up_dir.glob("*.png"))
     if not pngs:
         return jsonify({"ok": False, "error": "PNG 미업로드. 스튜디오에서 'PNG 준비' 먼저"}), 400
-    if len(pngs) > 10:
-        pngs = pngs[:10]
+    # 플랫폼별 한도: Instagram/Facebook=10, Threads=20, TikTok=35
+    # 공통 한도 제거 — 각 서비스(services/*.py)가 자체 한도로 자름
+    _PLATFORM_LIMITS = {"instagram": 10, "facebook": 10, "threads": 20, "tiktok": 35}
+    platform_card_counts = {
+        p: min(len(pngs), _PLATFORM_LIMITS.get(p, len(pngs)))
+        for p in requested
+    }
     image_urls = [f"{SERVER_URL}/uploads/{session_id}/{p.name}" for p in pngs]
 
     # https 체크 (모든 플랫폼 공통 요구)
@@ -2267,6 +2279,7 @@ def api_publish_unified(session_id):
         "ok": True,
         "job_id": job_id,
         "card_count": len(pngs),
+        "platform_card_counts": platform_card_counts,
         "caption": caption,
         "platforms": requested,
     }), 202
