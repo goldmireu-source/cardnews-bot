@@ -148,6 +148,9 @@ def _require_login():
     if request.path in ("/login", "/logout", "/health"):
         return
     if not session.get("logged_in"):
+        # API 요청은 HTML 리다이렉트 대신 JSON 401 반환 (JS가 HTML을 JSON으로 파싱하려다 실패하는 버그 방지)
+        if request.path.startswith("/api/"):
+            return jsonify({"error": "로그인 세션이 만료되었습니다. 페이지를 새로고침 후 다시 로그인하세요.", "login_url": "/login"}), 401
         next_url = request.full_path if request.method == "GET" else "/"
         return redirect(url_for("login", next=next_url))
 
@@ -420,6 +423,7 @@ BOT_INTEGRATION_SCRIPT = r"""
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify(payload),
       });
+      if (r.status === 401) { window.location.href = "/login"; throw new Error("로그인 세션 만료"); }
       if (!r.ok) throw new Error(await r.text());
     } catch (e) {
       alert("세션 저장 실패: " + e);
@@ -458,6 +462,7 @@ BOT_INTEGRATION_SCRIPT = r"""
       }
       if (btn) btn.textContent = "📤 업로드 중…";
       const r = await fetch(`/api/uploads/${sid}`, { method: "POST", body: formData });
+      if (r.status === 401) { window.location.href = "/login"; throw new Error("로그인 세션 만료 — 로그인 페이지로 이동합니다"); }
       const j = await r.json();
       if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
       if (typeof toast === 'function') toast(`✓ ${j.files.length}장 준비 완료`, "success");
