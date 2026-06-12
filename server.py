@@ -2347,6 +2347,32 @@ def _dc_save_meta(dc_sid: str, items: list) -> None:
     )
 
 
+def _ensure_video_audio(path: Path) -> None:
+    """오디오 트랙 없는 MP4에 무음 AAC 트랙 추가 (in-place).
+    Instagram 캐러셀은 오디오 없는 영상을 error code 2207085로 거부함.
+    ffmpeg 미설치 환경에서는 조용히 무시.
+    """
+    import subprocess
+    try:
+        probe = subprocess.run(
+            ["ffprobe", "-v", "quiet", "-show_entries", "stream=codec_type",
+             "-of", "csv=p=0", str(path)],
+            capture_output=True, text=True, timeout=10,
+        )
+        if "audio" in probe.stdout:
+            return
+        tmp = path.with_suffix(".audio_tmp.mp4")
+        r = subprocess.run([
+            "ffmpeg", "-i", str(path),
+            "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
+            "-c:v", "copy", "-c:a", "aac", "-shortest", "-y", str(tmp),
+        ], capture_output=True, timeout=120)
+        if r.returncode == 0 and tmp.exists():
+            tmp.replace(path)
+    except Exception:
+        pass
+
+
 @app.route("/api/direct-carousel/upload", methods=["POST"])
 def api_direct_carousel_upload():
     """PNG/JPG/MP4 파일을 임시 저장소에 업로드. 새 세션 생성 또는 기존 세션에 추가.
@@ -2387,7 +2413,11 @@ def api_direct_carousel_upload():
 
         file_id = _uuid_mod.uuid4().hex[:10]
         save_name = f"{file_id}.{ext}"
-        f.save(sess_dir / save_name)
+        save_path = sess_dir / save_name
+        f.save(save_path)
+        if is_video:
+            _ensure_video_audio(save_path)
+            fsize = save_path.stat().st_size  # 오디오 추가 후 실제 크기
 
         item = {
             "id": file_id,
