@@ -223,6 +223,8 @@ def publish_carousel(image_urls: list[str], caption: str = "",
         logger.info(f"  Threads child {i}/{len(image_urls)} id={cid}")
         if progress_cb:
             progress_cb("uploading", {"current": i, "total": total})
+        if i < len(image_urls):
+            time.sleep(2)
 
     # 2) 각 child FINISHED 대기 + 캐러셀 컨테이너 생성/대기
     if progress_cb:
@@ -329,6 +331,8 @@ def publish_mixed_carousel(items: list[dict], caption: str = "",
         logger.info(f"  Threads mixed child {i}/{len(items)} id={cid} type={mtype}")
         if progress_cb:
             progress_cb("uploading", {"current": i, "total": total})
+        if i < len(items):
+            time.sleep(2)
 
     if progress_cb:
         progress_cb("finalizing", {})
