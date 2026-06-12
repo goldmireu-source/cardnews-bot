@@ -23,6 +23,8 @@ jobs:
               ubuntu@${{ secrets.DEPLOY_HOST }} << 'ENDSSH'
           set -e
           cd ~/cardnews_bot
+
+          # .env 업데이트
           WEB_USERNAME="${{ secrets.WEB_USERNAME }}"
           WEB_PASSWORD="${{ secrets.WEB_PASSWORD }}"
           SECRET_KEY="${{ secrets.SECRET_KEY }}"
@@ -36,15 +38,29 @@ jobs:
             fi
           done
 
-          # SERVER_URL 은 항상 https 공개 URL 로 고정
           if grep -q "^SERVER_URL=" .env 2>/dev/null; then
             sed -i "s|^SERVER_URL=.*|SERVER_URL=https://newscard.kro.kr|" .env
           else
             echo "SERVER_URL=https://newscard.kro.kr" >> .env
           fi
 
+          # 코드 업데이트
           GIT_TERMINAL_PROMPT=0 timeout 30 git pull origin main
+
+          # 의존성 설치
+          pip3 install -q -r requirements.txt
+
+          # systemd 서비스 생성/갱신 (heredoc 없이 printf 사용)
+          WORK_DIR=$(pwd)
+          PYTHON_BIN=$(which python3)
+          printf '[Unit]\nDescription=Cardnews Bot Server\nAfter=network.target\n\n[Service]\nType=simple\nUser=ubuntu\nWorkingDirectory=%s\nExecStart=%s server.py\nRestart=always\nRestartSec=5\nEnvironmentFile=%s/.env\n\n[Install]\nWantedBy=multi-user.target\n' \
+            "$WORK_DIR" "$PYTHON_BIN" "$WORK_DIR" \
+            | sudo tee /etc/systemd/system/cardnews-bot.service > /dev/null
+
+          sudo systemctl daemon-reload
+          sudo systemctl enable cardnews-bot
           sudo systemctl restart cardnews-bot
+          sudo systemctl is-active cardnews-bot
 
           # nginx 업로드 크기 제한 50MB
           if command -v nginx >/dev/null 2>&1; then
