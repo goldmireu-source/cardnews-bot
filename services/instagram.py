@@ -27,8 +27,8 @@ _POLL_MAX_CAROUSEL = 20   # 최대 ~60초 / carousel
 _POLL_MAX_VIDEO = 120     # 영상 컨테이너 최대 ~6분 (인코딩 시간)
 _PUBLISH_RETRY_MAX = 3
 _PUBLISH_RETRY_WAIT = (5, 10, 15)
-_CREATE_RETRY_MAX = 5
-_CREATE_RETRY_WAIT = (5, 10, 20, 30)
+_CREATE_RETRY_MAX = 8
+_CREATE_RETRY_WAIT = (5, 10, 20, 30, 45, 60, 90)
 
 
 class InstagramError(RuntimeError):
