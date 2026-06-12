@@ -76,8 +76,13 @@ def _is_transient_publish_error(msg: str) -> bool:
         '"code":1' in msg or '"code":2' in msg or
         "Media ID is not available" in msg or
         "Media Builder failed" in msg or
-        "An unknown error" in msg
+        "An unknown error" in msg or
+        "HTTP 429" in msg  # rate-limit HTML 응답 — 컨테이너 생성 단계는 재시도 안전
     )
+
+
+def _is_rate_limit_429(msg: str) -> bool:
+    return "HTTP 429" in msg
 
 
 def _is_rate_limit_error(msg: str) -> bool:
@@ -152,7 +157,9 @@ def _post_with_retry(path: str, data: dict, token: str, what: str) -> dict:
     last_err = ""
     for attempt in range(_CREATE_RETRY_MAX):
         if attempt > 0:
-            wait_s = _CREATE_RETRY_WAIT[min(attempt - 1, len(_CREATE_RETRY_WAIT) - 1)]
+            # 429 레이트리밋은 일반 백오프보다 훨씬 길게 대기
+            wait_s = 60 if _is_rate_limit_429(last_err) else \
+                _CREATE_RETRY_WAIT[min(attempt - 1, len(_CREATE_RETRY_WAIT) - 1)]
             logger.info(f"IG {what} 재시도 {attempt}/{_CREATE_RETRY_MAX - 1} (대기 {wait_s}s)")
             time.sleep(wait_s)
         try:
