@@ -23,7 +23,7 @@ GRAPH = "https://graph.facebook.com/v21.0"
 # (transient — 잠시 후 정상). 따라서 4xx 도 처음엔 무시하고 계속 시도.
 _POLL_INTERVAL = 3
 _POLL_MAX_CHILD = 30      # 최대 ~90초 / child
-_POLL_MAX_CAROUSEL = 20   # 최대 ~60초 / carousel
+_POLL_MAX_CAROUSEL = 80   # 최대 ~240초 / carousel (혼합 미디어 9장 처리 대응)
 _POLL_MAX_VIDEO = 120     # 영상 컨테이너 최대 ~6분 (인코딩 시간)
 _PUBLISH_RETRY_MAX = 3
 _PUBLISH_RETRY_WAIT = (5, 10, 15)

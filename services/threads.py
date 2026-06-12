@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 GRAPH = "https://graph.threads.net/v1.0"
 
 _POLL_INTERVAL = 3
-_POLL_MAX = 30            # 최대 ~90초 / container
+_POLL_MAX = 80            # 최대 ~240초 / container (혼합 미디어 9장 처리 대응)
 _POLL_MAX_VIDEO = 120     # 영상 컨테이너 최대 ~6분
 _CREATE_TRIES = 8         # child/carousel 생성: 1 + 7 재시도
 _PUBLISH_TRIES = 6        # 게시: 1 + 5 재시도
