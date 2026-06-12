@@ -332,6 +332,7 @@ input, textarea, select { font-family: inherit; }
 }
 .card-act-btn:hover { color: var(--text); background: rgba(255,255,255,0.05); }
 .card-act-btn.del:hover { color: var(--danger); background: rgba(255,107,134,0.1); }
+.card-act-btn.dl:hover { color: var(--accent); background: rgba(110,231,255,0.1); }
 
 /* 카드 추가 */
 .add-grid {
@@ -3146,6 +3147,7 @@ function renderCardList() {
         <div class="card-type-mini">${TYPE_LABEL[c.type]} · ${c.layout}</div>
       </div>
       <div class="card-actions">
+        <button class="card-act-btn dl" data-png="${c.id}" title="PNG 저장">↓</button>
         <button class="card-act-btn" data-dup="${c.id}" title="복제">⎘</button>
         <button class="card-act-btn del" data-del="${c.id}" title="삭제">×</button>
       </div>`;
@@ -3171,6 +3173,7 @@ function renderCardList() {
   });
   wrap.querySelectorAll("[data-del]").forEach(b => b.onclick = e => { deleteCard(b.dataset.del); e.stopPropagation(); });
   wrap.querySelectorAll("[data-dup]").forEach(b => b.onclick = e => { duplicateCard(b.dataset.dup); e.stopPropagation(); });
+  wrap.querySelectorAll("[data-png]").forEach(b => b.onclick = e => { exportSingleCard(b.dataset.png); e.stopPropagation(); });
 }
 
 function previewLabel(card) {
@@ -4566,6 +4569,34 @@ async function exportAll() {
   btn.disabled = false;
   btn.textContent = orig;
   toast(`✓ ${STATE.cards.length}장 다운로드 완료`, "success");
+}
+
+async function exportSingleCard(cardId) {
+  const idx = STATE.cards.findIndex(c => c.id === cardId);
+  if (idx < 0) return;
+  const card = STATE.cards[idx];
+  const renderArea = document.getElementById("render-area");
+  renderArea.className = `render-area theme-${STATE.theme}`;
+  try { await document.fonts.ready; } catch (_) {}
+  renderArea.innerHTML = renderCard(card, idx + 1, STATE.cards.length);
+  await new Promise(r => setTimeout(r, 180));
+  autofitStat(renderArea);
+  await _waitForImagesLoaded(renderArea);
+  await applyBgLuminance(renderArea);
+  const cardEl = renderArea.querySelector(".card");
+  if (!cardEl) { toast("렌더 실패", "error"); return; }
+  _inlineBgOverlayForExport(cardEl);
+  const canvas = await html2canvas(cardEl, { width: 1080, height: 1350, scale: 1, useCORS: true, backgroundColor: null });
+  const blob = await new Promise(res => canvas.toBlob(res, "image/png"));
+  const num = String(idx + 1).padStart(2, "0");
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `cardnews-${num}-${card.type}-${card.layout}.png`;
+  a.click();
+  URL.revokeObjectURL(url);
+  renderArea.innerHTML = "";
+  toast(`✓ ${num}번 카드 저장 완료`, "success");
 }
 
 // ====================================================================
