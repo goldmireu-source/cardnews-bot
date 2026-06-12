@@ -329,13 +329,13 @@ def publish_mixed_carousel(items: list[dict], caption: str = "",
             raise ThreadsError(f"Threads mixed child 생성 실패 ({i}): {res}")
         children.append({"id": cid, "media_type": mtype})
         logger.info(f"  Threads mixed child {i}/{len(items)} id={cid} type={mtype}")
+        if progress_cb:
+            progress_cb("uploading", {"current": i, "total": total})
         if mtype == "VIDEO":
             # 동영상은 FINISHED 확인 후 다음 컨테이너 생성 — 동시 처리 제한 대응
             _wait_for_container(cid, token)
         elif i < len(items):
             time.sleep(2)
-        if progress_cb:
-            progress_cb("uploading", {"current": i, "total": total})
 
     if progress_cb:
         progress_cb("finalizing", {})
