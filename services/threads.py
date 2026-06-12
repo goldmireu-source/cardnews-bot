@@ -331,17 +331,12 @@ def publish_mixed_carousel(items: list[dict], caption: str = "",
         logger.info(f"  Threads mixed child {i}/{len(items)} id={cid} type={mtype}")
         if progress_cb:
             progress_cb("uploading", {"current": i, "total": total})
-        if mtype == "VIDEO":
-            # 동영상은 FINISHED 확인 후 다음 컨테이너 생성 — 동시 처리 제한 대응
-            _wait_for_container(cid, token)
-        elif i < len(items):
+        if i < len(items):
             time.sleep(2)
 
     if progress_cb:
         progress_cb("finalizing", {})
     for child in children:
-        if child["media_type"] == "VIDEO":
-            continue  # 이미 위에서 대기 완료
         _wait_for_container(child["id"], token)
 
     res = _post_with_retry(f"{user_id}/threads", {
