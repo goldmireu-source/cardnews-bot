@@ -36,9 +36,9 @@ GRAPH = "https://graph.threads.net/v1.0"
 _POLL_INTERVAL = 3
 _POLL_MAX = 30            # 최대 ~90초 / container
 _POLL_MAX_VIDEO = 120     # 영상 컨테이너 최대 ~6분
-_CREATE_TRIES = 4         # child/carousel 생성: 1 + 3 재시도
-_PUBLISH_TRIES = 4        # 게시: 1 + 3 재시도
-_RETRY_WAIT = (5, 10, 15)  # transient 재시도 백오프(초)
+_CREATE_TRIES = 6         # child/carousel 생성: 1 + 5 재시도
+_PUBLISH_TRIES = 5        # 게시: 1 + 4 재시도
+_RETRY_WAIT = (5, 10, 20, 30, 45)  # transient 재시도 백오프(초)
 
 
 class ThreadsError(RuntimeError):

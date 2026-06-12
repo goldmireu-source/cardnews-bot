@@ -27,6 +27,8 @@ _POLL_MAX_CAROUSEL = 20   # 최대 ~60초 / carousel
 _POLL_MAX_VIDEO = 120     # 영상 컨테이너 최대 ~6분 (인코딩 시간)
 _PUBLISH_RETRY_MAX = 3
 _PUBLISH_RETRY_WAIT = (5, 10, 15)
+_CREATE_RETRY_MAX = 5
+_CREATE_RETRY_WAIT = (5, 10, 20, 30)
 
 
 class InstagramError(RuntimeError):
@@ -145,6 +147,23 @@ def _post(path: str, data: dict, token: str) -> dict:
     return r.json()
 
 
+def _post_with_retry(path: str, data: dict, token: str, what: str) -> dict:
+    """transient 오류면 백오프 재시도. 영구 오류면 즉시 raise."""
+    last_err = ""
+    for attempt in range(_CREATE_RETRY_MAX):
+        if attempt > 0:
+            wait_s = _CREATE_RETRY_WAIT[min(attempt - 1, len(_CREATE_RETRY_WAIT) - 1)]
+            logger.info(f"IG {what} 재시도 {attempt}/{_CREATE_RETRY_MAX - 1} (대기 {wait_s}s)")
+            time.sleep(wait_s)
+        try:
+            return _post(path, data, token)
+        except InstagramError as e:
+            last_err = str(e)
+            if not _is_transient_publish_error(last_err):
+                raise
+    raise InstagramError(f"IG {what} 실패(재시도 소진): {last_err}")
+
+
 def publish_carousel(image_urls: list[str], caption: str = "",
                      progress_cb=None) -> dict:
     """Instagram 캐러셀 게시.
@@ -167,10 +186,10 @@ def publish_carousel(image_urls: list[str], caption: str = "",
     # 1) child container 생성
     children: list[str] = []
     for i, url in enumerate(image_urls, 1):
-        res = _post(f"{user_id}/media", {
+        res = _post_with_retry(f"{user_id}/media", {
             "image_url": url,
             "is_carousel_item": "true",
-        }, token)
+        }, token, what=f"child container({i})")
         cid = res.get("id")
         if not cid:
             raise InstagramError(f"IG child container 생성 실패 ({i}): {res}")
@@ -184,11 +203,11 @@ def publish_carousel(image_urls: list[str], caption: str = "",
     for cid in children:
         _wait_for_container(cid, token, _POLL_MAX_CHILD)
 
-    res = _post(f"{user_id}/media", {
+    res = _post_with_retry(f"{user_id}/media", {
         "media_type": "CAROUSEL",
         "children": ",".join(children),
         "caption": caption or "",
-    }, token)
+    }, token, what="carousel container")
     carousel_id = res.get("id")
     if not carousel_id:
         raise InstagramError(f"IG carousel 생성 실패: {res}")
@@ -291,7 +310,7 @@ def publish_mixed_carousel(items: list[dict], caption: str = "",
                 "image_url": item["url"],
                 "is_carousel_item": "true",
             }
-        res = _post(f"{user_id}/media", data, token)
+        res = _post_with_retry(f"{user_id}/media", data, token, what=f"mixed child({i})")
         cid = res.get("id")
         if not cid:
             raise InstagramError(f"IG child container 생성 실패 ({i}): {res}")
@@ -306,11 +325,11 @@ def publish_mixed_carousel(items: list[dict], caption: str = "",
         max_iter = _POLL_MAX_VIDEO if child["media_type"] == "VIDEO" else _POLL_MAX_CHILD
         _wait_for_container(child["id"], token, max_iter)
 
-    res = _post(f"{user_id}/media", {
+    res = _post_with_retry(f"{user_id}/media", {
         "media_type": "CAROUSEL",
         "children": ",".join(c["id"] for c in children),
         "caption": caption or "",
-    }, token)
+    }, token, what="mixed carousel container")
     carousel_id = res.get("id")
     if not carousel_id:
         raise InstagramError(f"IG carousel 생성 실패: {res}")
