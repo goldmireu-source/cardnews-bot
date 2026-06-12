@@ -195,10 +195,12 @@ from werkzeug.exceptions import HTTPException
 
 @app.errorhandler(Exception)
 def handle_any_exception(e):
-    if not request.path.startswith("/api/"):
-        raise e  # 비-API 경로는 기본 Flask 처리
     if isinstance(e, HTTPException):
-        return jsonify({"error": e.description, "status": e.code}), e.code
+        if request.path.startswith("/api/"):
+            return jsonify({"error": e.description, "status": e.code}), e.code
+        return e  # HTTPException은 Flask가 응답으로 직접 변환 — raise 하면 500으로 변환됨
+    if not request.path.startswith("/api/"):
+        raise e  # 비-API 경로 비-HTTP 예외는 기본 Flask 처리
     import traceback
     return jsonify({"error": str(e), "status": 500, "trace": traceback.format_exc()[-500:]}), 500
 
