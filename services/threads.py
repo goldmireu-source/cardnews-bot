@@ -332,7 +332,7 @@ def publish_mixed_carousel(items: list[dict], caption: str = "",
         if progress_cb:
             progress_cb("uploading", {"current": i, "total": total})
         if i < len(items):
-            time.sleep(2)
+            time.sleep(8 if mtype == "VIDEO" else 2)
 
     if progress_cb:
         progress_cb("finalizing", {})
