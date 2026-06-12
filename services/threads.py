@@ -308,7 +308,7 @@ def publish_mixed_carousel(items: list[dict], caption: str = "",
         if item.get("media_type", "IMAGE").upper() == "IMAGE":
             _verify_reachable(item["url"])
 
-    children: list[str] = []
+    children: list[dict] = []
     for i, item in enumerate(items, 1):
         mtype = item.get("media_type", "IMAGE").upper()
         if mtype == "VIDEO":
@@ -327,21 +327,26 @@ def publish_mixed_carousel(items: list[dict], caption: str = "",
         cid = res.get("id")
         if not cid:
             raise ThreadsError(f"Threads mixed child 생성 실패 ({i}): {res}")
-        children.append(cid)
+        children.append({"id": cid, "media_type": mtype})
         logger.info(f"  Threads mixed child {i}/{len(items)} id={cid} type={mtype}")
+        if mtype == "VIDEO":
+            # 동영상은 FINISHED 확인 후 다음 컨테이너 생성 — 동시 처리 제한 대응
+            _wait_for_container(cid, token)
+        elif i < len(items):
+            time.sleep(2)
         if progress_cb:
             progress_cb("uploading", {"current": i, "total": total})
-        if i < len(items):
-            time.sleep(8 if mtype == "VIDEO" else 2)
 
     if progress_cb:
         progress_cb("finalizing", {})
-    for cid in children:
-        _wait_for_container(cid, token)
+    for child in children:
+        if child["media_type"] == "VIDEO":
+            continue  # 이미 위에서 대기 완료
+        _wait_for_container(child["id"], token)
 
     res = _post_with_retry(f"{user_id}/threads", {
         "media_type": "CAROUSEL",
-        "children": ",".join(children),
+        "children": ",".join(c["id"] for c in children),
         "text": _truncate_for_threads(caption or ""),
     }, token, what="mixed carousel container")
     carousel_id = res.get("id")

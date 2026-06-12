@@ -325,16 +325,20 @@ def publish_mixed_carousel(items: list[dict], caption: str = "",
             raise InstagramError(f"IG child container 생성 실패 ({i}): {res}")
         children.append({"id": cid, "media_type": mtype})
         logger.info(f"  IG mixed child {i}/{len(items)} id={cid} type={mtype}")
+        if mtype == "VIDEO":
+            # 동영상은 FINISHED 확인 후 다음 컨테이너 생성 — 동시 처리 제한 대응
+            _wait_for_container(cid, token, _POLL_MAX_VIDEO)
+        elif i < len(items):
+            time.sleep(2)
         if progress_cb:
             progress_cb("uploading", {"current": i, "total": total})
-        if i < len(items):
-            time.sleep(8 if mtype == "VIDEO" else 2)
 
     if progress_cb:
         progress_cb("finalizing", {})
     for child in children:
-        max_iter = _POLL_MAX_VIDEO if child["media_type"] == "VIDEO" else _POLL_MAX_CHILD
-        _wait_for_container(child["id"], token, max_iter)
+        if child["media_type"] == "VIDEO":
+            continue  # 이미 위에서 대기 완료
+        _wait_for_container(child["id"], token, _POLL_MAX_CHILD)
 
     res = _post_with_retry(f"{user_id}/media", {
         "media_type": "CAROUSEL",
