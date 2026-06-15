@@ -32,10 +32,15 @@ import re
 import sqlite3
 import time
 import hmac
+import socket
+import ipaddress
+import logging
 import secrets as _secrets
 from pathlib import Path
 from datetime import datetime, date, timedelta
 from urllib.parse import urljoin, urlparse
+
+log = logging.getLogger(__name__)
 from dotenv import load_dotenv
 
 import anthropic
@@ -202,7 +207,8 @@ def handle_any_exception(e):
     if not request.path.startswith("/api/"):
         raise e  # 비-API 경로 비-HTTP 예외는 기본 Flask 처리
     import traceback
-    return jsonify({"error": str(e), "status": 500, "trace": traceback.format_exc()[-500:]}), 500
+    log.error("Unhandled API error [%s %s]: %s", request.method, request.path, traceback.format_exc())
+    return jsonify({"error": "내부 서버 오류가 발생했습니다.", "status": 500}), 500
 
 
 @app.after_request
@@ -1920,11 +1926,32 @@ def api_image_search():
     return jsonify({"images": images, "count": len(images)})
 
 
+def _is_safe_image_url(url: str) -> bool:
+    """외부 이미지 URL이 내부망 IP를 가리키지 않는지 검증 (SSRF 방지)."""
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return False
+        hostname = parsed.hostname or ""
+        if not hostname:
+            return False
+        try:
+            resolved = ipaddress.ip_address(socket.gethostbyname(hostname))
+            if resolved.is_private or resolved.is_loopback or resolved.is_link_local or resolved.is_reserved:
+                return False
+        except (ValueError, OSError):
+            # DNS 실패 시 차단 (안전한 기본값)
+            return False
+        return True
+    except Exception:
+        return False
+
+
 @app.route("/img-proxy")
 def img_proxy():
     """외부 이미지를 우리 도메인을 통해 서빙 (CORS 우회 + 로컬 캐시)."""
     url = request.args.get("url", "")
-    if not url or not url.startswith(("http://", "https://")):
+    if not url or not _is_safe_image_url(url):
         abort(400, "url required")
     from article_images import fetch_image_to_cache
     path = fetch_image_to_cache(url)
