@@ -25,24 +25,23 @@ Cardnews Studio Web Server
     PORT=8080 python server.py
 """
 
-import os
 import base64
+import hmac
+import ipaddress
 import json
+import logging
+import os
 import re
+import secrets as _secrets
+import socket
 import sqlite3
 import time
-import hmac
-import socket
-import ipaddress
-import logging
-import secrets as _secrets
-from pathlib import Path
+import traceback
 from datetime import datetime, date, timedelta
-from urllib.parse import urljoin, urlparse
+from pathlib import Path
+from urllib.parse import urljoin, urlparse, quote
 
-log = logging.getLogger(__name__)
 from dotenv import load_dotenv
-
 import anthropic
 import requests
 from bs4 import BeautifulSoup
@@ -50,6 +49,9 @@ from flask import (
     Flask, jsonify, abort, request, Response, send_from_directory,
     session, redirect, url_for, render_template_string,
 )
+from werkzeug.exceptions import HTTPException
+
+log = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -196,8 +198,6 @@ def logout():
 
 
 # ── API 전용 에러 핸들러 (HTML 대신 JSON 반환) ──────────────────────────────
-from werkzeug.exceptions import HTTPException
-
 @app.errorhandler(Exception)
 def handle_any_exception(e):
     if isinstance(e, HTTPException):
@@ -206,7 +206,6 @@ def handle_any_exception(e):
         return e  # HTTPException은 Flask가 응답으로 직접 변환 — raise 하면 500으로 변환됨
     if not request.path.startswith("/api/"):
         raise e  # 비-API 경로 비-HTTP 예외는 기본 Flask 처리
-    import traceback
     log.error("Unhandled API error [%s %s]: %s", request.method, request.path, traceback.format_exc())
     return jsonify({"error": "내부 서버 오류가 발생했습니다.", "status": 500}), 500
 
@@ -1362,10 +1361,9 @@ def api_dailysync_categories():
 # ============================================================
 def _fetch_cluster_via_api(cluster_id: int) -> dict:
     """데일리싱크 HTTP API 로 클러스터 데이터 가져오기."""
-    import requests as _req
     url = f"{DAILYSYNC_API_URL}/api/cluster/{cluster_id}"
     headers = {"X-Api-Key": DAILYSYNC_API_KEY} if DAILYSYNC_API_KEY else {}
-    resp = _req.get(url, headers=headers, timeout=10)
+    resp = requests.get(url, headers=headers, timeout=10)
     resp.raise_for_status()
     return resp.json()
 
@@ -1897,7 +1895,6 @@ def api_article_images():
     from article_images import get_cluster_images
     images = get_cluster_images(cluster_id, keyword=keyword)
     # 외부 URL → 우리 프록시 경유 URL 로 변환 (CORS + html2canvas 호환)
-    from urllib.parse import quote
     for img in images:
         img["proxy_url"] = f"/img-proxy?url={quote(img['url'], safe='')}"
     return jsonify({"images": images, "count": len(images)})
@@ -1919,7 +1916,6 @@ def api_image_search():
         n = 12
     n = max(4, min(n, 24))
     from article_images import search_images
-    from urllib.parse import quote
     images = search_images(q, n)
     for img in images:
         img["proxy_url"] = f"/img-proxy?url={quote(img['url'], safe='')}"

@@ -297,8 +297,12 @@ WELCOME = """🎴 Cardnews Bot
 예: [MZ] 인공지능 사관학교 첫 주에 배운 것들..."""
 
 
-async def cmd_start(update: Update, ctx): await update.message.reply_text(WELCOME)
-async def cmd_help(update: Update, ctx):  await update.message.reply_text(WELCOME)
+async def cmd_start(update: Update, ctx):
+    await update.message.reply_text(WELCOME)
+
+
+async def cmd_help(update: Update, ctx):
+    await update.message.reply_text(WELCOME)
 
 
 async def cmd_whoami(update: Update, ctx):

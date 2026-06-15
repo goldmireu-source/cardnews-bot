@@ -120,8 +120,7 @@ def pick_top_cluster() -> int | None:
     이미 사용된 클러스터는 제외.
     로컬 DB 없으면 DAILYSYNC_API_URL 로 HTTP 폴백.
     """
-    from pathlib import Path
-    from server import DAILYSYNC_DB_PATH, DAILYSYNC_API_URL, DAILYSYNC_API_KEY  # lazy import
+    from server import DAILYSYNC_DB_PATH, DAILYSYNC_API_URL, DAILYSYNC_API_KEY  # lazy import (순환 참조 방지)
 
     used = _used_cluster_ids()
 
