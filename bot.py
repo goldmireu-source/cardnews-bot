@@ -12,7 +12,7 @@ Cardnews Telegram Bot
     ANTHROPIC_API_KEY    필수
     SERVER_URL           선택 (기본 http://localhost:5050)
     ALLOWED_USERS        선택 (콤마구분 user_id)
-    MODEL                선택 (기본 claude-sonnet-4-20250514)
+    MODEL                선택 (기본 claude-sonnet-4-5)
 """
 
 import os

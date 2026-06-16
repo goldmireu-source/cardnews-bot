@@ -69,7 +69,7 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 # 모델 분기 — 품질이 결과물에 직결되는 호출은 MODEL(Sonnet) 유지,
 # 정형화된 짧은 텍스트(캡션·봇 응답)는 MODEL_FAST(Haiku) 로 처리해 출력 비용까지 절감.
 # .env 에서 MODEL / MODEL_FAST 둘 다 오버라이드 가능.
-MODEL = os.getenv("MODEL", "claude-sonnet-4-20250514")
+MODEL = os.getenv("MODEL", "claude-sonnet-4-5")
 MODEL_FAST = os.getenv("MODEL_FAST", "claude-haiku-4-5-20251001")
 SERVER_URL = os.getenv("SERVER_URL", "http://localhost:5050").rstrip("/")
 claude = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
