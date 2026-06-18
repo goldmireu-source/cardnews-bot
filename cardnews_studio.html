@@ -3184,7 +3184,7 @@ function renderCardList() {
 }
 
 function previewLabel(card) {
-  const d = card.data;
+  const d = card.data || {};
   if (card.type === "cover") return (d.title || "표지").split("\n")[0];
   if (card.type === "topic") {
     if (card.layout === "qa") return (d.question || "Q&A").split("\n")[0];
