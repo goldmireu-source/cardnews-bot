@@ -1194,22 +1194,34 @@ def api_claude():
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict):
         return jsonify({"error": "잘못된 JSON"}), 400
-    try:
-        response = claude.messages.create(
-            model=payload.get("model", MODEL),
+    req_model = payload.get("model") or MODEL
+    def _call(model_id):
+        return claude.messages.create(
+            model=model_id,
             max_tokens=payload.get("max_tokens", 1000),
             system=payload.get("system", ""),
             messages=payload.get("messages", []),
         )
-        return jsonify({
-            "content": [{"type": b.type, "text": getattr(b, "text", "")} for b in response.content],
-            "model": response.model,
-            "usage": {"input_tokens": response.usage.input_tokens, "output_tokens": response.usage.output_tokens},
-        })
+    try:
+        response = _call(req_model)
     except anthropic.APIStatusError as e:
-        return jsonify({"error": f"Anthropic API 오류: {e.message}"}), e.status_code
+        # 클라이언트가 잘못된 모델 ID를 보냈을 경우 서버 기본 MODEL 로 재시도
+        if e.status_code == 404 and req_model != MODEL:
+            try:
+                response = _call(MODEL)
+            except anthropic.APIStatusError as e2:
+                return jsonify({"error": f"Anthropic API 오류: {e2.message}"}), e2.status_code
+            except Exception as e2:
+                return jsonify({"error": str(e2)}), 500
+        else:
+            return jsonify({"error": f"Anthropic API 오류: {e.message}"}), e.status_code
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    return jsonify({
+        "content": [{"type": b.type, "text": getattr(b, "text", "")} for b in response.content],
+        "model": response.model,
+        "usage": {"input_tokens": response.usage.input_tokens, "output_tokens": response.usage.output_tokens},
+    })
 
 
 # ============================================================
