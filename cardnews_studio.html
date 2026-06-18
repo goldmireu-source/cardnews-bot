@@ -2886,7 +2886,6 @@ async function callClaude(systemPrompt, userPrompt, maxTokens = 1000, images = [
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
       max_tokens: maxTokens,
       system: systemPrompt,
       messages: [{ role: "user", content: userContent }],
@@ -3325,7 +3324,7 @@ function field({key, label, type="input", placeholder="", limit=null, value=""})
 }
 
 function renderFields(card) {
-  const d = card.data;
+  const d = card.data || {};
   const T = card.type, L = card.layout;
   let html = "";
 
