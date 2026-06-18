@@ -3211,7 +3211,8 @@ function previewLabel(card) {
 // ====================================================================
 function renderEditor() {
   const body = document.getElementById("editor-body");
-  const card = STATE.cards.find(c => c.id === STATE.activeId);
+  let card = STATE.cards.find(c => c.id === STATE.activeId);
+  if (!card && STATE.cards.length > 0) { card = STATE.cards[0]; STATE.activeId = card.id; }
 
   if (!card) {
     document.getElementById("editor-title").textContent = "카드를 선택하세요";
@@ -4008,7 +4009,12 @@ function updateAllCounters() {
 function renderPreview() {
   const scaler = document.getElementById("preview-scaler");
   scaler.className = `preview-scaler theme-${STATE.theme}`;
-  const card = STATE.cards.find(c => c.id === STATE.activeId);
+  let card = STATE.cards.find(c => c.id === STATE.activeId);
+  // activeId 가 카드 목록과 불일치하면 첫 카드를 선택 (stale activeId 최후 방어)
+  if (!card && STATE.cards.length > 0) {
+    card = STATE.cards[0];
+    STATE.activeId = card.id;
+  }
   if (!card) {
     scaler.innerHTML = `<div class="card" style="display:flex;align-items:center;justify-content:center;color:#999;font-size:48px;">미리보기</div>`;
     return;
