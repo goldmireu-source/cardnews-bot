@@ -44,6 +44,8 @@ from urllib.parse import urljoin, urlparse, quote
 from dotenv import load_dotenv
 import anthropic
 import requests
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 from bs4 import BeautifulSoup
 from flask import (
     Flask, jsonify, abort, request, Response, send_from_directory,
@@ -1613,6 +1615,7 @@ def _fetch_url_text(url: str) -> str:
             url, timeout=_URL_TIMEOUT,
             headers={"User-Agent": _URL_UA},
             allow_redirects=True,
+            verify=False,
         )
         r.raise_for_status()
     except requests.RequestException as e:

@@ -21,6 +21,8 @@ from typing import Optional
 from urllib.parse import urljoin, urlparse
 
 import requests
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 from bs4 import BeautifulSoup
 
 ROOT = Path(__file__).parent
@@ -79,7 +81,7 @@ def _normalize_url(url: str, base: str = "") -> Optional[str]:
 def _fetch_article_html(article_url: str) -> str:
     """기사 페이지 HTML 가져오기 (5초 타임아웃, 작은 응답만)."""
     try:
-        r = requests.get(article_url, timeout=TIMEOUT, headers={"User-Agent": USER_AGENT})
+        r = requests.get(article_url, timeout=TIMEOUT, headers={"User-Agent": USER_AGENT}, verify=False)
         if r.status_code != 200:
             return ""
         ct = r.headers.get("Content-Type", "")
@@ -626,7 +628,7 @@ def fetch_image_to_cache(url: str) -> Optional[Path]:
 
     try:
         r = requests.get(url, stream=True, timeout=TIMEOUT,
-                         headers={"User-Agent": USER_AGENT})
+                         headers={"User-Agent": USER_AGENT}, verify=False)
         if r.status_code != 200:
             return None
         ct = r.headers.get("Content-Type", "")
