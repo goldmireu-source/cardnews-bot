@@ -260,16 +260,41 @@ BOT_INTEGRATION_SCRIPT = r"""
           if (waited >= 8000) { resolve(false); return; }
           waited += 80; setTimeout(attempt, 80); return;
         }
-        // 같은 세션 탭이 이미 열려 있으면 새로 만들지 않고 그 탭으로 전환
+        // 같은 세션 탭이 이미 열려 있으면 서버 최신 데이터로 갱신 후 렌더
         const existing = WORKSPACE.projects.find(p => p.meta && p.meta.sessionId === sid);
         if (existing) {
-          if (WORKSPACE.activeId !== existing.id && typeof activateProject === 'function') {
-            activateProject(existing.id);
-          } else if (typeof renderTabs === 'function') {
-            renderTabs();
-          }
-          if (typeof toast === 'function') toast(`이미 열린 탭으로 전환: ${sid}`, "success");
-          resolve(true);
+          // 서버에서 최신 카드 데이터를 가져와 기존 프로젝트를 갱신한다.
+          // (localStorage 에 저장된 stale activeId 로 미리보기가 빈 상태가 되는 버그 방지)
+          fetch(`/api/sessions/${sid}`)
+            .then(r => r.ok ? r.json() : null)
+            .then(serverData => {
+              if (serverData) {
+                existing.cards = serverData.cards || existing.cards;
+                existing.activeId = serverData.activeId || (existing.cards[0] && existing.cards[0].id) || null;
+                existing.theme = serverData.theme || existing.theme;
+                existing.brand = serverData.brand || existing.brand;
+              }
+              if (WORKSPACE.activeId !== existing.id && typeof activateProject === 'function') {
+                activateProject(existing.id);
+              } else {
+                if (typeof loadProjectToState === 'function') loadProjectToState(existing);
+                if (typeof setTheme === 'function') setTheme(STATE.theme);
+                if (typeof renderTabs === 'function') renderTabs();
+                if (typeof renderAll === 'function') renderAll();
+              }
+              if (typeof toast === 'function') toast(`이미 열린 탭으로 전환: ${sid}`, "success");
+              resolve(true);
+            })
+            .catch(() => {
+              // 서버 실패 시 기존 로컬 데이터로 폴백
+              if (WORKSPACE.activeId !== existing.id && typeof activateProject === 'function') {
+                activateProject(existing.id);
+              } else {
+                if (typeof loadProjectToState === 'function') loadProjectToState(existing);
+                if (typeof renderAll === 'function') renderAll();
+              }
+              resolve(true);
+            });
           return;
         }
         fetch(`/api/sessions/${sid}`)

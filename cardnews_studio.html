@@ -2635,7 +2635,9 @@ function loadProjectToState(p) {
   STATE.theme = p.theme || "navy";
   STATE.brand = p.brand || { name: "", handle: "@dailysync_ai", footer: "" };
   STATE.cards = p.cards || [];
-  STATE.activeId = p.activeId || (STATE.cards[0]?.id ?? null);
+  // activeId 가 실제 카드 목록에 없으면 첫 카드로 fallback (stale localStorage 방지)
+  const validActiveId = STATE.cards.some(c => c.id === p.activeId) ? p.activeId : null;
+  STATE.activeId = validActiveId || (STATE.cards[0]?.id ?? null);
   STATE.lastSourceText = p.lastSourceText || "";
   STATE.meta = p.meta || {};
 }
