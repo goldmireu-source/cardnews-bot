@@ -1380,32 +1380,40 @@ input, textarea, select { font-family: inherit; }
 .modal-loading .label { color: var(--ai); font-size: 13px; font-weight: 600; }
 .modal-loading .sub { color: var(--text-dim); font-size: 11px; }
 
-/* === 영상 카드 === */
-.video-card-inner {
-  position: relative;
-  width: 100%; height: 100%;
-  display: flex; align-items: center; justify-content: center;
+/* === 영상 카드 배경 레이어 === */
+.bg-video-layer {
+  position: absolute;
+  inset: 0;
+  z-index: -1000;
   overflow: hidden;
 }
-.video-card-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
-  color: #fff;
+.bg-video-layer video {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  object-position: var(--bv-pos-x, 50%) var(--bv-pos-y, 50%);
+  transform: scale(var(--bv-zoom, 1));
+  transform-origin: var(--bv-pos-x, 50%) var(--bv-pos-y, 50%);
+  display: block;
 }
-.video-badge-label {
+.bg-video-empty-layer {
   position: absolute;
-  bottom: 14px; left: 14px;
-  background: rgba(0,0,0,0.7);
-  color: #fff;
-  padding: 4px 12px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 600;
-  pointer-events: none;
+  inset: 0;
+  z-index: -1000;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
+  display: flex; align-items: center; justify-content: center;
+  color: rgba(255,255,255,0.35);
+  font-size: 13px; text-align: center;
 }
+/* has-bg-video: 텍스트 색상 강제 (has-bg-image와 동일) */
+.card.has-bg-video {
+  background-color: #1a1a1a !important;
+  overflow: hidden;
+}
+.card.has-bg-video .card-inner { position: relative; z-index: auto; }
+.card.has-bg-video, .card.has-bg-video * { color: #ffffff !important; }
+.card.has-bg-video .footer-mark,
+.card.has-bg-video .page-num { background: rgba(0,0,0,0.5); padding: 8px 16px; border-radius: 100px; }
+.card.has-bg-video-empty { background-color: #0f0f1a !important; overflow: hidden; }
 
 /* === 이미지 업로드 영역 === */
 .upload-area {
@@ -1770,7 +1778,7 @@ const DEFAULTS = {
   list: () => ({ title:"리스트 제목", sub:"보조 설명", items:["항목 1","항목 2","항목 3"], descItems:[{title:"항목 1",desc:"설명"},{title:"항목 2",desc:"설명"}], timelineItems:[{label:"단계 1",content:"내용"},{label:"단계 2",content:"내용"}] }),
   highlight: () => ({ quote:"인용 또는\n핵심 메시지", attribution:"출처", stat:"73", statUnit:"%", statPre:"수료생 중", statLabel:"6개월 내 취업", statNote:"*2024 조사", emphPre:"결국 중요한 건", emphasis:"꾸준함", emphPost:"이라는 걸 느낀 한 주", tipLabel:"PRO TIP", tipBody:"여기에 팁 내용을 적으세요" }),
   closing: () => ({ eyebrow:"NEXT", title:"여기에 마무리 메시지", account:"@dailysync_ai", hashtag:"#태그1 #태그2", saveReason:"다시 보고 싶을 때 꺼내 볼 수 있게", askQuestion:"여러분의 생각은?", askCta:"댓글로 들려주세요 💬", subtitle:"끝까지 읽어주셔서 감사합니다" }),
-  video: () => ({ videoUrl: "", videoName: "" }),
+  video: () => ({ bgVideo: null }),
 };
 
 // ====================================================================
@@ -1818,12 +1826,7 @@ const RENDERERS = {
   "highlight/card": d => `<div class="card-inner"><div class="quote-card"><div class="q-mark">"</div><div class="quote">${nl(d.quote)}</div><div class="attr">— ${nl(d.attribution)}</div></div></div>`,
   "closing/cta": d => `<div class="card-inner"><div class="eyebrow">${nl(d.eyebrow)}</div><h2 class="title">${nl(d.title)}</h2><div class="cta-btn">팔로우하고 더 보기 →</div><div class="account">${esc(d.account)}</div></div>`,
 
-  "video/upload": d => {
-    if (d && d.videoUrl) {
-      return `<div class="card-inner video-card-inner"><video src="${esc(d.videoUrl)}" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover" autoplay muted loop playsinline></video><div class="video-badge-label">🎬 영상 카드</div></div>`;
-    }
-    return `<div class="card-inner video-card-empty"><div style="font-size:48px;margin-bottom:12px">🎬</div><div style="font-size:16px;font-weight:700;color:var(--text,#fff)">영상 카드</div><div style="font-size:12px;color:var(--text-faint,#aaa);margin-top:6px">편집창에서 MP4를 업로드하세요</div></div>`;
-  },
+  "video/upload": () => `<div class="card-inner"></div>`,
 };
 
 // 리스트 항목(numbered/check/icon)의 선택적 세부내용 렌더
@@ -2568,20 +2571,26 @@ function renderCard(card, pageNum, total) {
   const isCover = card.type === "cover";
   const isLast = pageNum === total;
 
-  // 영상 카드는 bgImage/overlay/footer/pageNum 없이 바로 반환
-  if (isVideo) {
-    return `<div class="card lo-video-upload" style="position:relative;overflow:hidden">${inner}</div>`;
-  }
   const showSwipe = isCover && total > 1;
   const brand = STATE.brand;
 
+  // 영상 카드 배경 — bgVideo 를 배경 레이어로 렌더
+  const bv = isVideo ? (card.data && card.data.bgVideo) : null;
+  const hasBv = bv && bv.url;
+  const bvScale = (hasBv && typeof bv.scale === "number" && bv.scale > 0) ? bv.scale : 1;
+  const bvOffX = hasBv && typeof bv.offsetX === "number" ? bv.offsetX : 50;
+  const bvOffY = hasBv && typeof bv.offsetY === "number" ? bv.offsetY : 50;
+  const bgVideoLayer = isVideo ? (hasBv
+    ? `<div class="bg-video-layer" style="--bv-zoom:${bvScale};--bv-pos-x:${bvOffX}%;--bv-pos-y:${bvOffY}%"><video src="${esc(bv.url)}" autoplay muted loop playsinline></video></div>`
+    : `<div class="bg-video-empty-layer"><div>🎬 편집창에서 MP4를 업로드하세요</div></div>`) : "";
+  const bgVideoClass = isVideo ? (hasBv ? " has-bg-video" : " has-bg-video-empty") : "";
+
   // 배경 이미지 (per-card) — 전체(full) 또는 부분(band) 모드
-  const bg = card.data && card.data.bgImage;
+  const bg = !isVideo && (card.data && card.data.bgImage);
   const hasBg = bg && bg.url;
   const bandMode = hasBg && bg.mode === "band";
   const bandSide = ["top", "bottom", "left", "right"].includes(bg?.side) ? bg.side : "top";
   const bandRatio = (typeof bg?.ratio === "number" && bg.ratio >= 0.15 && bg.ratio <= 0.9) ? bg.ratio : 0.42;
-  // 전체 모드는 가독성 위해 기본 어둡기 55%, 밴드 모드는 이미지를 살리려 기본 0%
   const darkenPct = hasBg ? (typeof bg.darken === "number" ? bg.darken : (bandMode ? 0 : 55)) : 0;
   const bgScale = (hasBg && typeof bg.scale === "number" && bg.scale > 0) ? bg.scale : 1;
   const bgOffX = hasBg && typeof bg.offsetX === "number" ? bg.offsetX : 50;
@@ -2596,13 +2605,14 @@ function renderCard(card, pageNum, total) {
     if (bandMode) styleVars.push(`--band-ratio: ${bandRatio}`);
   }
   const bgStyle = styleVars.length ? `style="${styleVars.join('; ')}"` : "";
-  const bgClass = !hasBg ? "" : (bandMode ? ` bg-band bg-band-${bandSide}` : " has-bg-image");
+  const bgClass = !hasBg ? bgVideoClass : (bandMode ? ` bg-band bg-band-${bandSide}` : " has-bg-image");
   const bgLayer = hasBg ? `
       <div class="bg-image-layer" style="background-image:url('${esc(bg.url)}')"></div>
       <div class="bg-image-overlay"></div>` : "";
 
   const html = `
     <div class="card lo-${card.type}-${card.layout}${bgClass}" ${bgStyle}>
+      ${bgVideoLayer}
       ${bgLayer}
       ${inner}
       ${renderOverlays(card)}
@@ -3248,7 +3258,7 @@ function previewLabel(card) {
     if (card.layout === "ask") return (d.askQuestion || "댓글 유도").split("\n")[0];
     return (d.title || "마무리").split("\n")[0];
   }
-  if (card.type === "video") return d.videoName || "영상 카드";
+  if (card.type === "video") return (d.bgVideo && d.bgVideo.name) || "영상 카드";
   return "";
 }
 
@@ -3524,7 +3534,58 @@ function renderFields(card) {
     <div id="ov-list" style="margin-top:8px">${ovItems}</div>
   </div>`;
 
-  // ===== 배경 이미지 섹션 (모든 카드 공통, 맨 아래) =====
+  const SIDE_LABEL = { top: "상", bottom: "하", left: "좌", right: "우" };
+  const sliderRow = (id, label, min, max, step, val, suffix = "%") => `
+    <label style="font-size:10px;color:var(--text-faint);display:flex;align-items:center;gap:4px;margin-top:6px">
+      ${label}
+      <input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}" style="flex:1">
+      <span id="${id}-val" style="min-width:36px;text-align:right;font-variant-numeric:tabular-nums">${val}${suffix}</span>
+    </label>`;
+
+  // ===== 영상 카드: 영상 배경 섹션 =====
+  if (T === "video") {
+    const vid = d.bgVideo;
+    const hasVid = !!(vid && vid.url);
+    const vidScale  = hasVid && typeof vid.scale   === "number" ? Math.round(vid.scale * 100) : 100;
+    const vidOffX   = hasVid && typeof vid.offsetX === "number" ? vid.offsetX : 50;
+    const vidOffY   = hasVid && typeof vid.offsetY === "number" ? vid.offsetY : 50;
+    html += `
+    <div class="field" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--c-line,#e3e7ef)">
+      <div class="field-label-row">
+        <label>🎬 배경 영상 (MP4)</label>
+        <span class="counter" style="background:none">${hasVid ? "사용 중" : "사용 안 함"}</span>
+      </div>
+      <input type="file" id="video-file-input" accept="video/mp4,.mp4" style="display:none">
+      ${hasVid ? `
+        <div style="display:flex;gap:10px;align-items:flex-start;margin-top:6px">
+          <video src="${esc(vid.url)}" style="width:88px;height:110px;object-fit:cover;border-radius:6px;border:1px solid var(--c-line,#e3e7ef);background:#000;flex-shrink:0" autoplay muted loop playsinline></video>
+          <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+            <div style="font-size:11px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(vid.name || "영상")}</div>
+            <button class="btn btn-ghost" id="btn-video-replace" style="font-size:11px">📁 영상 교체</button>
+            <button class="btn btn-ghost" id="btn-video-remove" style="font-size:11px;color:var(--danger,#e11)">✕ 영상 제거</button>
+          </div>
+        </div>
+        <div style="margin-top:8px;padding:8px;background:var(--bg-soft,rgba(0,0,0,0.03));border-radius:6px">
+          ${sliderRow("vid-scale", "확대  ", 50, 300, 5, vidScale)}
+          ${sliderRow("vid-offx",  "← →  ", 0, 100, 1, vidOffX)}
+          ${sliderRow("vid-offy",  "↑ ↓  ", 0, 100, 1, vidOffY)}
+          <button type="button" id="vid-transform-reset" style="margin-top:6px;width:100%;background:none;border:1px solid var(--c-line,#e3e7ef);color:var(--text-faint);cursor:pointer;font-size:11px;padding:4px;border-radius:4px">확대·위치 원래대로 ↺</button>
+        </div>
+      ` : `
+        <div id="video-upload-drop" style="display:flex;gap:10px;align-items:center;padding:20px 14px;border:2px dashed var(--line);border-radius:8px;cursor:pointer;transition:border-color .15s;background:var(--panel);margin-top:6px">
+          <span style="font-size:32px">🎬</span>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:600;color:var(--text)">MP4 영상 업로드</div>
+            <div style="font-size:11px;color:var(--text-faint);margin-top:3px">클릭 또는 드래그 · 최대 300MB</div>
+          </div>
+          <button type="button" class="btn" id="btn-video-pick" style="font-size:11px;padding:6px 12px;flex-shrink:0">파일 선택</button>
+        </div>
+      `}
+    </div>`;
+    return html;
+  }
+
+  // ===== 배경 이미지 섹션 (영상 카드 제외, 모든 카드 공통, 맨 아래) =====
   const bg = d.bgImage;
   const hasBg = bg && bg.url;
   const bgScale = (typeof bg?.scale === "number" && bg.scale > 0) ? bg.scale : 1;
@@ -3533,13 +3594,6 @@ function renderFields(card) {
   const bandMode = hasBg && bg.mode === "band";
   const bandSide = ["top", "bottom", "left", "right"].includes(bg?.side) ? bg.side : "top";
   const bandPct = Math.round(((typeof bg?.ratio === "number" && bg.ratio >= 0.15 && bg.ratio <= 0.9) ? bg.ratio : 0.42) * 100);
-  const SIDE_LABEL = { top: "상", bottom: "하", left: "좌", right: "우" };
-  const sliderRow = (id, label, min, max, step, val, suffix = "%") => `
-    <label style="font-size:10px;color:var(--text-faint);display:flex;align-items:center;gap:4px;margin-top:6px">
-      ${label}
-      <input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}" style="flex:1">
-      <span id="${id}-val" style="min-width:36px;text-align:right;font-variant-numeric:tabular-nums">${val}${suffix}</span>
-    </label>`;
   html += `
     <div class="field bg-image-field" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--c-line,#e3e7ef)">
       <div class="field-label-row">
@@ -3584,37 +3638,6 @@ function renderFields(card) {
         <p style="margin:6px 0 0;font-size:10px;color:var(--text-faint)">기사 이미지: 보도한 매체의 og:image / 본문 이미지 자동 수집. 파일 업로드: 본인 보유 이미지 직접 사용.</p>`}
     </div>`;
 
-  if (T === "video") {
-    const hasVid = !!(d.videoUrl);
-    html += `<div class="field">
-      <div class="field-label-row"><label>🎬 영상 파일 (MP4)</label></div>
-      ${hasVid ? `
-        <video src="${esc(d.videoUrl)}" controls style="width:100%;border-radius:6px;max-height:200px;background:#000;display:block" preload="metadata"></video>
-        <div style="margin-top:6px;font-size:11px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.videoName || "")}</div>
-        <div style="display:flex;gap:6px;margin-top:8px">
-          <button class="btn btn-ghost" id="btn-video-replace" style="flex:1;font-size:11px">📁 교체</button>
-          <button class="btn btn-ghost" id="btn-video-remove" style="font-size:11px;color:var(--danger)">✕ 제거</button>
-        </div>
-        <input type="file" id="video-file-input" accept="video/mp4,.mp4" style="display:none">
-      ` : `
-        <div id="video-upload-drop" style="display:flex;gap:10px;align-items:center;padding:20px 14px;border:2px dashed var(--line);border-radius:8px;cursor:pointer;transition:border-color .15s;background:var(--panel)">
-          <input type="file" id="video-file-input" accept="video/mp4,.mp4" style="display:none">
-          <span style="font-size:32px">🎬</span>
-          <div style="flex:1">
-            <div style="font-size:13px;font-weight:600;color:var(--text)">MP4 영상 업로드</div>
-            <div style="font-size:11px;color:var(--text-faint);margin-top:3px">클릭 또는 드래그 · 최대 300MB</div>
-          </div>
-          <button type="button" class="btn" id="btn-video-pick" style="font-size:11px;padding:6px 12px;flex-shrink:0">파일 선택</button>
-        </div>
-      `}
-    </div>
-    <div class="field">
-      <div style="padding:10px 12px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:6px;font-size:11px;color:var(--text-faint);line-height:1.5">
-        💡 영상 카드는 <b>직접 발행</b>에서 이미지 카드와 함께 캐러셀로 발행할 수 있어요.<br>PNG 내보내기 시 이 카드는 건너뜁니다.
-      </div>
-    </div>`;
-  }
-
   return html;
 }
 
@@ -3647,8 +3670,7 @@ async function uploadVideoFile(file, card) {
     if (r.status === 401) { window.location.href = "/login"; return; }
     const j = await r.json();
     if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
-    card.data.videoUrl = j.url;
-    card.data.videoName = file.name;
+    card.data.bgVideo = { url: j.url, name: file.name, scale: 1, offsetX: 50, offsetY: 50 };
     if (pt) pt.remove();
     renderEditor(); renderPreview(); autoSave();
     if (typeof toast === "function") toast("✓ 영상 업로드 완료", "success");
@@ -4117,8 +4139,7 @@ function bindEditorEvents(card) {
   if (btnVideoReplace) btnVideoReplace.onclick = () => videoInput && videoInput.click();
   if (btnVideoRemove) {
     btnVideoRemove.onclick = () => {
-      card.data.videoUrl = "";
-      card.data.videoName = "";
+      card.data.bgVideo = null;
       renderEditor(); renderPreview(); autoSave();
     };
   }
@@ -4132,6 +4153,38 @@ function bindEditorEvents(card) {
       triggerVideoUpload(f);
     });
   }
+
+  // 영상 배경 슬라이더 — scale / offsetX / offsetY
+  const vidScale = body.querySelector("#vid-scale");
+  if (vidScale) vidScale.oninput = (e) => {
+    if (!card.data.bgVideo) return;
+    const pct = +e.target.value;
+    card.data.bgVideo.scale = pct / 100;
+    body.querySelector("#vid-scale-val").textContent = pct + "%";
+    renderPreview(); autoSave();
+  };
+  const vidOffX = body.querySelector("#vid-offx");
+  if (vidOffX) vidOffX.oninput = (e) => {
+    if (!card.data.bgVideo) return;
+    card.data.bgVideo.offsetX = +e.target.value;
+    body.querySelector("#vid-offx-val").textContent = e.target.value + "%";
+    renderPreview(); autoSave();
+  };
+  const vidOffY = body.querySelector("#vid-offy");
+  if (vidOffY) vidOffY.oninput = (e) => {
+    if (!card.data.bgVideo) return;
+    card.data.bgVideo.offsetY = +e.target.value;
+    body.querySelector("#vid-offy-val").textContent = e.target.value + "%";
+    renderPreview(); autoSave();
+  };
+  const vidReset = body.querySelector("#vid-transform-reset");
+  if (vidReset) vidReset.onclick = () => {
+    if (!card.data.bgVideo) return;
+    card.data.bgVideo.scale   = 1;
+    card.data.bgVideo.offsetX = 50;
+    card.data.bgVideo.offsetY = 50;
+    renderEditor(); renderPreview(); autoSave();
+  };
 }
 
 function updateAllCounters() {
@@ -4736,10 +4789,11 @@ async function exportSingleCard(cardId) {
   if (idx < 0) return;
   const card = STATE.cards[idx];
   if (card.type === "video") {
-    if (card.data.videoUrl) {
+    const vid = card.data && card.data.bgVideo;
+    if (vid && vid.url) {
       const a = document.createElement("a");
-      a.href = card.data.videoUrl;
-      a.download = card.data.videoName || "video.mp4";
+      a.href = vid.url;
+      a.download = vid.name || "video.mp4";
       a.click();
       toast("✓ 영상 파일 다운로드 완료", "success");
     } else {
