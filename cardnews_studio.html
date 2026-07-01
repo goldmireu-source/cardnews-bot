@@ -1384,8 +1384,8 @@ input, textarea, select { font-family: inherit; }
 /* 영상 오버레이 — 이미지 오버레이와 동일한 방식으로 자유 배치 */
 .ov-video { overflow: hidden; border-radius: 4px; }
 .ov-video video { display: block; }
-/* 영상 카드 타입: 기본 배경 검정 (오버레이 영상이 잘 보이도록) */
-.card.lo-video-upload { background: #111 !important; }
+/* 영상 카드 타입: 기본 배경 검정 — 테마 bold 색상이 있으면 덮어씀 */
+.card.lo-video-upload { background: var(--c-bg, #111); }
 
 /* === 이미지 업로드 영역 === */
 .upload-area {
@@ -2919,7 +2919,7 @@ function applyTheme(themeId) {
   if (!style) { style = document.createElement("style"); style.id = "theme-style"; document.head.appendChild(style); }
   style.textContent = `
     .theme-${themeId} .card { --c-bg:${t.light.bg}; --c-text:${t.light.text}; --c-sub:${t.light.sub}; --c-accent:${t.light.accent}; --c-line:${t.light.line}; }
-    .theme-${themeId} .lo-cover-bold, .theme-${themeId} .lo-cover-number, .theme-${themeId} .lo-cover-question, .theme-${themeId} .lo-cover-split, .theme-${themeId} .lo-cover-minimal {
+    .theme-${themeId} .lo-cover-bold, .theme-${themeId} .lo-cover-number, .theme-${themeId} .lo-cover-question, .theme-${themeId} .lo-cover-split, .theme-${themeId} .lo-cover-minimal, .theme-${themeId} .lo-video-upload {
       --c-bg:${t.bold.bg}; --c-text:${t.bold.text}; --c-sub:${t.bold.sub}; --c-accent:${t.bold.accent}; --c-line:${t.bold.line};
     }
   `;
