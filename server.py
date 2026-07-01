@@ -2089,6 +2089,43 @@ def serve_upload_bg(session_id, filename):
     return resp
 
 
+@app.route("/api/uploads/video/<session_id>", methods=["POST"])
+def api_upload_video(session_id):
+    """카드 편집창에서 영상 카드용 MP4 업로드. uploads/{sid}/video/{ts}.mp4 로 저장."""
+    if not SAFE_ID_RE.match(session_id):
+        abort(400, "잘못된 세션 ID")
+    f = request.files.get("file")
+    if not f:
+        return jsonify({"error": "파일 없음"}), 400
+
+    fname = (f.filename or "video").rsplit(".", 1)
+    ext = (fname[1].lower() if len(fname) > 1 else "mp4")
+    if ext not in ("mp4",):
+        return jsonify({"error": f"MP4 파일만 업로드할 수 있습니다: {ext}"}), 400
+
+    vid_dir = UPLOADS_DIR / session_id / "video"
+    vid_dir.mkdir(parents=True, exist_ok=True)
+    name = f"{int(time.time() * 1000)}.{ext}"
+    path = vid_dir / name
+    f.save(path)
+    return jsonify({
+        "ok": True,
+        "url": f"{SERVER_URL}/uploads/{session_id}/video/{name}",
+        "filename": name,
+    })
+
+
+@app.route("/uploads/<session_id>/video/<filename>")
+def serve_upload_video(session_id, filename):
+    if not SAFE_ID_RE.match(session_id):
+        abort(400, "잘못된 세션 ID")
+    if not re.match(r"^[a-zA-Z0-9_\-.]{1,64}$", filename):
+        abort(400, "잘못된 파일명")
+    resp = send_from_directory(UPLOADS_DIR / session_id / "video", filename)
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    return resp
+
+
 # ============================================================
 # 라우트 — Instagram Graph API 발행
 # ============================================================

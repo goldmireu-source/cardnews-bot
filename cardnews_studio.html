@@ -1380,6 +1380,33 @@ input, textarea, select { font-family: inherit; }
 .modal-loading .label { color: var(--ai); font-size: 13px; font-weight: 600; }
 .modal-loading .sub { color: var(--text-dim); font-size: 11px; }
 
+/* === 영상 카드 === */
+.video-card-inner {
+  position: relative;
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.video-card-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
+  color: #fff;
+}
+.video-badge-label {
+  position: absolute;
+  bottom: 14px; left: 14px;
+  background: rgba(0,0,0,0.7);
+  color: #fff;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
 /* === 이미지 업로드 영역 === */
 .upload-area {
   border: 2px dashed var(--line);
@@ -1561,6 +1588,7 @@ input, textarea, select { font-family: inherit; }
         <button class="add-btn" data-add="list"><b>리스트</b><span>5종 레이아웃</span></button>
         <button class="add-btn" data-add="highlight"><b>포인트</b><span>5종 레이아웃</span></button>
         <button class="add-btn" data-add="closing"><b>마무리</b><span>5종 레이아웃</span></button>
+        <button class="add-btn" data-add="video" style="grid-column:1/-1"><b>🎬 영상</b><span>MP4 카드</span></button>
       </div>
     </div>
 
@@ -1690,9 +1718,12 @@ const LAYOUTS = {
     { id: "thanks", name: "Thanks", desc: "감사 인사" },
     { id: "cta", name: "CTA", desc: "강한 행동유도" },
   ],
+  video: [
+    { id: "upload", name: "영상", desc: "MP4 영상 카드" },
+  ],
 };
 
-const TYPE_LABEL = { cover:"표지", topic:"주제", list:"리스트", highlight:"포인트", closing:"마무리" };
+const TYPE_LABEL = { cover:"표지", topic:"주제", list:"리스트", highlight:"포인트", closing:"마무리", video:"영상" };
 
 // 레이아웃별 필수 필드 (AI 호출 시 스키마용)
 const LAYOUT_FIELDS = {
@@ -1727,6 +1758,7 @@ const LAYOUT_FIELDS = {
   "closing/multi": ["eyebrow","title","account"],
   "closing/thanks": ["title","subtitle","account"],
   "closing/cta": ["eyebrow","title","account"],
+  "video/upload": [],
 };
 
 // ====================================================================
@@ -1738,6 +1770,7 @@ const DEFAULTS = {
   list: () => ({ title:"리스트 제목", sub:"보조 설명", items:["항목 1","항목 2","항목 3"], descItems:[{title:"항목 1",desc:"설명"},{title:"항목 2",desc:"설명"}], timelineItems:[{label:"단계 1",content:"내용"},{label:"단계 2",content:"내용"}] }),
   highlight: () => ({ quote:"인용 또는\n핵심 메시지", attribution:"출처", stat:"73", statUnit:"%", statPre:"수료생 중", statLabel:"6개월 내 취업", statNote:"*2024 조사", emphPre:"결국 중요한 건", emphasis:"꾸준함", emphPost:"이라는 걸 느낀 한 주", tipLabel:"PRO TIP", tipBody:"여기에 팁 내용을 적으세요" }),
   closing: () => ({ eyebrow:"NEXT", title:"여기에 마무리 메시지", account:"@dailysync_ai", hashtag:"#태그1 #태그2", saveReason:"다시 보고 싶을 때 꺼내 볼 수 있게", askQuestion:"여러분의 생각은?", askCta:"댓글로 들려주세요 💬", subtitle:"끝까지 읽어주셔서 감사합니다" }),
+  video: () => ({ videoUrl: "", videoName: "" }),
 };
 
 // ====================================================================
@@ -1784,6 +1817,13 @@ const RENDERERS = {
   "list/grid": d => `<div class="card-inner"><div class="list-header"><h2 class="title">${nl(d.title)}</h2><div class="sub">${nl(d.sub)}</div></div><div class="grid-items">${(d.items||[]).map((t,i)=>`<div class="grid-cell"><div class="bullet">${i+1}</div><div class="text">${nl(t)}${itemSub(d,i)}</div></div>`).join("")}</div></div>`,
   "highlight/card": d => `<div class="card-inner"><div class="quote-card"><div class="q-mark">"</div><div class="quote">${nl(d.quote)}</div><div class="attr">— ${nl(d.attribution)}</div></div></div>`,
   "closing/cta": d => `<div class="card-inner"><div class="eyebrow">${nl(d.eyebrow)}</div><h2 class="title">${nl(d.title)}</h2><div class="cta-btn">팔로우하고 더 보기 →</div><div class="account">${esc(d.account)}</div></div>`,
+
+  "video/upload": d => {
+    if (d && d.videoUrl) {
+      return `<div class="card-inner video-card-inner"><video src="${esc(d.videoUrl)}" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover" autoplay muted loop playsinline></video><div class="video-badge-label">🎬 영상 카드</div></div>`;
+    }
+    return `<div class="card-inner video-card-empty"><div style="font-size:48px;margin-bottom:12px">🎬</div><div style="font-size:16px;font-weight:700;color:var(--text,#fff)">영상 카드</div><div style="font-size:12px;color:var(--text-faint,#aaa);margin-top:6px">편집창에서 MP4를 업로드하세요</div></div>`;
+  },
 };
 
 // 리스트 항목(numbered/check/icon)의 선택적 세부내용 렌더
@@ -2524,8 +2564,14 @@ document.addEventListener("paste", e => {
 function renderCard(card, pageNum, total) {
   const key = `${card.type}/${card.layout}`;
   const inner = RENDERERS[key] ? RENDERERS[key](card.data) : `<div class="card-inner">레이아웃 오류: ${key}</div>`;
+  const isVideo = card.type === "video";
   const isCover = card.type === "cover";
   const isLast = pageNum === total;
+
+  // 영상 카드는 bgImage/overlay/footer/pageNum 없이 바로 반환
+  if (isVideo) {
+    return `<div class="card lo-video-upload" style="position:relative;overflow:hidden">${inner}</div>`;
+  }
   const showSwipe = isCover && total > 1;
   const brand = STATE.brand;
 
@@ -3202,6 +3248,7 @@ function previewLabel(card) {
     if (card.layout === "ask") return (d.askQuestion || "댓글 유도").split("\n")[0];
     return (d.title || "마무리").split("\n")[0];
   }
+  if (card.type === "video") return d.videoName || "영상 카드";
   return "";
 }
 
@@ -3234,7 +3281,9 @@ function renderEditor() {
   const idx = STATE.cards.findIndex(c => c.id === card.id);
   document.getElementById("editor-title").textContent = `${idx + 1}. ${TYPE_LABEL[card.type]} 카드`;
   document.getElementById("editor-counter").textContent = `${idx + 1} / ${STATE.cards.length}`;
-  document.getElementById("editor-sub").textContent = "레이아웃 칩 변경 시 AI가 내용을 새 구조에 맞춰 자동 재배치합니다";
+  document.getElementById("editor-sub").textContent = card.type === "video"
+    ? "MP4 영상을 업로드하면 직접 발행 캐러셀에 포함할 수 있어요"
+    : "레이아웃 칩 변경 시 AI가 내용을 새 구조에 맞춰 자동 재배치합니다";
   document.getElementById("card-actions").style.display = "flex";
 
   // 레이아웃 칩
@@ -3535,6 +3584,37 @@ function renderFields(card) {
         <p style="margin:6px 0 0;font-size:10px;color:var(--text-faint)">기사 이미지: 보도한 매체의 og:image / 본문 이미지 자동 수집. 파일 업로드: 본인 보유 이미지 직접 사용.</p>`}
     </div>`;
 
+  if (T === "video") {
+    const hasVid = !!(d.videoUrl);
+    html += `<div class="field">
+      <div class="field-label-row"><label>🎬 영상 파일 (MP4)</label></div>
+      ${hasVid ? `
+        <video src="${esc(d.videoUrl)}" controls style="width:100%;border-radius:6px;max-height:200px;background:#000;display:block" preload="metadata"></video>
+        <div style="margin-top:6px;font-size:11px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.videoName || "")}</div>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <button class="btn btn-ghost" id="btn-video-replace" style="flex:1;font-size:11px">📁 교체</button>
+          <button class="btn btn-ghost" id="btn-video-remove" style="font-size:11px;color:var(--danger)">✕ 제거</button>
+        </div>
+        <input type="file" id="video-file-input" accept="video/mp4,.mp4" style="display:none">
+      ` : `
+        <div id="video-upload-drop" style="display:flex;gap:10px;align-items:center;padding:20px 14px;border:2px dashed var(--line);border-radius:8px;cursor:pointer;transition:border-color .15s;background:var(--panel)">
+          <input type="file" id="video-file-input" accept="video/mp4,.mp4" style="display:none">
+          <span style="font-size:32px">🎬</span>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:600;color:var(--text)">MP4 영상 업로드</div>
+            <div style="font-size:11px;color:var(--text-faint);margin-top:3px">클릭 또는 드래그 · 최대 300MB</div>
+          </div>
+          <button type="button" class="btn" id="btn-video-pick" style="font-size:11px;padding:6px 12px;flex-shrink:0">파일 선택</button>
+        </div>
+      `}
+    </div>
+    <div class="field">
+      <div style="padding:10px 12px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:6px;font-size:11px;color:var(--text-faint);line-height:1.5">
+        💡 영상 카드는 <b>직접 발행</b>에서 이미지 카드와 함께 캐러셀로 발행할 수 있어요.<br>PNG 내보내기 시 이 카드는 건너뜁니다.
+      </div>
+    </div>`;
+  }
+
   return html;
 }
 
@@ -3547,6 +3627,35 @@ function getUploadSessionId() {
     window.__cardnewsTempSession = "studio_" + Date.now().toString(36);
   }
   return window.__cardnewsTempSession;
+}
+
+async function uploadVideoFile(file, card) {
+  if (!file) return;
+  const ext = (file.name || "").split(".").pop().toLowerCase();
+  if (ext !== "mp4" && !file.type.includes("mp4")) {
+    toast("MP4 파일만 업로드할 수 있어요", "warning"); return;
+  }
+  if (file.size > 300 * 1024 * 1024) {
+    toast("파일 크기가 300MB를 초과합니다", "warning"); return;
+  }
+  const sid = getUploadSessionId();
+  const fd = new FormData();
+  fd.append("file", file);
+  const pt = (typeof persistentToast === "function") ? persistentToast("⏳ 영상 업로드 중…", "info") : null;
+  try {
+    const r = await fetch(`/api/uploads/video/${sid}`, { method: "POST", body: fd });
+    if (r.status === 401) { window.location.href = "/login"; return; }
+    const j = await r.json();
+    if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
+    card.data.videoUrl = j.url;
+    card.data.videoName = file.name;
+    if (pt) pt.remove();
+    renderEditor(); renderPreview(); autoSave();
+    if (typeof toast === "function") toast("✓ 영상 업로드 완료", "success");
+  } catch (e) {
+    if (pt) pt.remove();
+    if (typeof toast === "function") toast(`영상 업로드 실패: ${e.message}`, "error");
+  }
 }
 
 async function uploadBgFile(file, card) {
@@ -3987,6 +4096,42 @@ function bindEditorEvents(card) {
     t.addEventListener("input", fit);
     fit();
   });
+
+  // 영상 카드 업로드 이벤트
+  const videoInput  = body.querySelector("#video-file-input");
+  const videoDrop   = body.querySelector("#video-upload-drop");
+  const btnVideoPick    = body.querySelector("#btn-video-pick");
+  const btnVideoReplace = body.querySelector("#btn-video-replace");
+  const btnVideoRemove  = body.querySelector("#btn-video-remove");
+
+  const triggerVideoUpload = (f) => { if (f) uploadVideoFile(f, card); };
+
+  if (videoInput) {
+    videoInput.onchange = (e) => {
+      const f = e.target.files && e.target.files[0];
+      triggerVideoUpload(f);
+      e.target.value = "";
+    };
+  }
+  if (btnVideoPick)    btnVideoPick.onclick    = () => videoInput && videoInput.click();
+  if (btnVideoReplace) btnVideoReplace.onclick = () => videoInput && videoInput.click();
+  if (btnVideoRemove) {
+    btnVideoRemove.onclick = () => {
+      card.data.videoUrl = "";
+      card.data.videoName = "";
+      renderEditor(); renderPreview(); autoSave();
+    };
+  }
+  if (videoDrop) {
+    videoDrop.onclick = () => videoInput && videoInput.click();
+    videoDrop.addEventListener("dragover",  e => { e.preventDefault(); videoDrop.style.borderColor = "var(--accent)"; });
+    videoDrop.addEventListener("dragleave", () => { videoDrop.style.borderColor = ""; });
+    videoDrop.addEventListener("drop", e => {
+      e.preventDefault(); videoDrop.style.borderColor = "";
+      const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      triggerVideoUpload(f);
+    });
+  }
 }
 
 function updateAllCounters() {
@@ -4554,8 +4699,10 @@ async function exportAll() {
   const zip = new JSZip();
   const renderArea = document.getElementById("render-area");
   renderArea.className = `render-area theme-${STATE.theme}`;
+  let skippedVideo = 0;
   for (let i = 0; i < STATE.cards.length; i++) {
     const card = STATE.cards[i];
+    if (card.type === "video") { skippedVideo++; continue; }
     btn.textContent = `🎨 ${i + 1} / ${STATE.cards.length}`;
     renderArea.innerHTML = renderCard(card, i + 1, STATE.cards.length);
     await new Promise(r => setTimeout(r, 120));
@@ -4570,6 +4717,7 @@ async function exportAll() {
     const num = String(i + 1).padStart(2, "0");
     zip.file(`cardnews-${num}-${card.type}-${card.layout}.png`, blob);
   }
+  if (skippedVideo > 0) toast(`💡 영상 카드 ${skippedVideo}개는 PNG 내보내기에서 제외됐어요 (직접 발행으로 캐러셀에 포함 가능)`, "info");
   btn.textContent = "📦 ZIP 생성 중...";
   const zipBlob = await zip.generateAsync({ type: "blob" });
   const url = URL.createObjectURL(zipBlob);
@@ -4587,6 +4735,18 @@ async function exportSingleCard(cardId) {
   const idx = STATE.cards.findIndex(c => c.id === cardId);
   if (idx < 0) return;
   const card = STATE.cards[idx];
+  if (card.type === "video") {
+    if (card.data.videoUrl) {
+      const a = document.createElement("a");
+      a.href = card.data.videoUrl;
+      a.download = card.data.videoName || "video.mp4";
+      a.click();
+      toast("✓ 영상 파일 다운로드 완료", "success");
+    } else {
+      toast("아직 업로드된 영상이 없어요", "warning");
+    }
+    return;
+  }
   const renderArea = document.getElementById("render-area");
   renderArea.className = `render-area theme-${STATE.theme}`;
   try { await document.fonts.ready; } catch (_) {}
@@ -4631,6 +4791,7 @@ async function openPublishPreview() {
     for (let i = 0; i < STATE.cards.length; i++) {
       if (btn) btn.textContent = `🔄 ${i + 1}/${STATE.cards.length} 렌더링…`;
       const card = STATE.cards[i];
+      if (card.type === "video") continue; // 영상 카드는 html2canvas 대상 아님
       renderArea.innerHTML = renderCard(card, i + 1, STATE.cards.length);
       // 첫 카드는 레이아웃 페인트 여유 시간을 더 줌
       await new Promise(r => setTimeout(r, i === 0 ? 250 : 120));
