@@ -497,10 +497,17 @@ BOT_INTEGRATION_SCRIPT = r"""
     if (!renderArea) { alert("렌더 영역 없음"); return; }
     renderArea.className = `render-area theme-${STATE.theme}`;
     const formData = new FormData();
+    const videoItems = [];
     try {
       for (let i = 0; i < STATE.cards.length; i++) {
+        const card = STATE.cards[i];
+        if (card.type === "video") {
+          const vov = (card.overlays || []).find(o => o.type === "video");
+          if (vov && vov.url) videoItems.push({ position: i, url: vov.url });
+          continue;
+        }
         if (btn) btn.textContent = `📷 렌더 ${i+1}/${STATE.cards.length}`;
-        renderArea.innerHTML = renderCard(STATE.cards[i], i + 1, STATE.cards.length);
+        renderArea.innerHTML = renderCard(card, i + 1, STATE.cards.length);
         await new Promise(r => setTimeout(r, 150));
         if (typeof window.autofitStat === "function") window.autofitStat(renderArea);
         // 이미지 먼저 로드 완료 → 그 후 밝기 분석
@@ -519,7 +526,8 @@ BOT_INTEGRATION_SCRIPT = r"""
       let j;
       try { j = await r.json(); } catch (_) { throw new Error(`서버 오류 (HTTP ${r.status}) — 서버 로그를 확인하세요`); }
       if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
-      if (typeof toast === 'function') toast(`✓ ${j.files.length}장 준비 완료`, "success");
+      const vidNote = videoItems.length ? ` + 영상 ${videoItems.length}개` : "";
+      if (typeof toast === 'function') toast(`✓ ${j.files.length}장${vidNote} 준비 완료`, "success");
     } catch (e) {
       alert("렌더·업로드 실패: " + e.message);
       if (btn) { btn.disabled = false; btn.textContent = orig; }
@@ -530,12 +538,13 @@ BOT_INTEGRATION_SCRIPT = r"""
     }
 
     // 발행 모달 표시
-    await openPublishModal(sid, STATE.cards.length);
+    await openPublishModal(sid, STATE.cards.length, videoItems);
   }
 
   // === 자체 발행 모달 (cardnews_studio.html 에 modal 없으므로 인라인) ===
-  async function openPublishModal(sid, totalCards) {
+  async function openPublishModal(sid, totalCards, videoItems) {
     totalCards = totalCards || 0;
+    videoItems = videoItems || [];
     const status = await fetch("/api/publish/status").then(r => r.json()).catch(() => null);
     if (!status) { alert("서버 응답 없음"); return; }
     const P = status.platforms || {};
@@ -663,7 +672,7 @@ BOT_INTEGRATION_SCRIPT = r"""
         alert("publish_progress.js 로드 실패 — 새로고침 후 다시 시도");
         return;
       }
-      window.PublishProgress.start(sid, platforms, caption);
+      window.PublishProgress.start(sid, platforms, caption, { videoItems: videoItems });
     };
   }
 
@@ -2343,16 +2352,17 @@ def api_publish_unified(session_id):
     if not requested:
         return jsonify({"ok": False, "error": "platforms 비어있음"}), 400
 
-    # 업로드된 PNG
+    # 업로드된 PNG + 영상 카드 URL
     up_dir = UPLOADS_DIR / session_id
     pngs = sorted(up_dir.glob("*.png"))
-    if not pngs:
+    video_items = body.get("video_items") or []
+    if not pngs and not video_items:
         return jsonify({"ok": False, "error": "PNG 미업로드. 스튜디오에서 'PNG 준비' 먼저"}), 400
     # 플랫폼별 한도: Instagram/Facebook=10, Threads=20, TikTok=35
-    # 공통 한도 제거 — 각 서비스(services/*.py)가 자체 한도로 자름
     _PLATFORM_LIMITS = {"instagram": 10, "facebook": 10, "threads": 20, "tiktok": 35}
+    total_slides = len(pngs) + len(video_items)
     platform_card_counts = {
-        p: min(len(pngs), _PLATFORM_LIMITS.get(p, len(pngs)))
+        p: min(total_slides, _PLATFORM_LIMITS.get(p, total_slides))
         for p in requested
     }
     image_urls = [f"{SERVER_URL}/uploads/{session_id}/{p.name}" for p in pngs]
@@ -2376,18 +2386,45 @@ def api_publish_unified(session_id):
             pass
 
     # 백그라운드 잡 시작 — 즉시 job_id 반환, 폴링은 /api/publish/jobs/<id>
-    from services.publish_jobs import start_publish_job
-    job_id = start_publish_job(
-        session_id=session_id,
-        platforms=requested,
-        image_urls=image_urls,
-        caption=caption,
-        card_count=len(pngs),
-    )
+    if video_items:
+        # 혼합 캐러셀: PNG 파일명(카드 위치 기반)과 영상 URL을 위치 순서로 합치기
+        png_map = {}
+        for p in pngs:
+            try:
+                png_map[int(p.stem)] = f"{SERVER_URL}/uploads/{session_id}/{p.name}"
+            except ValueError:
+                pass
+        vid_map = {int(v["position"]): v["url"] for v in video_items
+                   if "position" in v and "url" in v}
+        items = []
+        for pos in sorted(set(png_map) | set(vid_map)):
+            if pos in vid_map:
+                items.append({"url": vid_map[pos], "media_type": "VIDEO"})
+            elif pos in png_map:
+                items.append({"url": png_map[pos], "media_type": "IMAGE"})
+        from services.publish_jobs import start_direct_publish_job
+        job_id = start_direct_publish_job(
+            session_id=session_id,
+            platforms=requested,
+            items=items,
+            caption=caption,
+        )
+        card_count = len(items)
+    else:
+        from services.publish_jobs import start_publish_job
+        job_id = start_publish_job(
+            session_id=session_id,
+            platforms=requested,
+            image_urls=image_urls,
+            caption=caption,
+            card_count=len(pngs),
+        )
+        card_count = len(pngs)
+
     return jsonify({
         "ok": True,
         "job_id": job_id,
-        "card_count": len(pngs),
+        "card_count": card_count,
         "platform_card_counts": platform_card_counts,
         "caption": caption,
         "platforms": requested,
