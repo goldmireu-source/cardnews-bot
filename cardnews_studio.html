@@ -1381,39 +1381,11 @@ input, textarea, select { font-family: inherit; }
 .modal-loading .sub { color: var(--text-dim); font-size: 11px; }
 
 /* === 영상 카드 배경 레이어 === */
-.bg-video-layer {
-  position: absolute;
-  inset: 0;
-  z-index: -1000;
-  overflow: hidden;
-}
-.bg-video-layer video {
-  width: 100%; height: 100%;
-  object-fit: cover;
-  object-position: var(--bv-pos-x, 50%) var(--bv-pos-y, 50%);
-  transform: scale(var(--bv-zoom, 1));
-  transform-origin: var(--bv-pos-x, 50%) var(--bv-pos-y, 50%);
-  display: block;
-}
-.bg-video-empty-layer {
-  position: absolute;
-  inset: 0;
-  z-index: -1000;
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
-  display: flex; align-items: center; justify-content: center;
-  color: rgba(255,255,255,0.35);
-  font-size: 13px; text-align: center;
-}
-/* has-bg-video: 텍스트 색상 강제 (has-bg-image와 동일) */
-.card.has-bg-video {
-  background-color: #1a1a1a !important;
-  overflow: hidden;
-}
-.card.has-bg-video .card-inner { position: relative; z-index: auto; }
-.card.has-bg-video, .card.has-bg-video * { color: #ffffff !important; }
-.card.has-bg-video .footer-mark,
-.card.has-bg-video .page-num { background: rgba(0,0,0,0.5); padding: 8px 16px; border-radius: 100px; }
-.card.has-bg-video-empty { background-color: #0f0f1a !important; overflow: hidden; }
+/* 영상 오버레이 — 이미지 오버레이와 동일한 방식으로 자유 배치 */
+.ov-video { overflow: hidden; border-radius: 4px; }
+.ov-video video { display: block; }
+/* 영상 카드 타입: 기본 배경 검정 (오버레이 영상이 잘 보이도록) */
+.card.lo-video-upload { background: #111 !important; }
 
 /* === 이미지 업로드 영역 === */
 .upload-area {
@@ -1778,7 +1750,7 @@ const DEFAULTS = {
   list: () => ({ title:"리스트 제목", sub:"보조 설명", items:["항목 1","항목 2","항목 3"], descItems:[{title:"항목 1",desc:"설명"},{title:"항목 2",desc:"설명"}], timelineItems:[{label:"단계 1",content:"내용"},{label:"단계 2",content:"내용"}] }),
   highlight: () => ({ quote:"인용 또는\n핵심 메시지", attribution:"출처", stat:"73", statUnit:"%", statPre:"수료생 중", statLabel:"6개월 내 취업", statNote:"*2024 조사", emphPre:"결국 중요한 건", emphasis:"꾸준함", emphPost:"이라는 걸 느낀 한 주", tipLabel:"PRO TIP", tipBody:"여기에 팁 내용을 적으세요" }),
   closing: () => ({ eyebrow:"NEXT", title:"여기에 마무리 메시지", account:"@dailysync_ai", hashtag:"#태그1 #태그2", saveReason:"다시 보고 싶을 때 꺼내 볼 수 있게", askQuestion:"여러분의 생각은?", askCta:"댓글로 들려주세요 💬", subtitle:"끝까지 읽어주셔서 감사합니다" }),
-  video: () => ({ bgVideo: null }),
+  video: () => ({}),
 };
 
 // ====================================================================
@@ -1998,6 +1970,14 @@ function renderOverlayEl(o) {
     return `<div class="ov-el ov-image" data-ov="${o.id}" style="${boxStyle}">`
       + `<img src="${esc(o.url || "")}" crossorigin="anonymous" style="${imgStyle}" onerror="this.style.opacity=0.2"></div>`;
   }
+  if (o.type === "video") {
+    const hasH = typeof o.h === "number" && o.h > 0;
+    const wVal = o.w ?? 80;
+    const boxStyle = `${pos}width:${wVal}%;${hasH ? `height:${o.h}%;` : ""}overflow:hidden;border-radius:4px;`;
+    const vidStyle = `width:100%;${hasH ? "height:100%;object-fit:cover;" : "height:auto;"}display:block;`;
+    return `<div class="ov-el ov-video" data-ov="${o.id}" style="${boxStyle}">`
+      + `<video src="${esc(o.url || "")}" autoplay muted loop playsinline style="${vidStyle}"></video></div>`;
+  }
   if (o.type === "badge") {
     return `<div class="ov-el ov-badge" data-ov="${o.id}" style="${pos}font-size:${o.size ?? 40}px;`
       + `${o.bg ? `background:${o.bg};` : ""}${o.color ? `color:${o.color};` : ""}">${nl(o.text || "")}</div>`;
@@ -2095,8 +2075,8 @@ function applySelection(scaler, card) {
   //                   이미지 자체 크기는 그대로 → 컨테이너 밖으로 나간 영역이 가려짐(잘림).
   // 핸들 위치는 CSS 기본(컨테이너 가장자리). 컨테이너가 변 드래그로 줄어들면 핸들도 자연스럽게 따라옴.
   // 그 외(텍스트/배지/필드)는 기존 4모서리만.
-  const isImage = el.classList.contains("ov-image");
-  const corners = isImage ? ["nw", "ne", "sw", "se", "n", "e", "s", "w"] : ["nw", "ne", "sw", "se"];
+  const isImageLike = el.classList.contains("ov-image") || el.classList.contains("ov-video");
+  const corners = isImageLike ? ["nw", "ne", "sw", "se", "n", "e", "s", "w"] : ["nw", "ne", "sw", "se"];
   corners.forEach(corner => {
     const h = document.createElement("div");
     h.className = "ov-handle"; h.dataset.corner = corner;
@@ -2137,15 +2117,17 @@ function startResize(e, el, corner, scaler, card) {
     if (ov) {
       origSize = ov.size || (ov.type === "badge" ? 40 : 56);
       origWpct = ov.w || 40;
-      origHpct = (typeof ov.h === "number" && ov.h > 0) ? ov.h : (ov.type === "image" ? (origPxH / cardRect.height * 100) : 0);
-      if (ov.type === "image") {
-        startWpct = ov.w;
+      origHpct = (typeof ov.h === "number" && ov.h > 0) ? ov.h : ((ov.type === "image" || ov.type === "video") ? (origPxH / cardRect.height * 100) : 0);
+      if (ov.type === "image" || ov.type === "video") {
+        startWpct = ov.w ?? 80;
         startHpct = (typeof ov.h === "number" && ov.h > 0) ? ov.h : (origPxH / cardRect.height * 100);
         startXpct = ov.x ?? 0;
         startYpct = ov.y ?? 0;
-        startImgL = (typeof ov.imgL === "number") ? ov.imgL : 0;
-        startImgT = (typeof ov.imgT === "number") ? ov.imgT : 0;
-        startImgW = (typeof ov.imgW === "number" && ov.imgW > 0) ? ov.imgW : 100;
+        if (ov.type === "image") {
+          startImgL = (typeof ov.imgL === "number") ? ov.imgL : 0;
+          startImgT = (typeof ov.imgT === "number") ? ov.imgT : 0;
+          startImgW = (typeof ov.imgW === "number" && ov.imgW > 0) ? ov.imgW : 100;
+        }
       }
     }
   } else {
@@ -2156,7 +2138,7 @@ function startResize(e, el, corner, scaler, card) {
   const topMoves  = (corner === "nw" || corner === "ne");
   const startMX = e.clientX, startMY = e.clientY;
   // 변 드래그를 시작하는 순간 컨테이너 h 가 자동이면 명시값으로 변환 (변 동작이 의미 있도록).
-  const willActivateH = (ov && ov.type === "image" && (isVertEdge || isHorzEdge) && !(ov.h > 0));
+  const willActivateH = (ov && (ov.type === "image" || ov.type === "video") && (isVertEdge || isHorzEdge) && !(ov.h > 0));
   if (willActivateH) {
     ov.h = origHpct;
     el.style.height = ov.h + "%";
@@ -2226,6 +2208,42 @@ function startResize(e, el, corner, scaler, card) {
           ov.imgT = (startImgT * startHpct - 100 * (newY - startYpct)) / newH;
         }
         _applyImgContainerDom(el, ov);
+      }
+    } else if (ov.type === "video") {
+      if (isCorner) {
+        const xRatio = Math.max(0.2, Math.min(6, Math.abs(ev.clientX - fixed.x) / origW));
+        ov.w = Math.max(5, Math.min(100, origWpct * xRatio));
+        ov.h = Math.max(5, Math.min(100, origHpct * xRatio));
+        el.style.width = ov.w + "%";
+        el.style.height = ov.h + "%";
+        const nr = el.getBoundingClientRect();
+        const newLeft = leftMoves ? (fixed.x - nr.width) : fixed.x;
+        const newTop  = topMoves  ? (fixed.y - nr.height) : fixed.y;
+        ov.x = Math.max(0, Math.min(100, (newLeft - cardRect.left) / cardRect.width * 100));
+        ov.y = Math.max(0, Math.min(100, (newTop  - cardRect.top)  / cardRect.height * 100));
+        el.style.left = ov.x + "%"; el.style.top = ov.y + "%";
+      } else if (isHorzEdge) {
+        const dxPct = (ev.clientX - startMX) / cardRect.width * 100;
+        if (corner === "e") {
+          ov.w = Math.max(5, Math.min(100, startWpct + dxPct));
+        } else {
+          const newX = Math.max(0, Math.min(95, startXpct + dxPct));
+          ov.w = Math.max(5, Math.min(100, startWpct - (newX - startXpct)));
+          ov.x = newX;
+          el.style.left = ov.x + "%";
+        }
+        el.style.width = ov.w + "%";
+      } else if (isVertEdge) {
+        const dyPct = (ev.clientY - startMY) / cardRect.height * 100;
+        if (corner === "s") {
+          ov.h = Math.max(5, Math.min(100, startHpct + dyPct));
+        } else {
+          const newY = Math.max(0, Math.min(95, startYpct + dyPct));
+          ov.h = Math.max(5, Math.min(100, startHpct - (newY - startYpct)));
+          ov.y = newY;
+          el.style.top = ov.y + "%";
+        }
+        el.style.height = ov.h + "%";
       }
     } else {
       // 텍스트/배지 — 가로 비율로 글자 크기 (코너만)
@@ -2567,26 +2585,14 @@ document.addEventListener("paste", e => {
 function renderCard(card, pageNum, total) {
   const key = `${card.type}/${card.layout}`;
   const inner = RENDERERS[key] ? RENDERERS[key](card.data) : `<div class="card-inner">레이아웃 오류: ${key}</div>`;
-  const isVideo = card.type === "video";
   const isCover = card.type === "cover";
   const isLast = pageNum === total;
 
   const showSwipe = isCover && total > 1;
   const brand = STATE.brand;
 
-  // 영상 카드 배경 — bgVideo 를 배경 레이어로 렌더
-  const bv = isVideo ? (card.data && card.data.bgVideo) : null;
-  const hasBv = bv && bv.url;
-  const bvScale = (hasBv && typeof bv.scale === "number" && bv.scale > 0) ? bv.scale : 1;
-  const bvOffX = hasBv && typeof bv.offsetX === "number" ? bv.offsetX : 50;
-  const bvOffY = hasBv && typeof bv.offsetY === "number" ? bv.offsetY : 50;
-  const bgVideoLayer = isVideo ? (hasBv
-    ? `<div class="bg-video-layer" style="--bv-zoom:${bvScale};--bv-pos-x:${bvOffX}%;--bv-pos-y:${bvOffY}%"><video src="${esc(bv.url)}" autoplay muted loop playsinline></video></div>`
-    : `<div class="bg-video-empty-layer"><div>🎬 편집창에서 MP4를 업로드하세요</div></div>`) : "";
-  const bgVideoClass = isVideo ? (hasBv ? " has-bg-video" : " has-bg-video-empty") : "";
-
   // 배경 이미지 (per-card) — 전체(full) 또는 부분(band) 모드
-  const bg = !isVideo && (card.data && card.data.bgImage);
+  const bg = card.data && card.data.bgImage;
   const hasBg = bg && bg.url;
   const bandMode = hasBg && bg.mode === "band";
   const bandSide = ["top", "bottom", "left", "right"].includes(bg?.side) ? bg.side : "top";
@@ -2605,14 +2611,13 @@ function renderCard(card, pageNum, total) {
     if (bandMode) styleVars.push(`--band-ratio: ${bandRatio}`);
   }
   const bgStyle = styleVars.length ? `style="${styleVars.join('; ')}"` : "";
-  const bgClass = !hasBg ? bgVideoClass : (bandMode ? ` bg-band bg-band-${bandSide}` : " has-bg-image");
+  const bgClass = !hasBg ? "" : (bandMode ? ` bg-band bg-band-${bandSide}` : " has-bg-image");
   const bgLayer = hasBg ? `
       <div class="bg-image-layer" style="background-image:url('${esc(bg.url)}')"></div>
       <div class="bg-image-overlay"></div>` : "";
 
   const html = `
     <div class="card lo-${card.type}-${card.layout}${bgClass}" ${bgStyle}>
-      ${bgVideoLayer}
       ${bgLayer}
       ${inner}
       ${renderOverlays(card)}
@@ -3258,7 +3263,7 @@ function previewLabel(card) {
     if (card.layout === "ask") return (d.askQuestion || "댓글 유도").split("\n")[0];
     return (d.title || "마무리").split("\n")[0];
   }
-  if (card.type === "video") return (d.bgVideo && d.bgVideo.name) || "영상 카드";
+  if (card.type === "video") { const vov = (card.overlays || []).find(o => o.type === "video"); return (vov && vov.name) || "영상 카드"; }
   return "";
 }
 
@@ -3495,7 +3500,7 @@ function renderFields(card) {
   }
 
   // ===== 요소(오버레이) 추가 섹션 (P5) — 자유 배치 텍스트/배지/이미지 =====
-  const OVT = { text: "텍스트", badge: "배지", image: "이미지" };
+  const OVT = { text: "텍스트", badge: "배지", image: "이미지", video: "영상" };
   const ovItems = (card.overlays || []).map((o) => {
     const head = `<div style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text-faint);margin-bottom:5px">${OVT[o.type] || o.type} <span class="ov-pos" data-ov="${o.id}">${Math.round(o.x ?? 30)}%, ${Math.round(o.y ?? 30)}%</span><button class="icon-btn ov-del" data-ov="${o.id}" title="삭제" style="margin-left:auto">×</button></div>`;
     let bodyHtml;
@@ -3510,6 +3515,11 @@ function renderFields(card) {
         <label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-faint);margin-top:5px" title="가로 길이 (%)">가로<input type="range" class="ov-width" data-ov="${o.id}" min="5" max="95" step="1" value="${o.w ?? 30}" style="flex:1;accent-color:var(--accent)"><span class="ov-width-val" data-ov="${o.id}" style="min-width:30px;text-align:right;font-variant-numeric:tabular-nums">${o.w ?? 30}%</span></label>
         <label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-faint);margin-top:4px" title="세로 길이 (%) — 0이면 원본 비율 유지(잘림 없음)">세로<input type="range" class="ov-height" data-ov="${o.id}" min="0" max="95" step="1" value="${hVal}" style="flex:1;accent-color:var(--accent)"><span class="ov-height-val" data-ov="${o.id}" style="min-width:30px;text-align:right;font-variant-numeric:tabular-nums">${hVal > 0 ? hVal + "%" : "자동"}</span></label>
         ${hasCrop ? `<button type="button" class="ov-crop-reset" data-ov="${o.id}" style="margin-top:6px;width:100%;background:none;border:1px solid var(--c-line,#e3e7ef);color:var(--text-faint);cursor:pointer;font-size:10px;padding:3px;border-radius:4px">크롭 리셋 ↺</button>` : ""}`;
+    } else if (o.type === "video") {
+      const hVal = (typeof o.h === "number" && o.h > 0) ? o.h : 0;
+      bodyHtml = `<button class="btn btn-ghost ov-vid-replace" data-ov="${o.id}" style="width:100%;font-size:11px">🎬 영상 교체</button>
+        <label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-faint);margin-top:5px" title="가로 길이 (%)">가로<input type="range" class="ov-width" data-ov="${o.id}" min="5" max="100" step="1" value="${o.w ?? 80}" style="flex:1;accent-color:var(--accent)"><span class="ov-width-val" data-ov="${o.id}" style="min-width:30px;text-align:right;font-variant-numeric:tabular-nums">${o.w ?? 80}%</span></label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-faint);margin-top:4px" title="세로 길이 (%) — 0이면 원본 비율 유지">세로<input type="range" class="ov-height" data-ov="${o.id}" min="0" max="100" step="1" value="${hVal}" style="flex:1;accent-color:var(--accent)"><span class="ov-height-val" data-ov="${o.id}" style="min-width:30px;text-align:right;font-variant-numeric:tabular-nums">${hVal > 0 ? hVal + "%" : "자동"}</span></label>`;
     } else {
       bodyHtml = `<textarea class="ta-auto ta-compact ov-text-in" data-ov="${o.id}" rows="1" placeholder="${OVT[o.type]} 내용" style="width:100%">${esc(o.text || "")}</textarea>
         <label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-faint);margin-top:5px">크기<input type="range" class="ov-size" data-ov="${o.id}" min="20" max="180" step="2" value="${o.size ?? (o.type === 'badge' ? 40 : 56)}" style="flex:1;accent-color:var(--accent)"></label>
@@ -3542,45 +3552,23 @@ function renderFields(card) {
       <span id="${id}-val" style="min-width:36px;text-align:right;font-variant-numeric:tabular-nums">${val}${suffix}</span>
     </label>`;
 
-  // ===== 영상 카드: 영상 배경 섹션 =====
+  // ===== 영상 카드: 영상 오버레이 추가 섹션 =====
   if (T === "video") {
-    const vid = d.bgVideo;
-    const hasVid = !!(vid && vid.url);
-    const vidScale  = hasVid && typeof vid.scale   === "number" ? Math.round(vid.scale * 100) : 100;
-    const vidOffX   = hasVid && typeof vid.offsetX === "number" ? vid.offsetX : 50;
-    const vidOffY   = hasVid && typeof vid.offsetY === "number" ? vid.offsetY : 50;
     html += `
     <div class="field" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--c-line,#e3e7ef)">
       <div class="field-label-row">
-        <label>🎬 배경 영상 (MP4)</label>
-        <span class="counter" style="background:none">${hasVid ? "사용 중" : "사용 안 함"}</span>
+        <label>🎬 영상 추가</label>
+        <span class="counter" style="background:none">오버레이로 자유 배치</span>
       </div>
       <input type="file" id="video-file-input" accept="video/mp4,.mp4" style="display:none">
-      ${hasVid ? `
-        <div style="display:flex;gap:10px;align-items:flex-start;margin-top:6px">
-          <video src="${esc(vid.url)}" style="width:88px;height:110px;object-fit:cover;border-radius:6px;border:1px solid var(--c-line,#e3e7ef);background:#000;flex-shrink:0" autoplay muted loop playsinline></video>
-          <div style="flex:1;display:flex;flex-direction:column;gap:6px">
-            <div style="font-size:11px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(vid.name || "영상")}</div>
-            <button class="btn btn-ghost" id="btn-video-replace" style="font-size:11px">📁 영상 교체</button>
-            <button class="btn btn-ghost" id="btn-video-remove" style="font-size:11px;color:var(--danger,#e11)">✕ 영상 제거</button>
-          </div>
+      <div id="video-upload-drop" style="display:flex;gap:10px;align-items:center;padding:14px;border:2px dashed var(--line);border-radius:8px;cursor:pointer;transition:border-color .15s;background:var(--panel);margin-top:6px">
+        <span style="font-size:24px">🎬</span>
+        <div style="flex:1">
+          <div style="font-size:12px;font-weight:600;color:var(--text)">MP4 업로드 → 오버레이로 추가</div>
+          <div style="font-size:11px;color:var(--text-faint);margin-top:2px">추가 후 프리뷰에서 드래그·리사이즈</div>
         </div>
-        <div style="margin-top:8px;padding:8px;background:var(--bg-soft,rgba(0,0,0,0.03));border-radius:6px">
-          ${sliderRow("vid-scale", "확대  ", 50, 300, 5, vidScale)}
-          ${sliderRow("vid-offx",  "← →  ", 0, 100, 1, vidOffX)}
-          ${sliderRow("vid-offy",  "↑ ↓  ", 0, 100, 1, vidOffY)}
-          <button type="button" id="vid-transform-reset" style="margin-top:6px;width:100%;background:none;border:1px solid var(--c-line,#e3e7ef);color:var(--text-faint);cursor:pointer;font-size:11px;padding:4px;border-radius:4px">확대·위치 원래대로 ↺</button>
-        </div>
-      ` : `
-        <div id="video-upload-drop" style="display:flex;gap:10px;align-items:center;padding:20px 14px;border:2px dashed var(--line);border-radius:8px;cursor:pointer;transition:border-color .15s;background:var(--panel);margin-top:6px">
-          <span style="font-size:32px">🎬</span>
-          <div style="flex:1">
-            <div style="font-size:13px;font-weight:600;color:var(--text)">MP4 영상 업로드</div>
-            <div style="font-size:11px;color:var(--text-faint);margin-top:3px">클릭 또는 드래그 · 최대 300MB</div>
-          </div>
-          <button type="button" class="btn" id="btn-video-pick" style="font-size:11px;padding:6px 12px;flex-shrink:0">파일 선택</button>
-        </div>
-      `}
+        <button type="button" class="btn" id="btn-video-pick" style="font-size:11px;padding:5px 10px;flex-shrink:0">파일 선택</button>
+      </div>
     </div>`;
     return html;
   }
@@ -3652,7 +3640,7 @@ function getUploadSessionId() {
   return window.__cardnewsTempSession;
 }
 
-async function uploadVideoFile(file, card) {
+async function uploadVideoFile(file, card, replaceOvId = null) {
   if (!file) return;
   const ext = (file.name || "").split(".").pop().toLowerCase();
   if (ext !== "mp4" && !file.type.includes("mp4")) {
@@ -3670,7 +3658,15 @@ async function uploadVideoFile(file, card) {
     if (r.status === 401) { window.location.href = "/login"; return; }
     const j = await r.json();
     if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
-    card.data.bgVideo = { url: j.url, name: file.name, scale: 1, offsetX: 50, offsetY: 50 };
+    if (replaceOvId) {
+      const ov = (card.overlays || []).find(o => o.id === replaceOvId);
+      if (ov) { ov.url = j.url; ov.name = file.name; SEL = { kind: "ov", key: replaceOvId }; }
+    } else {
+      if (!card.overlays) card.overlays = [];
+      const newId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      card.overlays.push({ id: newId, type: "video", url: j.url, name: file.name, x: 0, y: 0, w: 100, h: 100 });
+      SEL = { kind: "ov", key: newId };
+    }
     if (pt) pt.remove();
     renderEditor(); renderPreview(); autoSave();
     if (typeof toast === "function") toast("✓ 영상 업로드 완료", "success");
@@ -4120,71 +4116,39 @@ function bindEditorEvents(card) {
   });
 
   // 영상 카드 업로드 이벤트
-  const videoInput  = body.querySelector("#video-file-input");
-  const videoDrop   = body.querySelector("#video-upload-drop");
-  const btnVideoPick    = body.querySelector("#btn-video-pick");
-  const btnVideoReplace = body.querySelector("#btn-video-replace");
-  const btnVideoRemove  = body.querySelector("#btn-video-remove");
-
-  const triggerVideoUpload = (f) => { if (f) uploadVideoFile(f, card); };
+  const videoInput = body.querySelector("#video-file-input");
+  const videoDrop  = body.querySelector("#video-upload-drop");
+  const btnVideoPick = body.querySelector("#btn-video-pick");
 
   if (videoInput) {
     videoInput.onchange = (e) => {
       const f = e.target.files && e.target.files[0];
-      triggerVideoUpload(f);
+      const replaceId = videoInput.dataset.replaceOv || null;
+      if (f) uploadVideoFile(f, card, replaceId);
+      delete videoInput.dataset.replaceOv;
       e.target.value = "";
     };
   }
-  if (btnVideoPick)    btnVideoPick.onclick    = () => videoInput && videoInput.click();
-  if (btnVideoReplace) btnVideoReplace.onclick = () => videoInput && videoInput.click();
-  if (btnVideoRemove) {
-    btnVideoRemove.onclick = () => {
-      card.data.bgVideo = null;
-      renderEditor(); renderPreview(); autoSave();
-    };
-  }
+  if (btnVideoPick) btnVideoPick.onclick = () => videoInput && videoInput.click();
   if (videoDrop) {
-    videoDrop.onclick = () => videoInput && videoInput.click();
+    videoDrop.onclick = (e) => { if (!e.target.closest("button")) videoInput && videoInput.click(); };
     videoDrop.addEventListener("dragover",  e => { e.preventDefault(); videoDrop.style.borderColor = "var(--accent)"; });
     videoDrop.addEventListener("dragleave", () => { videoDrop.style.borderColor = ""; });
     videoDrop.addEventListener("drop", e => {
       e.preventDefault(); videoDrop.style.borderColor = "";
       const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-      triggerVideoUpload(f);
+      if (f) uploadVideoFile(f, card);
     });
   }
 
-  // 영상 배경 슬라이더 — scale / offsetX / offsetY
-  const vidScale = body.querySelector("#vid-scale");
-  if (vidScale) vidScale.oninput = (e) => {
-    if (!card.data.bgVideo) return;
-    const pct = +e.target.value;
-    card.data.bgVideo.scale = pct / 100;
-    body.querySelector("#vid-scale-val").textContent = pct + "%";
-    renderPreview(); autoSave();
-  };
-  const vidOffX = body.querySelector("#vid-offx");
-  if (vidOffX) vidOffX.oninput = (e) => {
-    if (!card.data.bgVideo) return;
-    card.data.bgVideo.offsetX = +e.target.value;
-    body.querySelector("#vid-offx-val").textContent = e.target.value + "%";
-    renderPreview(); autoSave();
-  };
-  const vidOffY = body.querySelector("#vid-offy");
-  if (vidOffY) vidOffY.oninput = (e) => {
-    if (!card.data.bgVideo) return;
-    card.data.bgVideo.offsetY = +e.target.value;
-    body.querySelector("#vid-offy-val").textContent = e.target.value + "%";
-    renderPreview(); autoSave();
-  };
-  const vidReset = body.querySelector("#vid-transform-reset");
-  if (vidReset) vidReset.onclick = () => {
-    if (!card.data.bgVideo) return;
-    card.data.bgVideo.scale   = 1;
-    card.data.bgVideo.offsetX = 50;
-    card.data.bgVideo.offsetY = 50;
-    renderEditor(); renderPreview(); autoSave();
-  };
+  // 영상 오버레이 교체 버튼
+  body.querySelectorAll(".ov-vid-replace").forEach(b => {
+    b.onclick = () => {
+      if (!videoInput) return;
+      videoInput.dataset.replaceOv = b.dataset.ov;
+      videoInput.click();
+    };
+  });
 }
 
 function updateAllCounters() {
@@ -4789,11 +4753,11 @@ async function exportSingleCard(cardId) {
   if (idx < 0) return;
   const card = STATE.cards[idx];
   if (card.type === "video") {
-    const vid = card.data && card.data.bgVideo;
-    if (vid && vid.url) {
+    const vidOv = (card.overlays || []).find(o => o.type === "video");
+    if (vidOv && vidOv.url) {
       const a = document.createElement("a");
-      a.href = vid.url;
-      a.download = vid.name || "video.mp4";
+      a.href = vidOv.url;
+      a.download = vidOv.name || "video.mp4";
       a.click();
       toast("✓ 영상 파일 다운로드 완료", "success");
     } else {
